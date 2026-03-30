@@ -230,7 +230,7 @@ code("5", [
 # Cell 6 — Config (UNCHANGED)
 code("6", [
     "config = default_hst_config()",
-    "RUN_PINN = False  # Set to True to benchmark the optional PINN solver when PyTorch is available",
+    "RUN_PINN = TORCH_AVAILABLE  # Auto-run PINN when PyTorch is available; set False to skip manually",
     "",
     "# Ensure data dir resolves to the project-root data/ regardless of CWD",
     "config.data.data_dir = PROJECT_ROOT / \"data\"",
@@ -760,16 +760,16 @@ code("48", [
 md("48a", [
     "## 18b — Optional PINN Benchmark",
     "",
-    "The `pinn` solver is available as an **optional neural-field baseline**. It is excluded from the default benchmark because it depends on PyTorch and is typically slower than the FFT-based iterative solvers.",
+    "The `pinn` solver is available as an **optional neural-field baseline**. By default, this notebook runs it automatically whenever PyTorch imports successfully. If PyTorch is unavailable, it is skipped cleanly with a status message.",
     "",
-    "If you want to run it in this notebook:",
+    "If you want to control this behavior manually:",
     "1. install the optional dependency (`pip install -e \".[pinn]\"`),",
-    "2. set `RUN_PINN = True` in the setup cell,",
+    "2. set `RUN_PINN = False` in the setup cell to skip it, or leave the auto-detected default,",
     "3. re-run the notebook from the top.",
 ])
 code("48b", [
     "pinn_result = None",
-    "pinn_status = \"not requested\"",
+    "pinn_status = \"pending\" if RUN_PINN else \"disabled\"",
     "",
     "if RUN_PINN and not TORCH_AVAILABLE:",
     "    pinn_status = f\"unavailable: {TORCH_IMPORT_ERROR}\"",
@@ -794,7 +794,7 @@ code("48b", [
     "        f\"  PINN  — {pinn_result.n_iterations:4d} iter, Strehl={pinn_result.strehl_ratio:.4f}, RMS={pinn_result.rms_phase_rad:.4f} rad, {pinn_result.elapsed_seconds:.2f}s\"",
     "    )",
     "else:",
-    "    print(\"PINN skipped (set RUN_PINN = True and ensure PyTorch imports successfully to run it).\")",
+    "    print(\"PINN skipped (PyTorch unavailable or RUN_PINN manually disabled).\")",
     "",
     "comparison_results = dict(results)",
     "if pinn_result is not None:",
