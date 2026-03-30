@@ -382,7 +382,7 @@ plt.show()
 print(f"📁 Saved to {config.output_dir / 'strehl_rms_comparison.png'}")
 
 # %% [markdown]
-# ## 10 · Convergence Comparison
+# ## 11 · Convergence Comparison
 
 # %%
 fig, ax = plt.subplots(figsize=(9, 5))
@@ -398,7 +398,7 @@ save_figure(fig, config.output_dir / "convergence_comparison.png")
 plt.show()
 
 # %% [markdown]
-# ## 11 · Results Summary Table
+# ## 12 · Results Summary Table
 
 # %%
 from rich.console import Console
@@ -425,7 +425,7 @@ for name, res in results.items():
 console.print(table)
 
 # %% [markdown]
-# ## 12 · Export Results
+# ## 13 · Export Results
 #
 # Every result is a Pydantic model — we can serialise the non-array metadata
 # to JSON for reproducibility and record-keeping.
