@@ -162,25 +162,25 @@ class AlgorithmConfig(BaseModel):
         description="Use spectral initialization for Wirtinger Flow",
     )
     pinn_hidden_features: int = Field(
-        default=64,
+        default=128,
         ge=8,
         le=512,
         description="Width of the hidden layers for the PINN neural field",
     )
     pinn_hidden_layers: int = Field(
-        default=3,
+        default=4,
         ge=1,
         le=8,
         description="Number of hidden layers for the PINN neural field",
     )
     pinn_learning_rate: float = Field(
-        default=5e-3,
+        default=2e-3,
         gt=0,
         le=1.0,
-        description="Optimizer learning rate for the PINN solver",
+        description="Optimizer learning rate for the PINN solver (Adam phase)",
     )
     pinn_smoothness_weight: float = Field(
-        default=1e-4,
+        default=5e-5,
         ge=0,
         description="Smoothness regularization weight for the PINN phase field",
     )
@@ -192,39 +192,46 @@ class AlgorithmConfig(BaseModel):
     pinn_log_weight: float = Field(
         default=0.05,
         ge=0,
-        description="Weight of the log-intensity loss term for the PINN solver",
+        description="Weight of the log1p-intensity loss term for the PINN solver",
     )
     pinn_grad_clip: float = Field(
         default=1.0,
         ge=0,
         description="Gradient clipping threshold for the PINN solver (0 disables clipping)",
     )
-    pinn_lr_step: int = Field(
-        default=50,
-        ge=1,
-        description="Learning-rate scheduler step interval for the PINN solver",
+    pinn_fourier_features: int = Field(
+        default=64,
+        ge=8,
+        le=512,
+        description="Number of random Fourier features for coordinate encoding (Tancik et al. 2020)",
     )
-    pinn_lr_gamma: float = Field(
-        default=0.7,
+    pinn_fourier_sigma: float = Field(
+        default=4.0,
         gt=0,
-        le=1.0,
-        description="Learning-rate decay factor for the PINN solver",
+        le=20.0,
+        description="Bandwidth of the random Fourier feature encoding",
+    )
+    pinn_lbfgs_lr: float = Field(
+        default=0.5,
+        gt=0,
+        le=5.0,
+        description="Learning rate for the L-BFGS refinement phase",
     )
     pinn_warm_start: bool = Field(
         default=True,
         description="Initialize PINN from a short classical RAAR reconstruction",
     )
     pinn_warm_start_iterations: int = Field(
-        default=80,
+        default=200,
         ge=1,
         le=10_000,
         description="Number of RAAR iterations used for PINN warm start",
     )
     pinn_residual_scale: float = Field(
-        default=0.25,
+        default=0.5,
         ge=0,
         le=2.0,
-        description="Scale of the neural residual phase added on top of the warm-start phase",
+        description="Scale of the neural residual phase (in units of π) added on top of the warm-start phase",
     )
     pinn_device: Literal["auto", "cpu", "mps", "cuda"] = Field(
         default="auto",
