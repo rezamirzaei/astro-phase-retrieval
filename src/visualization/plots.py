@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import TwoSlopeNorm
 
+from src.metrics.quality import compute_ssim
 from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 from src.optics.zernike import ZERNIKE_NAMES
 
@@ -700,6 +701,70 @@ def plot_strehl_rms_bar(
 
     fig.legend(loc="upper right", bbox_to_anchor=(0.95, 0.92), frameon=True)
     fig.tight_layout()
+    return fig
+
+
+def plot_pinn_benchmark(
+    psf: PSFData,
+    results: dict[str, PhaseRetrievalResult],
+) -> plt.Figure:
+    """Focused benchmark view for PINN vs. classical baselines.
+
+    Layout:
+      - Top-left: observed PSF (reference)
+      - Top row remaining columns: reconstructed PSFs
+      - Bottom-left: compact metric legend/notes
+      - Bottom row remaining columns: absolute residuals on log scale
+    """
+    set_style()
+    names = list(results.keys())
+    n_alg = len(names)
+    fig, axes = plt.subplots(2, n_alg + 1, figsize=(4.8 * (n_alg + 1), 9))
+
+    obs = psf.image / max(psf.image.sum(), 1e-30)
+    obs_log = np.log10(obs + 1e-12)
+    im_ref = axes[0, 0].imshow(obs_log, cmap=_CMAP_PSF)
+    axes[0, 0].set_title("Observed PSF")
+    axes[0, 0].axis("off")
+    fig.colorbar(im_ref, ax=axes[0, 0], shrink=0.75, label="log₁₀(I)")
+
+    axes[1, 0].axis("off")
+    axes[1, 0].text(
+        0.03,
+        0.97,
+        "Metrics shown in titles:\nStrehl / RMS / SSIM\nResidual panels show log₁₀(|Obs − Recon|)",
+        transform=axes[1, 0].transAxes,
+        va="top",
+        ha="left",
+        fontsize=11,
+        bbox={"boxstyle": "round", "facecolor": "#f7f7f7", "edgecolor": "#cccccc"},
+    )
+
+    for col, name in enumerate(names, start=1):
+        res = results[name]
+        rec = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
+        ssim = compute_ssim(obs, rec)
+
+        rec_log = np.log10(rec + 1e-12)
+        im_top = axes[0, col].imshow(rec_log, cmap=_CMAP_PSF)
+        axes[0, col].set_title(
+            f"{name}\nStrehl={res.strehl_ratio:.3f}  RMS={res.rms_phase_rad:.3f}\nSSIM={ssim:.5f}",
+            fontsize=11,
+        )
+        axes[0, col].axis("off")
+        fig.colorbar(im_top, ax=axes[0, col], shrink=0.75, label="log₁₀(I)")
+
+        abs_resid = np.abs(obs - rec)
+        im_bot = axes[1, col].imshow(np.log10(abs_resid + 1e-12), cmap="magma")
+        axes[1, col].set_title(
+            f"|Residual|  max={np.max(abs_resid):.2e}\nTime={res.elapsed_seconds:.2f}s  Final cost={res.cost_history[-1]:.3g}",
+            fontsize=10,
+        )
+        axes[1, col].axis("off")
+        fig.colorbar(im_bot, ax=axes[1, col], shrink=0.75, label="log₁₀(|Δ|)")
+
+    fig.suptitle("PINN Benchmark — Real-data comparison against classical baselines", fontsize=15, fontweight="bold")
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
     return fig
 
 

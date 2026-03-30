@@ -40,6 +40,9 @@ class PINNPhaseRetriever(PhaseRetriever):
         torch = modules.torch
         nn = modules.nn
 
+        if self.config.random_seed is not None:
+            torch.manual_seed(self.config.random_seed)
+
         device = self._resolve_device(torch)
         dtype = torch.float32
         pupil_amp_np = self.pupil.amplitude.astype(np.float32)
@@ -60,6 +63,11 @@ class PINNPhaseRetriever(PhaseRetriever):
             hidden_layers=self.config.pinn_hidden_layers,
         ).to(device=device, dtype=dtype)
         optimizer = torch.optim.Adam(model.parameters(), lr=self.config.pinn_learning_rate)
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=max(1, min(self.config.pinn_lr_step, self.config.max_iterations)),
+            gamma=self.config.pinn_lr_gamma,
+        )
 
         cost_history: list[float] = []
         converged = False
@@ -71,20 +79,42 @@ class PINNPhaseRetriever(PhaseRetriever):
         for iteration in range(1, self.config.max_iterations + 1):
             optimizer.zero_grad(set_to_none=True)
 
-            phase = model(coords).reshape(n, n)
+            phase_raw = model(coords).reshape(n, n)
+            phase = np.pi * torch.tanh(phase_raw)
             phase = phase * support
             field = pupil_amp.to(torch.complex64) * torch.exp(1j * phase.to(torch.complex64))
             focal = torch.fft.fftshift(torch.fft.fft2(torch.fft.ifftshift(field)))
             psf = torch.abs(focal) ** 2
             psf = psf / psf.sum().clamp_min(1e-30)
 
+            eps = 1e-12
             data_loss = torch.mean((psf - target) ** 2)
+            sqrt_loss = torch.mean(
+                (
+                    torch.sqrt(psf.clamp_min(eps))
+                    - torch.sqrt(target.clamp_min(eps))
+                ) ** 2
+            )
+            log_loss = torch.mean(
+                (
+                    torch.log10(psf.clamp_min(eps))
+                    - torch.log10(target.clamp_min(eps))
+                ) ** 2
+            )
             smoothness = self._smoothness_penalty(phase, support)
-            loss = data_loss + self.config.pinn_smoothness_weight * smoothness
+            objective = (
+                data_loss
+                + self.config.pinn_sqrt_weight * sqrt_loss
+                + self.config.pinn_log_weight * log_loss
+            )
+            loss = objective + self.config.pinn_smoothness_weight * smoothness
             loss.backward()
+            if self.config.pinn_grad_clip > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), self.config.pinn_grad_clip)
             optimizer.step()
+            scheduler.step()
 
-            loss_value = float(data_loss.detach().cpu())
+            loss_value = float(objective.detach().cpu())
             cost_history.append(loss_value)
             if loss_value < best_loss:
                 best_loss = loss_value
@@ -120,10 +150,13 @@ class PINNPhaseRetriever(PhaseRetriever):
             metadata={
                 "solver": "physics_informed_neural_field",
                 "device": device,
-                "final_data_loss": cost_history[-1] if cost_history else None,
-                "best_data_loss": best_loss,
+                "final_objective": cost_history[-1] if cost_history else None,
+                "best_objective": best_loss,
                 "hidden_features": self.config.pinn_hidden_features,
                 "hidden_layers": self.config.pinn_hidden_layers,
+                "learning_rate": self.config.pinn_learning_rate,
+                "sqrt_weight": self.config.pinn_sqrt_weight,
+                "log_weight": self.config.pinn_log_weight,
             },
         )
 
@@ -204,6 +237,7 @@ class _PhaseField:
                 nn.init.xavier_uniform_(module.weight)
                 nn.init.zeros_(module.bias)
         return model
+
 
 
 

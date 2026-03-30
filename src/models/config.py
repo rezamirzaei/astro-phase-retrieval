@@ -174,7 +174,7 @@ class AlgorithmConfig(BaseModel):
         description="Number of hidden layers for the PINN neural field",
     )
     pinn_learning_rate: float = Field(
-        default=1e-2,
+        default=5e-3,
         gt=0,
         le=1.0,
         description="Optimizer learning rate for the PINN solver",
@@ -183,6 +183,32 @@ class AlgorithmConfig(BaseModel):
         default=1e-4,
         ge=0,
         description="Smoothness regularization weight for the PINN phase field",
+    )
+    pinn_sqrt_weight: float = Field(
+        default=0.2,
+        ge=0,
+        description="Weight of the square-root intensity loss term for the PINN solver",
+    )
+    pinn_log_weight: float = Field(
+        default=0.05,
+        ge=0,
+        description="Weight of the log-intensity loss term for the PINN solver",
+    )
+    pinn_grad_clip: float = Field(
+        default=1.0,
+        ge=0,
+        description="Gradient clipping threshold for the PINN solver (0 disables clipping)",
+    )
+    pinn_lr_step: int = Field(
+        default=50,
+        ge=1,
+        description="Learning-rate scheduler step interval for the PINN solver",
+    )
+    pinn_lr_gamma: float = Field(
+        default=0.7,
+        gt=0,
+        le=1.0,
+        description="Learning-rate decay factor for the PINN solver",
     )
     pinn_device: Literal["auto", "cpu", "mps", "cuda"] = Field(
         default="auto",

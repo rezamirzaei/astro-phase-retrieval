@@ -14,6 +14,7 @@ from src.models.optics import PSFData, PhaseRetrievalResult, PupilModel  # noqa:
 from src.visualization.plots import (  # noqa: E402
     plot_convergence,
     plot_observed_psf,
+    plot_pinn_benchmark,
     plot_pupil,
     plot_recovered_phase,
     plot_reconstructed_psf,
@@ -75,3 +76,14 @@ class TestPlots:
         fig = plot_summary(psf_data, pupil, dummy_result, coeffs)
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
+
+    def test_plot_pinn_benchmark(self, psf_data, dummy_result) -> None:
+        results = {
+            "RAAR": dummy_result.model_copy(update={"algorithm": AlgorithmName.RAAR}),
+            "WF": dummy_result.model_copy(update={"algorithm": AlgorithmName.WIRTINGER_FLOW}),
+            "PINN": dummy_result.model_copy(update={"algorithm": AlgorithmName.PINN}),
+        }
+        fig = plot_pinn_benchmark(psf_data, results)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
