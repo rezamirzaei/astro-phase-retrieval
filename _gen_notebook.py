@@ -213,6 +213,15 @@ code("5", [
     ")",
     "from src.models.optics import PSFData, PhaseRetrievalResult, PupilModel",
     "",
+    "try:",
+    "    import torch",
+    "    TORCH_AVAILABLE = True",
+    "    TORCH_IMPORT_ERROR = None",
+    "except Exception as exc:",
+    "    torch = None",
+    "    TORCH_AVAILABLE = False",
+    "    TORCH_IMPORT_ERROR = repr(exc)",
+    "",
     "logging.basicConfig(level=logging.INFO, format=\"%(asctime)s  %(name)-28s  %(levelname)-8s  %(message)s\", stream=sys.stdout)",
     "",
     "%matplotlib inline",
@@ -221,12 +230,17 @@ code("5", [
 # Cell 6 — Config (UNCHANGED)
 code("6", [
     "config = default_hst_config()",
+    "RUN_PINN = False  # Set to True to benchmark the optional PINN solver when PyTorch is available",
     "",
     "# Ensure data dir resolves to the project-root data/ regardless of CWD",
     "config.data.data_dir = PROJECT_ROOT / \"data\"",
     "config.output_dir = PROJECT_ROOT / \"notebooks\" / \"outputs\"",
     "",
     "print(config.model_dump_json(indent=2))",
+    "print(f\"PyTorch available: {TORCH_AVAILABLE}\")",
+    "if TORCH_IMPORT_ERROR:",
+    "    print(f\"PyTorch import note: {TORCH_IMPORT_ERROR}\")",
+    "print(f\"RUN_PINN = {RUN_PINN}\")",
 ])
 
 # Cell 7 — Download header (UNCHANGED)
@@ -743,8 +757,48 @@ code("48", [
     "    results[alg_name.value.upper()] = res",
     "    print(f\"  {alg_name.value.upper():5s} \\u2014 {res.n_iterations:4d} iter, Strehl={res.strehl_ratio:.4f}, RMS={res.rms_phase_rad:.4f} rad, {res.elapsed_seconds:.2f}s\")",
 ])
+md("48a", [
+    "## 18b — Optional PINN Benchmark",
+    "",
+    "The `pinn` solver is available as an **optional neural-field baseline**. It is excluded from the default benchmark because it depends on PyTorch and is typically slower than the FFT-based iterative solvers.",
+    "",
+    "If you want to run it in this notebook:",
+    "1. install the optional dependency (`pip install -e \".[pinn]\"`),",
+    "2. set `RUN_PINN = True` in the setup cell,",
+    "3. re-run the notebook from the top.",
+])
+code("48b", [
+    "pinn_result = None",
+    "pinn_status = \"not requested\"",
+    "",
+    "if RUN_PINN and not TORCH_AVAILABLE:",
+    "    pinn_status = f\"unavailable: {TORCH_IMPORT_ERROR}\"",
+    "elif RUN_PINN:",
+    "    pinn_cfg = AlgorithmConfig(",
+    "        name=AlgorithmName.PINN,",
+    "        max_iterations=150,",
+    "        random_seed=42,",
+    "        pinn_hidden_features=32,",
+    "        pinn_hidden_layers=2,",
+    "        pinn_learning_rate=1e-2,",
+    "        pinn_smoothness_weight=1e-4,",
+    "    )",
+    "    pinn_result = AlgorithmRegistry.create(pinn_cfg, pupil).run(psf_data_resized)",
+    "    pinn_status = \"ok\"",
+    "    print(",
+    "        f\"  PINN  — {pinn_result.n_iterations:4d} iter, Strehl={pinn_result.strehl_ratio:.4f}, RMS={pinn_result.rms_phase_rad:.4f} rad, {pinn_result.elapsed_seconds:.2f}s\"",
+    "    )",
+    "else:",
+    "    print(\"PINN skipped (set RUN_PINN = True and ensure PyTorch imports successfully to run it).\")",
+    "",
+    "comparison_results = dict(results)",
+    "if pinn_result is not None:",
+    "    comparison_results[\"PINN\"] = pinn_result",
+    "",
+    "print(f\"PINN status: {pinn_status}\")",
+])
 code("49", [
-    "fig = plot_algorithm_comparison(results, support)",
+    "fig = plot_algorithm_comparison(comparison_results, support)",
     "save_figure(fig, config.output_dir / \"algorithm_comparison.png\")",
     "fig",
 ])
@@ -756,7 +810,7 @@ md("50", [
     "A comprehensive N-row \u00d7 4-column dashboard showing, for every algorithm: the recovered wavefront phase (heatmap), reconstructed PSF (log heatmap), residual map (diverging heatmap), and azimuthally-averaged radial profile (line plot). This single figure makes it easy to compare **how** each algorithm reconstructs the wavefront differently.",
 ])
 code("51", [
-    "fig = plot_algorithm_dashboard(psf_data_resized, results, support, pupil)",
+    "fig = plot_algorithm_dashboard(psf_data_resized, comparison_results, support, pupil)",
     "save_figure(fig, config.output_dir / \"algorithm_dashboard.png\")",
     "fig",
 ])
@@ -768,7 +822,7 @@ md("52", [
     "A grouped bar chart with dual y-axes: Strehl ratio (blue, left axis) and RMS wavefront phase error in radians (red, right axis). Value labels on each bar make quantitative comparison immediate.",
 ])
 code("53", [
-    "fig = plot_strehl_rms_bar(results)",
+    "fig = plot_strehl_rms_bar(comparison_results)",
     "save_figure(fig, config.output_dir / \"strehl_rms_comparison.png\")",
     "fig",
 ])
@@ -777,15 +831,15 @@ code("53", [
 md("54", [
     "## 21 \u2014 Convergence Comparison",
     "",
-    "Plotting the focal-plane cost function vs. iteration for all seven algorithms on a single log-scale axis. HIO, RAAR, and the SOTA algorithms (WF, DR, ADMM) typically converge faster than ER/GS due to their advanced update rules.",
+    "Plotting the focal-plane cost function vs. iteration for the default iterative algorithms (and optional PINN if enabled) on a single log-scale axis. HIO, RAAR, and the SOTA algorithms (WF, DR, ADMM) typically converge faster than ER/GS due to their advanced update rules.",
 ])
 code("55", [
     "fig, ax = plt.subplots(figsize=(10, 5))",
-    "for name, res in results.items():",
+    "for name, res in comparison_results.items():",
     "    ax.semilogy(res.cost_history, label=f\"{name} (Strehl={res.strehl_ratio:.3f})\", linewidth=1.5)",
     "ax.set_xlabel(\"Iteration\")",
     "ax.set_ylabel(\"Cost (focal-plane error)\")",
-    "ax.set_title(\"Convergence Comparison \\u2014 All 7 Algorithms\")",
+    "ax.set_title(f\"Convergence Comparison \\u2014 {len(comparison_results)} Algorithms\")",
     "ax.legend(frameon=True, fontsize=8, ncol=2)",
     "ax.grid(True, alpha=0.3)",
     "fig.tight_layout()",
@@ -804,7 +858,7 @@ code("57", [
     "from rich.table import Table",
     "",
     "console = Console()",
-    "table = Table(title=\"Phase Retrieval Results \\u2014 Real HST Data (All 7 Algorithms)\", show_lines=True)",
+    "table = Table(title=f\"Phase Retrieval Results \\u2014 Real HST Data ({len(comparison_results)} Algorithms)\", show_lines=True)",
     "table.add_column(\"Algorithm\", style=\"bold cyan\")",
     "table.add_column(\"Iterations\", justify=\"right\")",
     "table.add_column(\"Converged\", justify=\"center\")",
@@ -812,7 +866,7 @@ code("57", [
     "table.add_column(\"RMS Phase (rad)\", justify=\"right\")",
     "table.add_column(\"Time (s)\", justify=\"right\")",
     "",
-    "for name, res in results.items():",
+    "for name, res in comparison_results.items():",
     "    table.add_row(",
     "        name,",
     "        str(res.n_iterations),",
@@ -831,7 +885,7 @@ md("58", [
     "Every result is a Pydantic model. We serialise the scalar metrics to JSON for reproducibility and downstream analysis.",
 ])
 code("59", [
-    "for name, res in results.items():",
+    "for name, res in comparison_results.items():",
     "    summary = {",
     "        \"algorithm\": res.algorithm.value,",
     "        \"n_iterations\": res.n_iterations,",
@@ -858,7 +912,7 @@ md("60", [
     "What this notebook demonstrates:",
     "",
     "- **Real data, not synthetic**: the PSF was recorded by HST's WFC3/UVIS detector from actual stellar photons collected in orbit.",
-    "- **7 iterative algorithms compared by default**: from the classic ER/GS (1972\u20131982) through RAAR (2005) to state-of-the-art Wirtinger Flow (2015), Douglas-Rachford, and ADMM (2018). The optional `pinn` solver is available separately when PyTorch is installed.",
+    "- **7 iterative algorithms compared by default**: from the classic ER/GS (1972\u20131982) through RAAR (2005) to state-of-the-art Wirtinger Flow (2015), Douglas-Rachford, and ADMM (2018). The optional `pinn` solver can also be run from this notebook when PyTorch is installed and `RUN_PINN = True`.",
     "- **State-of-the-art enhancements**: Nesterov momentum acceleration, adaptive \u03b2 cosine annealing, TV regularization, Poisson noise model, and multi-start optimization are all built into the base class and work with every algorithm.",
     "- **Comprehensive metrics**: Strehl ratio, RMS wavefront error, Zernike decomposition, MTF, SSIM, and Phase Structure Function provide a complete picture of optical quality.",
     "- **Phase retrieval works**: all algorithms successfully recover a wavefront that, when forward-modelled, reproduces the observed PSF structure.",

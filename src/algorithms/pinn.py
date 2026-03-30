@@ -88,7 +88,10 @@ class PINNPhaseRetriever(PhaseRetriever):
             cost_history.append(loss_value)
             if loss_value < best_loss:
                 best_loss = loss_value
-                best_phase = phase.detach().cpu().numpy().astype(np.float64)
+                best_phase = np.asarray(
+                    phase.detach().cpu().to(torch.float32).tolist(),
+                    dtype=np.float64,
+                )
 
             if len(cost_history) >= 2 * window:
                 recent = np.mean(cost_history[-window:])
@@ -201,6 +204,7 @@ class _PhaseField:
                 nn.init.xavier_uniform_(module.weight)
                 nn.init.zeros_(module.bias)
         return model
+
 
 
 
