@@ -170,6 +170,34 @@ class TestEnhancements:
         assert result.metadata["warm_start_objective"] is not None
         assert result.metadata["best_objective"] <= result.metadata["warm_start_objective"] + 1e-12
 
+    @pytest.mark.skipif(not _TORCH_AVAILABLE, reason="PyTorch is not installed")
+    def test_pinn_runs_without_torch_numpy_bridge(
+        self,
+        pupil: PupilModel,
+        psf_data: PSFData,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import torch
+
+        def _raise_numpy_unavailable(self) -> np.ndarray:  # pragma: no cover - exercised via monkeypatch
+            raise RuntimeError("Numpy is not available")
+
+        monkeypatch.setattr(torch.Tensor, "numpy", _raise_numpy_unavailable, raising=True)
+
+        cfg = AlgorithmConfig(
+            name=AlgorithmName.PINN,
+            max_iterations=10,
+            random_seed=42,
+            pinn_hidden_features=16,
+            pinn_hidden_layers=2,
+            pinn_warm_start=True,
+            pinn_warm_start_iterations=5,
+        )
+        result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+        assert result.n_iterations >= 1
+        assert result.recovered_phase.shape == (pupil.grid_size, pupil.grid_size)
+        assert np.isfinite(result.recovered_phase).all()
+
 
 class TestSyntheticRecovery:
     @pytest.mark.parametrize(

@@ -160,7 +160,7 @@ class PINNPhaseRetriever(PhaseRetriever):
 
             if loss_value < best_loss:
                 best_loss = loss_value
-                best_phase = phase.detach().cpu().numpy().astype(np.float64)
+                best_phase = self._tensor_to_numpy(phase)
 
             # Convergence check
             if len(cost_history) >= 2 * window:
@@ -213,7 +213,7 @@ class PINNPhaseRetriever(PhaseRetriever):
                 final_val = float(obj_final.cpu())
                 if final_val < best_loss:
                     best_loss = final_val
-                    best_phase = phase_final.cpu().numpy().astype(np.float64)
+                    best_phase = self._tensor_to_numpy(phase_final)
 
         # =====================================================================
         # Build result
@@ -280,13 +280,25 @@ class PINNPhaseRetriever(PhaseRetriever):
         phase = base_phase + residual
         return phase * support
 
-    @staticmethod
-    def _forward_psf(phase, pupil_amp, torch):
+    def _forward_psf(self, phase, pupil_amp, torch):
         """Differentiable forward model: phase → normalised PSF."""
-        field = pupil_amp.to(torch.complex64) * torch.exp(1j * phase.to(torch.complex64))
+        field = pupil_amp.to(torch.complex64) * torch.exp(
+            1j * phase.to(torch.complex64)
+        )
         focal = torch.fft.fftshift(torch.fft.fft2(torch.fft.ifftshift(field)))
         psf = torch.abs(focal) ** 2
         return psf / psf.sum().clamp_min(1e-30)
+
+    @staticmethod
+    def _tensor_to_numpy(tensor: Any) -> np.ndarray:
+        """Convert a tensor to a NumPy array without using ``Tensor.numpy()``.
+
+        Some PyTorch builds on macOS can import successfully while disabling the
+        torch↔NumPy bridge at runtime (raising ``RuntimeError: Numpy is not
+        available``). Converting through a CPU Python list is slower but robust,
+        and this path is only used for occasional best-snapshot extraction.
+        """
+        return np.asarray(tensor.detach().cpu().tolist(), dtype=np.float64)
 
     # ------------------------------------------------------------------
     # Composite loss
@@ -492,4 +504,9 @@ class PINNPhaseRetriever(PhaseRetriever):
                 "from the torch package before retrying."
             ) from exc
         return _TorchModules(torch=torch, nn=nn)
+
+
+
+
+
 
