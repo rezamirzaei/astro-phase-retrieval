@@ -38,6 +38,15 @@ class PhaseDiversity(PhaseRetriever):
         support = pupil_amp > 0
         defocus_waves = self.config.defocus_waves
 
+        energy_pupil = np.sum(pupil_amp**2)
+        energy_foc = np.sum(target_foc**2)
+        if energy_foc > 0:
+            target_foc *= np.sqrt((energy_pupil * (n**2)) / energy_foc)
+
+        energy_defoc = np.sum(target_defoc**2)
+        if energy_defoc > 0:
+            target_defoc *= np.sqrt((energy_pupil * (n**2)) / energy_defoc)
+
         phase = self._initial_phase(n)
         cost_history: list[float] = []
         converged = False
@@ -138,5 +147,3 @@ class PhaseDiversity(PhaseRetriever):
         g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support]))
         cost = self._focal_cost(target_amplitude, G)
         return g_new, cost
-
-

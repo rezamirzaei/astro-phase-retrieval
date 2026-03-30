@@ -28,19 +28,17 @@ class ErrorReduction(PhaseRetriever):
         G = fftshift(fft2(ifftshift(g)))
 
         # 2. Replace focal-plane amplitude with measured, keep phase
-        G_prime = target_amplitude * np.exp(1j * np.angle(G))
+        # Add small constant to avoid divide-by-zero or instability at deep nulls
+        G_prime = target_amplitude * np.exp(1j * np.angle(G + 1e-12))
 
         # 3. Inverse propagate back to pupil plane
         g_prime = fftshift(ifft2(ifftshift(G_prime)))
 
         # 4. ER: project onto support and enforce known amplitude
         g_new = np.zeros_like(g_prime)
-        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support]))
+        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support] + 1e-12))
 
         # Cost
         cost = self._focal_cost(target_amplitude, G)
 
         return g_new, cost
-
-
-

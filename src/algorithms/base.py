@@ -38,6 +38,12 @@ class PhaseRetriever(ABC):
         n = pupil_amp.shape[0]
         support = pupil_amp > 0
 
+        # Normalise target amplitude to match pupil energy (Parseval's theorem)
+        energy_pupil = np.sum(pupil_amp**2)
+        energy_target = np.sum(target_amp**2)
+        if energy_target > 0:
+            target_amp *= np.sqrt((energy_pupil * (n**2)) / energy_target)
+
         # Initialise complex pupil field with known amplitude + random phase
         phase0 = self._initial_phase(n)
         g = pupil_amp * np.exp(1j * phase0)
@@ -140,8 +146,3 @@ class PhaseRetriever(ABC):
         modelled_amp = np.abs(G)
         scale = target_amp.sum() / max(modelled_amp.sum(), 1e-30)
         return float(np.sum((target_amp - modelled_amp * scale) ** 2))
-
-
-
-
-
