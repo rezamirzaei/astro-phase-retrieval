@@ -1,4 +1,4 @@
-"""Tests for quality metrics (Strehl, RMS, Zernike decomposition)."""
+"""Tests for quality metrics (Strehl, RMS, Zernike, MTF, SSIM, Phase Structure Function)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,11 @@ import numpy as np
 import pytest
 
 from src.metrics.quality import (
+    compute_mtf,
+    compute_phase_structure_function,
     compute_rms_phase,
     compute_rms_wavelength,
+    compute_ssim,
     compute_strehl_ratio,
     zernike_decomposition,
 )
@@ -73,3 +76,65 @@ class TestZernikeDecomposition:
         coeffs = zernike_decomposition(phase, support, n_terms=10)
         # Should have j = 2 .. 11 (skipping piston j=1)
         assert set(coeffs.keys()) == set(range(2, 12))
+
+
+# ── MTF ───────────────────────────────────────────────────────────────────
+
+
+class TestMTF:
+    def test_mtf_dc_is_one(self, pupil: PupilModel) -> None:
+        """MTF at zero frequency should be 1.0 (normalised)."""
+        phase = np.zeros_like(pupil.amplitude)
+        psf = forward_model(pupil.amplitude, phase)
+        freqs, mtf_profile = compute_mtf(psf)
+        assert mtf_profile[0] == pytest.approx(1.0, abs=0.05)
+
+    def test_mtf_monotone_decreasing_for_perfect_psf(self, pupil: PupilModel) -> None:
+        """For a diffraction-limited PSF, MTF should generally decrease with frequency."""
+        phase = np.zeros_like(pupil.amplitude)
+        psf = forward_model(pupil.amplitude, phase)
+        freqs, mtf_profile = compute_mtf(psf)
+        # First few points should be higher than last few
+        assert np.mean(mtf_profile[:5]) > np.mean(mtf_profile[-5:])
+
+    def test_mtf_returns_correct_length(self, pupil: PupilModel) -> None:
+        psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        freqs, mtf_profile = compute_mtf(psf)
+        assert len(freqs) == len(mtf_profile)
+        assert len(freqs) == pupil.grid_size // 2
+
+
+# ── SSIM ──────────────────────────────────────────────────────────────────
+
+
+class TestSSIM:
+    def test_identical_images_ssim_one(self, pupil: PupilModel) -> None:
+        psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        ssim = compute_ssim(psf, psf)
+        assert ssim == pytest.approx(1.0, abs=0.01)
+
+    def test_different_images_ssim_less_than_one(self, pupil: PupilModel, true_phase: np.ndarray) -> None:
+        psf_perfect = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        psf_aberrated = forward_model(pupil.amplitude, true_phase)
+        ssim = compute_ssim(psf_perfect, psf_aberrated)
+        assert ssim < 1.0
+
+
+# ── Phase Structure Function ─────────────────────────────────────────────
+
+
+class TestPhaseStructureFunction:
+    def test_flat_phase_zero_structure(self, pupil: PupilModel, support: np.ndarray) -> None:
+        phase = np.zeros((pupil.grid_size, pupil.grid_size))
+        seps, sf = compute_phase_structure_function(phase, support, max_sep=10)
+        assert len(seps) == 10
+        for val in sf:
+            assert val == pytest.approx(0.0, abs=1e-10)
+
+    def test_nonzero_phase_positive_structure(
+        self, pupil: PupilModel, support: np.ndarray, true_phase: np.ndarray
+    ) -> None:
+        seps, sf = compute_phase_structure_function(true_phase, support, max_sep=10)
+        # Structure function should be non-negative and generally increasing
+        assert all(v >= 0 for v in sf)
+        assert sf[-1] > sf[0]  # larger separations → larger phase differences

@@ -27,13 +27,13 @@ class HybridInputOutput(PhaseRetriever):
         support: np.ndarray,
         iteration: int,
     ) -> tuple[np.ndarray, float]:
-        beta = self.config.beta
+        beta = self._get_beta(iteration)
 
         # 1. Forward propagate
         G = fftshift(fft2(ifftshift(g)))
 
-        # 2. Enforce focal-plane amplitude constraint
-        G_prime = target_amplitude * np.exp(1j * np.angle(G))
+        # 2. Enforce focal-plane amplitude constraint (noise-model aware)
+        G_prime = self._project_fourier(G, target_amplitude)
 
         # 3. Inverse propagate
         g_prime = fftshift(ifft2(ifftshift(G_prime)))

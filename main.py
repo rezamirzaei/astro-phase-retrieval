@@ -337,6 +337,9 @@ algorithms_to_compare = [
     AlgorithmName.GERCHBERG_SAXTON,
     AlgorithmName.HYBRID_INPUT_OUTPUT,
     AlgorithmName.RAAR,
+    AlgorithmName.WIRTINGER_FLOW,
+    AlgorithmName.DOUGLAS_RACHFORD,
+    AlgorithmName.ADMM,
 ]
 
 results: dict[str, PhaseRetrievalResult] = {}

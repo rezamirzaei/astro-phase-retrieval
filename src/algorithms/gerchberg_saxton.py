@@ -28,8 +28,8 @@ class GerchbergSaxton(PhaseRetriever):
         # 1. Pupil → focal via FFT
         G = fftshift(fft2(ifftshift(g)))
 
-        # 2. Enforce focal-plane amplitude constraint
-        G_prime = target_amplitude * np.exp(1j * np.angle(G))
+        # 2. Enforce focal-plane amplitude constraint (noise-model aware)
+        G_prime = self._project_fourier(G, target_amplitude)
 
         # 3. Focal → pupil via inverse FFT
         g_prime = fftshift(ifft2(ifftshift(G_prime)))

@@ -27,6 +27,22 @@ class AlgorithmName(str, Enum):
     HYBRID_INPUT_OUTPUT = "hio"
     RAAR = "raar"
     PHASE_DIVERSITY = "phase_diversity"
+    WIRTINGER_FLOW = "wf"
+    DOUGLAS_RACHFORD = "dr"
+    ADMM = "admm"
+
+
+class BetaSchedule(str, Enum):
+    """Adaptive β scheduling strategies."""
+    CONSTANT = "constant"
+    LINEAR = "linear"
+    COSINE = "cosine"
+
+
+class NoiseModel(str, Enum):
+    """Noise model for focal-plane projection."""
+    GAUSSIAN = "gaussian"
+    POISSON = "poisson"
 
 
 # ---------------------------------------------------------------------------
@@ -91,6 +107,11 @@ class AlgorithmConfig(BaseModel):
     max_iterations: int = Field(default=300, ge=1, le=100_000)
     tolerance: float = Field(default=1e-8, gt=0, description="Convergence tolerance on cost-function change")
     beta: float = Field(default=0.9, gt=0, le=1.0, description="HIO / RAAR feedback parameter β")
+    beta_schedule: BetaSchedule = Field(
+        default=BetaSchedule.CONSTANT,
+        description="Adaptive β scheduling: constant, linear ramp-down, or cosine annealing",
+    )
+    beta_min: float = Field(default=0.5, ge=0, le=1.0, description="Minimum β for adaptive schedules")
     defocus_waves: float = Field(
         default=1.0,
         description="Defocus amount (waves) for phase-diversity second image",
@@ -106,6 +127,39 @@ class AlgorithmConfig(BaseModel):
         description="Fraction of max amplitude for automatic support estimation",
     )
     random_seed: int | None = Field(default=42, description="RNG seed for reproducibility")
+
+    # ── State-of-the-art enhancements ─────────────────────────────────
+    momentum: float = Field(
+        default=0.0,
+        ge=0,
+        le=0.99,
+        description="Nesterov/heavy-ball momentum coefficient (0 = off)",
+    )
+    tv_weight: float = Field(
+        default=0.0,
+        ge=0,
+        description="Total-variation regularization weight on recovered phase (0 = off)",
+    )
+    noise_model: NoiseModel = Field(
+        default=NoiseModel.GAUSSIAN,
+        description="Noise model for focal-plane amplitude projection",
+    )
+    n_starts: int = Field(
+        default=1,
+        ge=1,
+        le=100,
+        description="Number of random restarts (multi-start); best result is returned",
+    )
+    wf_step_size: float = Field(
+        default=0.5,
+        gt=0,
+        le=10.0,
+        description="Wirtinger Flow step size (learning rate)",
+    )
+    wf_spectral_init: bool = Field(
+        default=True,
+        description="Use spectral initialization for Wirtinger Flow",
+    )
 
 
 # ---------------------------------------------------------------------------

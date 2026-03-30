@@ -1,12 +1,12 @@
 [project]
 name = "phase-retrieval"
-version = "1.0.0"
-description = "Production-ready phase retrieval for real-world HST/JWST astronomical wavefront sensing"
+version = "2.0.0"
+description = "Production-ready phase retrieval with state-of-the-art algorithms for real-world HST/JWST astronomical wavefront sensing"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 authors = [{name = "Reza Mirzaeifard"}]
 readme = "README.md"
-keywords = ["phase-retrieval", "wavefront-sensing", "astronomy", "HST", "JWST", "optics", "PSF"]
+keywords = ["phase-retrieval", "wavefront-sensing", "astronomy", "HST", "JWST", "optics", "PSF", "wirtinger-flow", "ADMM", "douglas-rachford"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",

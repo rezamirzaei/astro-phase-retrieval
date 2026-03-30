@@ -39,7 +39,7 @@ class RAAR(PhaseRetriever):
         if iteration > er_start:
             return self._er_step(g, pupil_amplitude, target_amplitude, support)
 
-        return self._raar_step(g, pupil_amplitude, target_amplitude, support)
+        return self._raar_step(g, pupil_amplitude, target_amplitude, support, iteration)
 
     # ------------------------------------------------------------------
     def _raar_step(
@@ -48,12 +48,13 @@ class RAAR(PhaseRetriever):
         pupil_amplitude: np.ndarray,
         target_amplitude: np.ndarray,
         support: np.ndarray,
+        iteration: int,
     ) -> tuple[np.ndarray, float]:
-        beta = self.config.beta
+        beta = self._get_beta(iteration)
 
         # P_F: project onto focal-plane magnitude constraint
         G = fftshift(fft2(ifftshift(g)))
-        G_proj = target_amplitude * np.exp(1j * np.angle(G))
+        G_proj = self._project_fourier(G, target_amplitude)
         p_f_g = fftshift(ifft2(ifftshift(G_proj)))
 
         # R_F = 2·P_F − I

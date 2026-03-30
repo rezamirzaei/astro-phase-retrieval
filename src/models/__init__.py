@@ -3,7 +3,9 @@
 from src.models.config import (
     AlgorithmConfig,
     AlgorithmName,
+    BetaSchedule,
     DataConfig,
+    NoiseModel,
     PipelineConfig,
     PupilConfig,
     TelescopeType,
@@ -14,7 +16,9 @@ from src.models.optics import PSFData, PSFPair, PhaseRetrievalResult, PupilModel
 __all__ = [
     "AlgorithmConfig",
     "AlgorithmName",
+    "BetaSchedule",
     "DataConfig",
+    "NoiseModel",
     "PSFData",
     "PSFPair",
     "PhaseRetrievalResult",

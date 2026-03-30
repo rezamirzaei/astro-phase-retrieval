@@ -30,10 +30,13 @@ def _configure_logging(verbose: bool = False) -> None:
 
 def _cmd_run(args: argparse.Namespace) -> None:
     """Run a single phase-retrieval algorithm on a FITS file."""
+    from src.algorithms.multi_start import multi_start_run
     from src.algorithms.registry import AlgorithmRegistry
     from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
     from src.metrics.quality import zernike_decomposition
-    from src.models.config import AlgorithmConfig, AlgorithmName, default_hst_config
+    from src.models.config import (
+        AlgorithmConfig, AlgorithmName, BetaSchedule, NoiseModel, default_hst_config,
+    )
     from src.models.optics import PSFData
     from src.optics.pupils import build_pupil
 
@@ -70,10 +73,19 @@ def _cmd_run(args: argparse.Namespace) -> None:
         name=alg_name,
         max_iterations=args.iterations,
         beta=args.beta,
+        beta_schedule=BetaSchedule(args.beta_schedule),
         random_seed=args.seed,
+        momentum=args.momentum,
+        tv_weight=args.tv_weight,
+        noise_model=NoiseModel(args.noise_model),
+        n_starts=args.n_starts,
     )
-    retriever = AlgorithmRegistry.create(alg_cfg, pupil)
-    result = retriever.run(psf_resized)
+
+    if alg_cfg.n_starts > 1:
+        result = multi_start_run(alg_cfg, pupil, psf_resized)
+    else:
+        retriever = AlgorithmRegistry.create(alg_cfg, pupil)
+        result = retriever.run(psf_resized)
 
     print(
         f"✅ {alg_name.value.upper()} — "
@@ -102,10 +114,13 @@ def _cmd_run(args: argparse.Namespace) -> None:
 # ── compare ───────────────────────────────────────────────────────────────
 
 def _cmd_compare(args: argparse.Namespace) -> None:
-    """Run all four core algorithms and print a comparison table."""
+    """Run all algorithms and print a comparison table."""
+    from src.algorithms.multi_start import multi_start_run
     from src.algorithms.registry import AlgorithmRegistry
     from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
-    from src.models.config import AlgorithmConfig, AlgorithmName, default_hst_config
+    from src.models.config import (
+        AlgorithmConfig, AlgorithmName, BetaSchedule, NoiseModel, default_hst_config,
+    )
     from src.models.optics import PSFData
     from src.optics.pupils import build_pupil
 
@@ -139,10 +154,13 @@ def _cmd_compare(args: argparse.Namespace) -> None:
         AlgorithmName.GERCHBERG_SAXTON,
         AlgorithmName.HYBRID_INPUT_OUTPUT,
         AlgorithmName.RAAR,
+        AlgorithmName.WIRTINGER_FLOW,
+        AlgorithmName.DOUGLAS_RACHFORD,
+        AlgorithmName.ADMM,
     ]
 
     print(f"{'Algorithm':>6s}  {'Iter':>5s}  {'Strehl':>8s}  {'RMS (rad)':>10s}  {'Time':>7s}")
-    print("-" * 45)
+    print("-" * 50)
 
     for alg_name in algorithms:
         n_iter = args.iterations
@@ -150,9 +168,17 @@ def _cmd_compare(args: argparse.Namespace) -> None:
             name=alg_name,
             max_iterations=n_iter,
             beta=args.beta,
+            beta_schedule=BetaSchedule(args.beta_schedule),
             random_seed=args.seed,
+            momentum=args.momentum,
+            tv_weight=args.tv_weight,
+            noise_model=NoiseModel(args.noise_model),
+            n_starts=args.n_starts,
         )
-        result = AlgorithmRegistry.create(alg_cfg, pupil).run(psf_resized)
+        if alg_cfg.n_starts > 1:
+            result = multi_start_run(alg_cfg, pupil, psf_resized)
+        else:
+            result = AlgorithmRegistry.create(alg_cfg, pupil).run(psf_resized)
         print(
             f"{alg_name.value.upper():>6s}  "
             f"{result.n_iterations:5d}  "
@@ -184,6 +210,27 @@ def _cmd_download(args: argparse.Namespace) -> None:
         print(f"  ✅ {p}")
 
 
+def _add_common_algo_args(parser: argparse.ArgumentParser) -> None:
+    """Add shared algorithm arguments to a subcommand parser."""
+    parser.add_argument("-n", "--iterations", type=int, default=500, help="Max iterations")
+    parser.add_argument("--beta", type=float, default=0.9, help="HIO/RAAR/DR feedback β")
+    parser.add_argument("--beta-schedule", default="constant",
+                        choices=["constant", "linear", "cosine"],
+                        help="Adaptive β schedule")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--fits", type=str, default=None, help="Path to FITS file")
+    parser.add_argument("-o", "--output-dir", default="outputs", help="Output directory")
+    parser.add_argument("--momentum", type=float, default=0.0,
+                        help="Nesterov/heavy-ball momentum (0=off)")
+    parser.add_argument("--tv-weight", type=float, default=0.0,
+                        help="Total-variation regularization weight (0=off)")
+    parser.add_argument("--noise-model", default="gaussian",
+                        choices=["gaussian", "poisson"],
+                        help="Noise model for focal-plane projection")
+    parser.add_argument("--n-starts", type=int, default=1,
+                        help="Multi-start: number of random restarts")
+
+
 # ── main ──────────────────────────────────────────────────────────────────
 
 def main(argv: list[str] | None = None) -> None:
@@ -200,21 +247,14 @@ def main(argv: list[str] | None = None) -> None:
 
     # --- run ---
     p_run = sub.add_parser("run", help="Run a single algorithm on a FITS file")
-    p_run.add_argument("-a", "--algorithm", default="hio", help="Algorithm key (er, gs, hio, raar)")
-    p_run.add_argument("-n", "--iterations", type=int, default=500, help="Max iterations")
-    p_run.add_argument("--beta", type=float, default=0.9, help="HIO/RAAR feedback β")
-    p_run.add_argument("--seed", type=int, default=42, help="Random seed")
-    p_run.add_argument("--fits", type=str, default=None, help="Path to FITS file")
-    p_run.add_argument("-o", "--output-dir", default="outputs", help="Output directory")
+    p_run.add_argument("-a", "--algorithm", default="hio",
+                       help="Algorithm key (er, gs, hio, raar, wf, dr, admm)")
+    _add_common_algo_args(p_run)
     p_run.set_defaults(func=_cmd_run)
 
     # --- compare ---
     p_cmp = sub.add_parser("compare", help="Compare all algorithms on the same data")
-    p_cmp.add_argument("-n", "--iterations", type=int, default=500, help="Max iterations")
-    p_cmp.add_argument("--beta", type=float, default=0.9, help="HIO/RAAR feedback β")
-    p_cmp.add_argument("--seed", type=int, default=42, help="Random seed")
-    p_cmp.add_argument("--fits", type=str, default=None, help="Path to FITS file")
-    p_cmp.add_argument("-o", "--output-dir", default="outputs", help="Output directory")
+    _add_common_algo_args(p_cmp)
     p_cmp.set_defaults(func=_cmd_compare)
 
     # --- download ---

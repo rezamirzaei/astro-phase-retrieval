@@ -28,8 +28,7 @@ class ErrorReduction(PhaseRetriever):
         G = fftshift(fft2(ifftshift(g)))
 
         # 2. Replace focal-plane amplitude with measured, keep phase
-        # Add small constant to avoid divide-by-zero or instability at deep nulls
-        G_prime = target_amplitude * np.exp(1j * np.angle(G + 1e-12))
+        G_prime = self._project_fourier(G, target_amplitude)
 
         # 3. Inverse propagate back to pupil plane
         g_prime = fftshift(ifft2(ifftshift(G_prime)))
