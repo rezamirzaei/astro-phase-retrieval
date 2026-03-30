@@ -17,7 +17,9 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from src.algorithms.base import PhaseRetriever
+from src.algorithms.raar import RAAR
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio
+from src.models.config import AlgorithmName
 from src.models.optics import PSFData, PhaseRetrievalResult
 from src.optics.propagator import forward_model
 
@@ -50,10 +52,12 @@ class PINNPhaseRetriever(PhaseRetriever):
         target_np = psf_data.image.astype(np.float32)
         target_np /= max(float(target_np.sum()), 1e-30)
         n = pupil_amp_np.shape[0]
+        base_phase_np, warm_result = self._warm_start_phase(psf_data)
 
         pupil_amp = torch.tensor(pupil_amp_np, dtype=dtype, device=device)
         support = torch.tensor(support_np, dtype=dtype, device=device)
         target = torch.tensor(target_np, dtype=dtype, device=device)
+        base_phase = torch.tensor(base_phase_np.astype(np.float32), dtype=dtype, device=device)
         coords = self._coordinate_features(torch, n, device=device, dtype=dtype)
 
         model = _PhaseField(
@@ -75,12 +79,21 @@ class PINNPhaseRetriever(PhaseRetriever):
         best_phase = np.zeros_like(pupil_amp_np)
         t0 = time.perf_counter()
         window = 20
+        warm_objective = None
+        if warm_result is not None:
+            warm_objective = self._objective_value(
+                target_np=target_np,
+                reconstructed_psf=warm_result.reconstructed_psf,
+            )
+            best_loss = warm_objective
+            best_phase = warm_result.recovered_phase.astype(np.float64).copy()
 
         for iteration in range(1, self.config.max_iterations + 1):
             optimizer.zero_grad(set_to_none=True)
 
             phase_raw = model(coords).reshape(n, n)
-            phase = np.pi * torch.tanh(phase_raw)
+            residual_phase = self.config.pinn_residual_scale * np.pi * torch.tanh(phase_raw)
+            phase = base_phase + residual_phase
             phase = phase * support
             field = pupil_amp.to(torch.complex64) * torch.exp(1j * phase.to(torch.complex64))
             focal = torch.fft.fftshift(torch.fft.fft2(torch.fft.ifftshift(field)))
@@ -135,6 +148,8 @@ class PINNPhaseRetriever(PhaseRetriever):
         recon_psf = forward_model(self.pupil.amplitude, best_phase)
         rms = compute_rms_phase(best_phase, support_np)
         strehl = compute_strehl_ratio(recon_psf, self.pupil.amplitude)
+        neural_improved = warm_objective is None or best_loss + 1e-12 < warm_objective
+        fallback_used = warm_result is not None and not neural_improved
 
         return PhaseRetrievalResult(
             algorithm=self.config.name,
@@ -157,6 +172,11 @@ class PINNPhaseRetriever(PhaseRetriever):
                 "learning_rate": self.config.pinn_learning_rate,
                 "sqrt_weight": self.config.pinn_sqrt_weight,
                 "log_weight": self.config.pinn_log_weight,
+                "warm_start": self.config.pinn_warm_start,
+                "warm_start_iterations": self.config.pinn_warm_start_iterations,
+                "residual_scale": self.config.pinn_residual_scale,
+                "warm_start_objective": warm_objective,
+                "fallback_to_warm_start": fallback_used,
             },
         )
 
@@ -164,7 +184,7 @@ class PINNPhaseRetriever(PhaseRetriever):
         raise NotImplementedError("PINNPhaseRetriever overrides run() directly.")
 
     @staticmethod
-    def _coordinate_features(torch: "torch", n: int, *, device: str, dtype: "torch.dtype") -> "torch.Tensor":
+    def _coordinate_features(torch: Any, n: int, *, device: str, dtype: Any) -> Any:
         axis = torch.linspace(-1.0, 1.0, n, device=device, dtype=dtype)
         y, x = torch.meshgrid(axis, axis, indexing="ij")
         rho = torch.sqrt(x.square() + y.square()).clamp(max=1.0)
@@ -178,14 +198,14 @@ class PINNPhaseRetriever(PhaseRetriever):
         return feats.reshape(-1, feats.shape[-1])
 
     @staticmethod
-    def _smoothness_penalty(phase: "torch.Tensor", support: "torch.Tensor") -> "torch.Tensor":
+    def _smoothness_penalty(phase: Any, support: Any) -> Any:
         dx = phase[:, 1:] - phase[:, :-1]
         dy = phase[1:, :] - phase[:-1, :]
         sx = support[:, 1:] * support[:, :-1]
         sy = support[1:, :] * support[:-1, :]
         return (dx.square() * sx).mean() + (dy.square() * sy).mean()
 
-    def _resolve_device(self, torch: "torch") -> str:
+    def _resolve_device(self, torch: Any) -> str:
         requested = self.config.pinn_device
         if requested == "auto":
             if torch.cuda.is_available():
@@ -200,6 +220,32 @@ class PINNPhaseRetriever(PhaseRetriever):
         ):
             return "cpu"
         return requested
+
+    def _warm_start_phase(self, psf_data: PSFData) -> tuple[np.ndarray, PhaseRetrievalResult | None]:
+        if not self.config.pinn_warm_start:
+            return np.zeros_like(self.pupil.amplitude, dtype=np.float64), None
+
+        warm_cfg = self.config.model_copy(
+            update={
+                "name": AlgorithmName.RAAR,
+                "max_iterations": min(self.config.pinn_warm_start_iterations, self.config.max_iterations),
+                "momentum": 0.0,
+                "tv_weight": 0.0,
+                "n_starts": 1,
+            }
+        )
+        warm_result = RAAR(warm_cfg, self.pupil).run(psf_data)
+        return warm_result.recovered_phase.astype(np.float64), warm_result
+
+    def _objective_value(self, *, target_np: np.ndarray, reconstructed_psf: np.ndarray) -> float:
+        eps = 1e-12
+        psf = reconstructed_psf.astype(np.float64)
+        psf /= max(float(psf.sum()), 1e-30)
+        target = target_np.astype(np.float64)
+        data_loss = np.mean((psf - target) ** 2)
+        sqrt_loss = np.mean((np.sqrt(np.clip(psf, eps, None)) - np.sqrt(np.clip(target, eps, None))) ** 2)
+        log_loss = np.mean((np.log10(np.clip(psf, eps, None)) - np.log10(np.clip(target, eps, None))) ** 2)
+        return float(data_loss + self.config.pinn_sqrt_weight * sqrt_loss + self.config.pinn_log_weight * log_loss)
 
     @staticmethod
     def _import_torch() -> _TorchModules:
@@ -220,11 +266,11 @@ class _PhaseField:
     def __new__(
         cls,
         *,
-        nn: "nn",
+        nn: Any,
         in_features: int,
         hidden_features: int,
         hidden_layers: int,
-    ) -> "nn.Module":
+    ) -> Any:
         layers: list[object] = []
         current = in_features
         for _ in range(hidden_layers):
@@ -237,6 +283,11 @@ class _PhaseField:
                 nn.init.xavier_uniform_(module.weight)
                 nn.init.zeros_(module.bias)
         return model
+
+
+
+
+
 
 
 

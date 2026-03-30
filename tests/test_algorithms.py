@@ -161,10 +161,14 @@ class TestEnhancements:
             random_seed=42,
             pinn_hidden_features=16,
             pinn_hidden_layers=2,
+            pinn_warm_start=True,
+            pinn_warm_start_iterations=5,
         )
         result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
         assert result.n_iterations >= 1
         assert result.cost_history[-1] <= result.cost_history[0]
+        assert result.metadata["warm_start_objective"] is not None
+        assert result.metadata["best_objective"] <= result.metadata["warm_start_objective"] + 1e-12
 
 
 class TestSyntheticRecovery:

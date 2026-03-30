@@ -210,6 +210,22 @@ class AlgorithmConfig(BaseModel):
         le=1.0,
         description="Learning-rate decay factor for the PINN solver",
     )
+    pinn_warm_start: bool = Field(
+        default=True,
+        description="Initialize PINN from a short classical RAAR reconstruction",
+    )
+    pinn_warm_start_iterations: int = Field(
+        default=80,
+        ge=1,
+        le=10_000,
+        description="Number of RAAR iterations used for PINN warm start",
+    )
+    pinn_residual_scale: float = Field(
+        default=0.25,
+        ge=0,
+        le=2.0,
+        description="Scale of the neural residual phase added on top of the warm-start phase",
+    )
     pinn_device: Literal["auto", "cpu", "mps", "cuda"] = Field(
         default="auto",
         description="Preferred device for the PINN solver",
