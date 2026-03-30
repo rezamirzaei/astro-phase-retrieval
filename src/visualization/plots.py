@@ -397,7 +397,7 @@ def plot_radial_profile(
     ax.set_xlabel("Radius (pixels)")
     ax.set_ylabel("Azimuthal-average intensity")
     ax.set_title(f"Radial PSF Profile — {result.algorithm.value.upper()}")
-    ax.legend(frameon=True, fontsize=10)
+    ax.legend(loc="best", frameon=True, fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(left=0)
     fig.tight_layout()
@@ -427,7 +427,7 @@ def plot_psf_cross_sections(
     ax_h.set_xlabel("x (pixels)")
     ax_h.set_ylabel("Intensity")
     ax_h.set_title("Horizontal Cross-Section")
-    ax_h.legend(frameon=True, fontsize=9)
+    ax_h.legend(loc="upper right", frameon=True, fontsize=9)
     ax_h.grid(True, alpha=0.3)
 
     # Vertical cut
@@ -437,7 +437,7 @@ def plot_psf_cross_sections(
     ax_v.set_xlabel("y (pixels)")
     ax_v.set_ylabel("Intensity")
     ax_v.set_title("Vertical Cross-Section")
-    ax_v.legend(frameon=True, fontsize=9)
+    ax_v.legend(loc="upper right", frameon=True, fontsize=9)
     ax_v.grid(True, alpha=0.3)
 
     fig.suptitle(
@@ -523,7 +523,7 @@ def plot_encircled_energy(
     ax.set_xlabel("Radius (pixels)")
     ax.set_ylabel("Encircled Energy (fraction)")
     ax.set_title(f"Encircled Energy — {result.algorithm.value.upper()}")
-    ax.legend(frameon=True, fontsize=10)
+    ax.legend(loc="lower right", frameon=True, fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(left=0)
     ax.set_ylim(0, 1.05)
@@ -673,7 +673,7 @@ def plot_strehl_rms_bar(
     x = np.arange(len(names))
     width = 0.35
 
-    fig, ax1 = plt.subplots(figsize=(10, 5))
+    fig, ax1 = plt.subplots(figsize=(10.5, 6))
     bars1 = ax1.bar(x - width / 2, strehls, width, label="Strehl Ratio",
                      color="#4575b4", edgecolor="k", linewidth=0.5)
     ax1.set_ylabel("Strehl Ratio", color="#4575b4")
@@ -699,8 +699,18 @@ def plot_strehl_rms_bar(
         ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
                  f"{bar.get_height():.3f}", ha="center", va="bottom", fontsize=9, color="#d73027")
 
-    fig.legend(loc="upper right", bbox_to_anchor=(0.95, 0.92), frameon=True)
-    fig.tight_layout()
+    handles = [bars1, bars2]
+    labels = ["Strehl Ratio", "RMS Phase (rad)"]
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.98),
+        ncol=2,
+        frameon=True,
+        fontsize=10,
+    )
+    fig.tight_layout(rect=[0, 0, 1, 0.90])
     return fig
 
 
@@ -882,19 +892,29 @@ def plot_multi_observation_radial(
     ax_obs.set_xlabel("Radius (px)")
     ax_obs.set_ylabel("Azimuthal-average intensity")
     ax_obs.set_title("Observed PSF — Radial Profiles")
-    ax_obs.legend(fontsize=9, frameon=True)
     ax_obs.grid(True, alpha=0.3)
     ax_obs.set_xlim(left=0)
 
     ax_rec.set_xlabel("Radius (px)")
     ax_rec.set_ylabel("Azimuthal-average intensity")
     ax_rec.set_title("Reconstructed PSF — Radial Profiles")
-    ax_rec.legend(fontsize=9, frameon=True)
     ax_rec.grid(True, alpha=0.3)
     ax_rec.set_xlim(left=0)
 
+    handles, labels = ax_obs.get_legend_handles_labels()
+    if handles:
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.95),
+            ncol=min(3, max(1, len(labels))),
+            fontsize=9,
+            frameon=True,
+        )
+
     fig.suptitle("Radial Profiles Across Observations", fontsize=14, fontweight="bold")
-    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fig.tight_layout(rect=[0, 0, 1, 0.88])
     return fig
 
 
