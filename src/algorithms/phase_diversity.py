@@ -105,7 +105,7 @@ class PhaseDiversity(PhaseRetriever):
         # --- Channel 1: focused image ---
         g1 = make_complex_pupil(pupil_amplitude, phase)
         G1 = fftshift(fft2(ifftshift(g1)))
-        G1_corrected = target_foc * np.exp(1j * np.angle(G1))
+        G1_corrected = self._project_fourier(G1, target_foc)
         g1_back = fftshift(ifft2(ifftshift(G1_corrected)))
         phase1 = np.angle(g1_back)
 
@@ -113,7 +113,7 @@ class PhaseDiversity(PhaseRetriever):
         phase_defoc = add_defocus(phase, pupil_amplitude, defocus_waves)
         g2 = make_complex_pupil(pupil_amplitude, phase_defoc)
         G2 = fftshift(fft2(ifftshift(g2)))
-        G2_corrected = target_defoc * np.exp(1j * np.angle(G2))
+        G2_corrected = self._project_fourier(G2, target_defoc)
         g2_back = fftshift(ifft2(ifftshift(G2_corrected)))
         phase2_with_defoc = np.angle(g2_back)
         phase2 = phase2_with_defoc - add_defocus(
@@ -141,7 +141,7 @@ class PhaseDiversity(PhaseRetriever):
         iteration: int,
     ) -> tuple[np.ndarray, float]:
         G = fftshift(fft2(ifftshift(g)))
-        G_prime = target_amplitude * np.exp(1j * np.angle(G))
+        G_prime = self._project_fourier(G, target_amplitude)
         g_prime = fftshift(ifft2(ifftshift(G_prime)))
         g_new = np.zeros_like(g_prime)
         g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support]))

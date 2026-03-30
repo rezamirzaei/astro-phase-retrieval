@@ -19,6 +19,7 @@ from src.algorithms.gerchberg_saxton import GerchbergSaxton
 from src.algorithms.hybrid_input_output import HybridInputOutput
 from src.algorithms.multi_start import multi_start_run
 from src.algorithms.phase_diversity import PhaseDiversity
+from src.algorithms.pinn import PINNPhaseRetriever
 from src.algorithms.raar import RAAR
 from src.algorithms.registry import AlgorithmRegistry
 from src.algorithms.wirtinger_flow import WirtingerFlow
@@ -31,6 +32,7 @@ __all__ = [
     "GerchbergSaxton",
     "HybridInputOutput",
     "PhaseDiversity",
+    "PINNPhaseRetriever",
     "PhaseRetriever",
     "RAAR",
     "WirtingerFlow",

@@ -67,6 +67,7 @@ not synthetic — they are actual photons collected by HST.
 | **Wirtinger Flow (WF)** | `wf` | Gradient descent with spectral initialization (Candès et al. 2015) |
 | **Douglas-Rachford (DR)** | `dr` | Proximal splitting with provable convergence (Bauschke et al. 2002) |
 | **ADMM** | `admm` | Alternating Direction Method of Multipliers (Chang & Marchesini 2018) |
+| **Physics-Informed Neural Field** | `pinn` | Coordinate MLP optimized through differentiable Fourier optics |
 
 ### Advanced Enhancements
 
@@ -100,6 +101,9 @@ cd phase-retrieval
 
 # Install in editable mode (recommended for development)
 pip install -e ".[dev]"
+
+# Optional: enable the PINN/neural-field solver
+pip install -e ".[pinn]"
 ```
 
 ## Quick Start
@@ -129,11 +133,14 @@ phase-retrieval run --algorithm raar --iterations 1000 \
 # Multi-start optimization (5 random restarts, keeps best)
 phase-retrieval run --algorithm hio --n-starts 5
 
-# Compare all 7 algorithms on the same observation
+# Compare the default iterative algorithms on the same observation
 phase-retrieval compare --iterations 500
 
 # Poisson noise model for low-SNR data
 phase-retrieval run --algorithm admm --noise-model poisson
+
+# Optional PINN / neural-field solver (requires `pip install -e ".[pinn]"`)
+phase-retrieval run --algorithm pinn --iterations 300
 
 # List available observation presets
 phase-retrieval download --list

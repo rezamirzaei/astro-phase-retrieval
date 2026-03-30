@@ -68,6 +68,7 @@ md("0", [
     "| **Wirtinger Flow (WF)** | `wf` | Cand\u00e8s, Li & Soltanolkotabi 2015 |",
     "| **Douglas-Rachford (DR)** | `dr` | Bauschke, Combettes & Luke 2002 |",
     "| **ADMM** | `admm` | Chang & Marchesini 2018 |",
+    "| **Physics-Informed Neural Field** *(optional)* | `pinn` | Differentiable Fourier-optics neural field |",
     "",
     "**State-of-the-art enhancements** (built into every algorithm):",
     "",
@@ -80,6 +81,8 @@ md("0", [
     "| Multi-Start | `--n-starts 5` | Multiple random restarts |",
     "",
     "**Quality metrics:** Strehl ratio \u00b7 RMS wavefront error \u00b7 Zernike decomposition \u00b7 **MTF** \u00b7 **SSIM** \u00b7 **Phase Structure Function**",
+    "",
+    "**Notebook scope note:** the default notebook benchmarks the seven FFT-based iterative solvers. The optional `pinn` method is available through the package and CLI when PyTorch is installed, but it is intentionally excluded from the default notebook run because it is slower and environment-dependent.",
     "",
     "Primary references:",
     "",
@@ -707,14 +710,16 @@ code("46", [
 ])
 
 # ═══════════════════════════════════════════════════════════════════════
-# Cell 47 — Algorithm Comparison (UPDATED: 7 algorithms)
+# Cell 47 — Algorithm Comparison (UPDATED: 7 default iterative algorithms)
 # ═══════════════════════════════════════════════════════════════════════
 md("47", [
     "## 18 \u2014 Algorithm Comparison",
     "",
-    "We now run **all seven single-image algorithms** (classic + state-of-the-art) on the same observed PSF and compare their convergence speed, final Strehl ratio, and RMS wavefront error. Each algorithm uses identical initialisation (same random seed) for a fair comparison.",
+    "We now run the **seven default single-image iterative algorithms** (classic + state-of-the-art) on the same observed PSF and compare their convergence speed, final Strehl ratio, and RMS wavefront error. Each algorithm uses identical initialisation (same random seed) for a fair comparison.",
     "",
     "On real noisy data, RAAR and the SOTA algorithms (WF, DR, ADMM) typically outperform the classic ER/GS \u2014 their advanced update rules avoid the local minima and stagnation that trap simpler projection methods.",
+    "",
+    "The optional `pinn` solver is available through the package and CLI when PyTorch is installed, but it is excluded from the default notebook comparison because it is slower and has an optional dependency.",
 ])
 code("48", [
     "from src.visualization.plots import plot_algorithm_comparison, plot_algorithm_dashboard, plot_strehl_rms_bar",
@@ -853,7 +858,7 @@ md("60", [
     "What this notebook demonstrates:",
     "",
     "- **Real data, not synthetic**: the PSF was recorded by HST's WFC3/UVIS detector from actual stellar photons collected in orbit.",
-    "- **8 algorithms compared**: from the classic ER/GS (1972\u20131982) through RAAR (2005) to state-of-the-art Wirtinger Flow (2015), Douglas-Rachford, and ADMM (2018).",
+    "- **7 iterative algorithms compared by default**: from the classic ER/GS (1972\u20131982) through RAAR (2005) to state-of-the-art Wirtinger Flow (2015), Douglas-Rachford, and ADMM (2018). The optional `pinn` solver is available separately when PyTorch is installed.",
     "- **State-of-the-art enhancements**: Nesterov momentum acceleration, adaptive \u03b2 cosine annealing, TV regularization, Poisson noise model, and multi-start optimization are all built into the base class and work with every algorithm.",
     "- **Comprehensive metrics**: Strehl ratio, RMS wavefront error, Zernike decomposition, MTF, SSIM, and Phase Structure Function provide a complete picture of optical quality.",
     "- **Phase retrieval works**: all algorithms successfully recover a wavefront that, when forward-modelled, reproduces the observed PSF structure.",

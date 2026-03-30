@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pytest
 
+from src.algorithms.phase_diversity import PhaseDiversity
 from src.algorithms.multi_start import multi_start_run
 from src.algorithms.registry import AlgorithmRegistry
+from src.metrics.quality import compute_ssim
 from src.models.config import AlgorithmConfig, AlgorithmName, BetaSchedule, NoiseModel
-from src.models.optics import PSFData, PupilModel
+from src.models.optics import PSFData, PSFPair, PupilModel
+from src.optics.propagator import add_defocus, forward_model
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -22,6 +27,8 @@ _ALGORITHMS = [
     AlgorithmName.DOUGLAS_RACHFORD,
     AlgorithmName.ADMM,
 ]
+
+_TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
 
 
 # ── Core algorithm tests ─────────────────────────────────────────────────
@@ -146,6 +153,73 @@ class TestEnhancements:
         result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
         assert result.n_iterations >= 1
 
+    @pytest.mark.skipif(not _TORCH_AVAILABLE, reason="PyTorch is not installed")
+    def test_pinn_runs(self, pupil: PupilModel, psf_data: PSFData) -> None:
+        cfg = AlgorithmConfig(
+            name=AlgorithmName.PINN,
+            max_iterations=10,
+            random_seed=42,
+            pinn_hidden_features=16,
+            pinn_hidden_layers=2,
+        )
+        result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+        assert result.n_iterations >= 1
+        assert result.cost_history[-1] <= result.cost_history[0]
+
+
+class TestSyntheticRecovery:
+    @pytest.mark.parametrize(
+        "alg_name",
+        [
+            AlgorithmName.RAAR,
+            AlgorithmName.WIRTINGER_FLOW,
+            AlgorithmName.DOUGLAS_RACHFORD,
+            AlgorithmName.ADMM,
+        ],
+    )
+    def test_reconstructed_psf_matches_truth(
+        self,
+        alg_name: AlgorithmName,
+        pupil: PupilModel,
+        psf_data: PSFData,
+    ) -> None:
+        cfg = AlgorithmConfig(name=alg_name, max_iterations=80, random_seed=42)
+        result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+        assert compute_ssim(psf_data.image, result.reconstructed_psf) > 0.99
+
+
+class TestPhaseDiversity:
+    def test_run_diversity_reduces_joint_cost(
+        self,
+        pupil: PupilModel,
+        psf_data: PSFData,
+        true_phase: np.ndarray,
+    ) -> None:
+        defocused_psf = forward_model(
+            pupil.amplitude,
+            add_defocus(true_phase, pupil.amplitude, defocus_waves=0.75),
+        )
+        pair = PSFPair(
+            focused=psf_data,
+            defocused=PSFData(
+                image=defocused_psf,
+                pixel_scale_arcsec=psf_data.pixel_scale_arcsec,
+                wavelength_m=psf_data.wavelength_m,
+                filter_name=psf_data.filter_name,
+                telescope=psf_data.telescope,
+                obs_id=f"{psf_data.obs_id}-defocused",
+            ),
+        )
+        cfg = AlgorithmConfig(
+            name=AlgorithmName.PHASE_DIVERSITY,
+            max_iterations=60,
+            defocus_waves=0.75,
+            random_seed=42,
+        )
+        result = PhaseDiversity(cfg, pupil).run_diversity(pair)
+        assert result.cost_history[-1] < result.cost_history[0]
+        assert compute_ssim(psf_data.image, result.reconstructed_psf) > 0.99
+
 
 # ── Multi-start ──────────────────────────────────────────────────────────
 
@@ -185,6 +259,7 @@ class TestAlgorithmRegistry:
         assert "wf" in avail
         assert "dr" in avail
         assert "admm" in avail
+        assert "pinn" in avail
 
     def test_unknown_algorithm_raises(self, pupil: PupilModel) -> None:
         cfg = AlgorithmConfig(name=AlgorithmName.HYBRID_INPUT_OUTPUT)

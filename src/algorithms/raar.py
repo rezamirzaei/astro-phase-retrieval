@@ -74,8 +74,8 @@ class RAAR(PhaseRetriever):
         return g_new, cost
 
     # ------------------------------------------------------------------
-    @staticmethod
     def _er_step(
+        self,
         g: np.ndarray,
         pupil_amplitude: np.ndarray,
         target_amplitude: np.ndarray,
@@ -83,15 +83,13 @@ class RAAR(PhaseRetriever):
     ) -> tuple[np.ndarray, float]:
         """One ER step: P_S ∘ P_F."""
         G = fftshift(fft2(ifftshift(g)))
-        G_proj = target_amplitude * np.exp(1j * np.angle(G))
+        G_proj = self._project_fourier(G, target_amplitude)
         g_prime = fftshift(ifft2(ifftshift(G_proj)))
 
         g_new = np.zeros_like(g_prime)
         g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support]))
 
-        modelled = np.abs(G)
-        scale = target_amplitude.sum() / max(modelled.sum(), 1e-30)
-        cost = float(np.sum((target_amplitude - modelled * scale) ** 2))
+        cost = self._focal_cost(target_amplitude, G)
         return g_new, cost
 
 

@@ -11,6 +11,7 @@ from src.algorithms.error_reduction import ErrorReduction
 from src.algorithms.gerchberg_saxton import GerchbergSaxton
 from src.algorithms.hybrid_input_output import HybridInputOutput
 from src.algorithms.phase_diversity import PhaseDiversity
+from src.algorithms.pinn import PINNPhaseRetriever
 from src.algorithms.raar import RAAR
 from src.algorithms.wirtinger_flow import WirtingerFlow
 from src.models.config import AlgorithmConfig, AlgorithmName
@@ -29,6 +30,7 @@ class AlgorithmRegistry:
         AlgorithmName.WIRTINGER_FLOW: WirtingerFlow,
         AlgorithmName.DOUGLAS_RACHFORD: DouglasRachford,
         AlgorithmName.ADMM: ADMM,
+        AlgorithmName.PINN: PINNPhaseRetriever,
     }
 
     @classmethod

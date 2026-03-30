@@ -26,6 +26,30 @@ def _configure_logging(verbose: bool = False) -> None:
     )
 
 
+def _sync_pupil_to_image(config, image_shape: tuple[int, int]):
+    """Keep the pupil grid consistent with the prepared PSF image shape."""
+    if len(image_shape) != 2 or image_shape[0] != image_shape[1]:
+        raise ValueError(f"Prepared PSF must be square, got shape {image_shape}")
+    image_size = image_shape[0]
+    if image_size != config.pupil.grid_size:
+        logger.warning(
+            "Prepared PSF grid %dx%d differs from configured pupil grid %d; rebuilding pupil to match.",
+            image_size,
+            image_size,
+            config.pupil.grid_size,
+        )
+        config.pupil = config.pupil.model_copy(update={"grid_size": image_size})
+    return config
+
+
+def _has_torch() -> bool:
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 # ── run ───────────────────────────────────────────────────────────────────
 
 def _cmd_run(args: argparse.Namespace) -> None:
@@ -54,11 +78,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
             sys.exit(1)
         fits_path = cached[0]
 
-    pupil = build_pupil(config.pupil)
-    support = pupil.amplitude > 0
-
     psf_data = load_psf_from_fits(fits_path, config.data, config.pupil)
     psf_image = prepare_psf_for_retrieval(psf_data, config.pupil.grid_size)
+    config = _sync_pupil_to_image(config, psf_image.shape)
+    pupil = build_pupil(config.pupil)
     psf_resized = PSFData(
         image=psf_image,
         pixel_scale_arcsec=psf_data.pixel_scale_arcsec,
@@ -137,9 +160,10 @@ def _cmd_compare(args: argparse.Namespace) -> None:
             sys.exit(1)
         fits_path = cached[0]
 
-    pupil = build_pupil(config.pupil)
     psf_data = load_psf_from_fits(fits_path, config.data, config.pupil)
     psf_image = prepare_psf_for_retrieval(psf_data, config.pupil.grid_size)
+    config = _sync_pupil_to_image(config, psf_image.shape)
+    pupil = build_pupil(config.pupil)
     psf_resized = PSFData(
         image=psf_image,
         pixel_scale_arcsec=psf_data.pixel_scale_arcsec,
@@ -158,6 +182,8 @@ def _cmd_compare(args: argparse.Namespace) -> None:
         AlgorithmName.DOUGLAS_RACHFORD,
         AlgorithmName.ADMM,
     ]
+    if _has_torch():
+        algorithms.append(AlgorithmName.PINN)
 
     print(f"{'Algorithm':>6s}  {'Iter':>5s}  {'Strehl':>8s}  {'RMS (rad)':>10s}  {'Time':>7s}")
     print("-" * 50)
@@ -248,7 +274,7 @@ def main(argv: list[str] | None = None) -> None:
     # --- run ---
     p_run = sub.add_parser("run", help="Run a single algorithm on a FITS file")
     p_run.add_argument("-a", "--algorithm", default="hio",
-                       help="Algorithm key (er, gs, hio, raar, wf, dr, admm)")
+                       help="Algorithm key (er, gs, hio, raar, wf, dr, admm, pinn)")
     _add_common_algo_args(p_run)
     p_run.set_defaults(func=_cmd_run)
 

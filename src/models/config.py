@@ -30,6 +30,7 @@ class AlgorithmName(str, Enum):
     WIRTINGER_FLOW = "wf"
     DOUGLAS_RACHFORD = "dr"
     ADMM = "admm"
+    PINN = "pinn"
 
 
 class BetaSchedule(str, Enum):
@@ -159,6 +160,33 @@ class AlgorithmConfig(BaseModel):
     wf_spectral_init: bool = Field(
         default=True,
         description="Use spectral initialization for Wirtinger Flow",
+    )
+    pinn_hidden_features: int = Field(
+        default=64,
+        ge=8,
+        le=512,
+        description="Width of the hidden layers for the PINN neural field",
+    )
+    pinn_hidden_layers: int = Field(
+        default=3,
+        ge=1,
+        le=8,
+        description="Number of hidden layers for the PINN neural field",
+    )
+    pinn_learning_rate: float = Field(
+        default=1e-2,
+        gt=0,
+        le=1.0,
+        description="Optimizer learning rate for the PINN solver",
+    )
+    pinn_smoothness_weight: float = Field(
+        default=1e-4,
+        ge=0,
+        description="Smoothness regularization weight for the PINN phase field",
+    )
+    pinn_device: Literal["auto", "cpu", "mps", "cuda"] = Field(
+        default="auto",
+        description="Preferred device for the PINN solver",
     )
 
 

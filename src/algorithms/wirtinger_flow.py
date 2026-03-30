@@ -39,18 +39,45 @@ class WirtingerFlow(PhaseRetriever):
     """
 
     def run(self, psf_data):
-        """Override run to apply spectral initialization when configured."""
-        if self.config.wf_spectral_init:
-            self._spectral_phase = self._spectral_init(psf_data)
-        else:
-            self._spectral_phase = None
+        """Override run to pick the most promising initialization."""
+        self._spectral_phase = self._select_initial_phase(psf_data)
         return super().run(psf_data)
 
     def _initial_phase(self, n: int) -> np.ndarray:
-        """Use spectral initialization if available, else small random."""
-        if hasattr(self, '_spectral_phase') and self._spectral_phase is not None:
+        """Use the selected initializer if available, else small random."""
+        if hasattr(self, "_spectral_phase") and self._spectral_phase is not None:
             return self._spectral_phase
         return self._rng.uniform(-0.3, 0.3, size=(n, n)).astype(np.float64)
+
+    def _select_initial_phase(self, psf_data) -> np.ndarray | None:
+        """Choose the best among spectral, zero, and random initial phases."""
+        n = psf_data.image.shape[0]
+        candidates: list[np.ndarray] = [
+            np.zeros((n, n), dtype=np.float64),
+            self._rng.uniform(-0.3, 0.3, size=(n, n)).astype(np.float64),
+        ]
+        if self.config.wf_spectral_init:
+            candidates.append(self._spectral_init(psf_data))
+
+        target_amp = np.sqrt(psf_data.image)
+        energy_pupil = np.sum(self.pupil.amplitude**2)
+        energy_target = np.sum(target_amp**2)
+        if energy_target > 0:
+            target_amp = target_amp * np.sqrt((energy_pupil * (n**2)) / energy_target)
+
+        support = self.pupil.amplitude > 0
+        best_phase: np.ndarray | None = None
+        best_cost = float("inf")
+        for phase in candidates:
+            phase = phase.copy()
+            phase[~support] = 0.0
+            g = self.pupil.amplitude * np.exp(1j * phase)
+            G = fftshift(fft2(ifftshift(g)))
+            cost = self._focal_cost(target_amp, G)
+            if cost < best_cost:
+                best_cost = cost
+                best_phase = phase
+        return best_phase
 
     def _spectral_init(self, psf_data) -> np.ndarray:
         """Spectral initialization via truncated power iteration.
@@ -94,33 +121,31 @@ class WirtingerFlow(PhaseRetriever):
         support: np.ndarray,
         iteration: int,
     ) -> tuple[np.ndarray, float]:
-        n = g.shape[0]
-        mu = self.config.wf_step_size
-
-        # Forward propagate
         G = fftshift(fft2(ifftshift(g)))
 
-        # Measured intensity and model intensity
-        Y = target_amplitude**2
-        I_model = np.abs(G)**2
-
-        # Wirtinger gradient:  ∇L = F⁻¹{ (|G|² − Y) · G } / n²
-        residual = I_model - Y
-        grad_G = residual * G
+        # Projected amplitude-flow variant: descend on amplitude mismatch and
+        # backtrack until the focal-plane error decreases.
+        model_amplitude = np.abs(G)
+        grad_G = (model_amplitude - target_amplitude) * G / np.maximum(model_amplitude, 1e-12)
         grad_g = fftshift(ifft2(ifftshift(grad_G)))
 
-        # Normalise step size by mean intensity
-        mean_intensity = np.mean(Y) + 1e-30
-        step = mu / (mean_intensity * n**2)
+        current_cost = self._focal_cost(target_amplitude, G)
+        grad_norm = np.sqrt(np.mean(np.abs(grad_g[support]) ** 2))
+        step = self.config.wf_step_size / max(float(grad_norm), 1e-6)
 
-        # Gradient descent
-        g_new = g - step * grad_g
+        best_g = g.copy()
+        best_cost = current_cost
+        for _ in range(8):
+            candidate = g - step * grad_g
+            candidate[~support] = 0.0
+            candidate[support] = pupil_amplitude[support] * np.exp(1j * np.angle(candidate[support] + 1e-30))
 
-        # Project onto pupil support (enforce known amplitude)
-        g_new[~support] = 0.0
-        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_new[support] + 1e-30))
+            candidate_G = fftshift(fft2(ifftshift(candidate)))
+            candidate_cost = self._focal_cost(target_amplitude, candidate_G)
+            if candidate_cost <= best_cost:
+                best_g = candidate
+                best_cost = candidate_cost
+                break
+            step *= 0.5
 
-        # Cost: amplitude error
-        cost = self._focal_cost(target_amplitude, G)
-
-        return g_new, cost
+        return best_g, best_cost
