@@ -27,6 +27,7 @@ dependencies = [
     "pydantic>=2.5",
     "rich>=13.7",
     "scikit-image>=0.22",
+    "ipykernel>=7.2.0",
 ]
 
 [project.optional-dependencies]
