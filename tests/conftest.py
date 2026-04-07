@@ -48,11 +48,11 @@ def support(pupil: PupilModel) -> np.ndarray:
 def true_phase(pupil: PupilModel) -> np.ndarray:
     """A mild astigmatism-like phase map for testing."""
     n = pupil.grid_size
-    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]
+    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]  # type: ignore[misc]
     phase = 0.5 * (x**2 - y**2) + 0.3 * x * y
     mask = pupil.amplitude > 0
     phase[~mask] = 0.0
-    return phase
+    return phase  # type: ignore[no-any-return]
 
 
 @pytest.fixture()
@@ -61,8 +61,8 @@ def synthetic_psf(pupil: PupilModel, true_phase: np.ndarray) -> np.ndarray:
     g = pupil.amplitude * np.exp(1j * true_phase)
     G = fftshift(fft2(ifftshift(g)))
     psf = np.abs(G) ** 2
-    psf /= psf.sum()
-    return psf
+    psf = psf / psf.sum()
+    return psf  # type: ignore[no-any-return]
 
 
 @pytest.fixture()

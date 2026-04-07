@@ -1,18 +1,19 @@
 """Deep diagnostic: run all algorithms, check convergence, generate comparison figures."""
 from __future__ import annotations
-import numpy as np
-from pathlib import Path
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
-from src.models.config import AlgorithmConfig, AlgorithmName, default_hst_config
-from src.models.optics import PSFData
-from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
-from src.optics.pupils import build_pupil
-from src.algorithms.registry import AlgorithmRegistry
-from src.metrics.quality import compute_strehl_ratio, compute_rms_phase
-from src.optics.propagator import forward_model
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+
+from src.algorithms.registry import AlgorithmRegistry  # noqa: E402
+from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval  # noqa: E402
+from src.models.config import AlgorithmConfig, AlgorithmName, default_hst_config  # noqa: E402
+from src.models.optics import PSFData  # noqa: E402
+from src.optics.pupils import build_pupil  # noqa: E402
 
 # ---------- Setup ----------
 config = default_hst_config()
@@ -31,7 +32,10 @@ pupil = build_pupil(config.pupil)
 support = pupil.amplitude > 0
 
 print("=== Input Data ===")
-print(f"PSF shape: {psf_image.shape}, sum={psf_image.sum():.6f}, max={psf_image.max():.6f}, min={psf_image.min():.6f}")
+print(
+    f"PSF shape: {psf_image.shape}, sum={psf_image.sum():.6f}, "
+    f"max={psf_image.max():.6f}, min={psf_image.min():.6f}"
+)
 print(f"Pupil support: {support.sum()}/{support.size} pixels ({support.mean():.1%})")
 
 # ---------- Run all algorithms ----------
@@ -63,7 +67,11 @@ for alg in algorithms:
 print("\n=== Generating diagnostic figures ===")
 
 fig, axes = plt.subplots(4, 4, figsize=(20, 20))
-fig.suptitle(f"Phase Retrieval — Real HST Data ({psf_data.obs_id}, {psf_data.filter_name})", fontsize=16, y=0.98)
+fig.suptitle(
+    f"Phase Retrieval — Real HST Data ({psf_data.obs_id}, {psf_data.filter_name})",
+    fontsize=16,
+    y=0.98,
+)
 
 for row_idx, (name, res) in enumerate(results.items()):
     phase = res.recovered_phase.copy()
@@ -119,7 +127,7 @@ print("  Saved: outputs/convergence_all.png")
 
 # ---------- RAAR detailed ----------
 raar = results["RAAR"]
-print(f"\n=== RAAR Detailed ===")
+print("\n=== RAAR Detailed ===")
 print(f"Cost history length: {len(raar.cost_history)}")
 print(f"Cost decreasing overall: {raar.cost_history[0]} -> {raar.cost_history[-1]}")
 # Check if cost oscillates
@@ -174,6 +182,4 @@ plt.close(fig)
 print("  Saved: outputs/summary_raar.png")
 
 print("\nDone!")
-
-
 

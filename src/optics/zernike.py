@@ -112,7 +112,7 @@ def zernike(j: int, rho: np.ndarray, theta: np.ndarray) -> np.ndarray:
         norm = np.sqrt(2 * (n + 1))
         Z = norm * R * np.sin(abs(m) * theta)
     Z[rho > 1.0] = 0.0
-    return Z
+    return Z  # type: ignore[no-any-return]
 
 
 def zernike_basis(
@@ -138,7 +138,7 @@ def zernike_basis(
     rho : ndarray, shape (grid_size, grid_size)
     theta : ndarray, shape (grid_size, grid_size)
     """
-    y, x = np.mgrid[-1 : 1 : complex(0, grid_size), -1 : 1 : complex(0, grid_size)]
+    y, x = np.mgrid[-1 : 1 : complex(0, grid_size), -1 : 1 : complex(0, grid_size)]  # type: ignore[misc]
     rho = np.sqrt(x**2 + y**2)
     theta = np.arctan2(y, x)
     basis = np.zeros((n_terms, grid_size, grid_size), dtype=np.float64)

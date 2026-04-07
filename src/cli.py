@@ -85,7 +85,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     psf_data = load_psf_from_fits(fits_path, config.data, config.pupil)
     psf_image = prepare_psf_for_retrieval(psf_data, config.pupil.grid_size)
-    config = _sync_pupil_to_image(config, psf_image.shape)
+    config = _sync_pupil_to_image(config, (psf_image.shape[0], psf_image.shape[1]))
     pupil = build_pupil(config.pupil)
     psf_resized = PSFData(
         image=psf_image,
@@ -173,7 +173,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
 
     psf_data = load_psf_from_fits(fits_path, config.data, config.pupil)
     psf_image = prepare_psf_for_retrieval(psf_data, config.pupil.grid_size)
-    config = _sync_pupil_to_image(config, psf_image.shape)
+    config = _sync_pupil_to_image(config, (psf_image.shape[0], psf_image.shape[1]))
     pupil = build_pupil(config.pupil)
     psf_resized = PSFData(
         image=psf_image,

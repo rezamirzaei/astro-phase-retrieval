@@ -130,6 +130,13 @@ class TestPlots:
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
+    def test_plot_reconstructed_psf_with_ax(self, dummy_result) -> None:
+        """Pass an existing ax to exercise the `fig = ax.figure` branch."""
+        fig_ext, ax_ext = plt.subplots()
+        fig = plot_reconstructed_psf(dummy_result, ax=ax_ext)
+        assert fig is fig_ext
+        plt.close(fig)
+
     def test_plot_convergence(self, dummy_result) -> None:
         fig = plot_convergence(dummy_result)
         assert isinstance(fig, plt.Figure)
@@ -157,6 +164,12 @@ class TestPlots:
             "PINN": dummy_result.model_copy(update={"algorithm": AlgorithmName.PINN}),
         }
         fig = plot_pinn_benchmark(psf_data, results)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_pinn_benchmark_empty(self, psf_data) -> None:
+        """Empty results dict triggers the unused-axes-hiding loop."""
+        fig = plot_pinn_benchmark(psf_data, {})
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
@@ -361,3 +374,4 @@ class TestEdgeCases:
         fig = plot_psf_comparison(psf, result)
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
+

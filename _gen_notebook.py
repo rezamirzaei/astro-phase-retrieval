@@ -1,6 +1,3 @@
-    "for name, res in results.items():",
-    "for name, res in results.items():",
-    "table = Table(title=\"Phase Retrieval Results \\u2014 Real HST Data (All 7 Algorithms)\", show_lines=True)",
 #!/usr/bin/env python3
 """Generate the updated phase_retrieval_hst.ipynb notebook.
 
@@ -185,13 +182,13 @@ md("4", [
 code("5", [
     "from __future__ import annotations",
     "",
+    "import json",
     "import logging",
     "import sys",
     "from pathlib import Path",
     "",
     "import matplotlib.pyplot as plt",
     "import numpy as np",
-    "import json",
     "",
     "# Auto-reload source modules when they change on disk",
     "%load_ext autoreload",
@@ -203,10 +200,9 @@ code("5", [
     "    sys.path.insert(0, str(PROJECT_ROOT))",
     "",
     "from src.models.config import (",
-    "    AlgorithmConfig, AlgorithmName, BetaSchedule, NoiseModel, DataConfig,",
-    "    PipelineConfig, PupilConfig, TelescopeType, default_hst_config,",
+    "    AlgorithmConfig, AlgorithmName, BetaSchedule, default_hst_config,",
     ")",
-    "from src.models.optics import PSFData, PhaseRetrievalResult, PupilModel",
+    "from src.models.optics import PSFData, PhaseRetrievalResult",
     "",
     "try:",
     "    import torch",
@@ -217,7 +213,11 @@ code("5", [
     "    TORCH_AVAILABLE = False",
     "    TORCH_IMPORT_ERROR = repr(exc)",
     "",
-    "logging.basicConfig(level=logging.INFO, format=\"%(asctime)s  %(name)-28s  %(levelname)-8s  %(message)s\", stream=sys.stdout)",
+    "logging.basicConfig(",
+    "    level=logging.INFO,",
+    "    format=\"%(asctime)s  %(name)-28s  %(levelname)-8s  %(message)s\",",
+    "    stream=sys.stdout,",
+    ")",
     "",
     "%matplotlib inline",
 ])
@@ -249,12 +249,17 @@ md("7", [
 
 # Cell 8 — Download code (UNCHANGED)
 code("8", [
-    "from src.data.downloader import search_and_download, list_cached_fits",
+    "from src.data.downloader import list_cached_fits, search_and_download",
     "",
     "cached = list_cached_fits(config.data.data_dir)",
     "if cached:",
     "    print(f\"\\u2705 Found {len(cached)} cached FITS file(s) \\u2014 skipping download.\")",
     "    fits_paths = cached",
+    "else:",
+    "    print(\"\\u2b07\\ufe0f  Downloading real HST data from MAST archive \\u2026\")",
+    "    fits_paths = search_and_download(config.data)",
+    "    print(f\"\\u2705 Downloaded {len(fits_paths)} file(s).\")",
+    "print(\"Files:\", [p.name for p in fits_paths])",
 ])
 
 # Cell 9 — Load header (UNCHANGED)
@@ -306,7 +311,7 @@ md("12", [
 # Cell 13 — Pupil code (UNCHANGED)
 code("13", [
     "from src.optics.pupils import build_pupil",
-    "from src.visualization.plots import plot_pupil, plot_observed_psf, set_style",
+    "from src.visualization.plots import plot_observed_psf, plot_pupil, set_style",
     "",
     "set_style()",
     "",
@@ -364,10 +369,10 @@ md("17", [
 # Cell 18 (UNCHANGED)
 code("18", [
     "from src.visualization.plots import (",
-    "    plot_recovered_phase, plot_reconstructed_psf, plot_convergence,",
-    "    plot_psf_comparison, plot_psf_residual, plot_radial_profile,",
-    "    plot_psf_cross_sections, plot_wavefront_3d, plot_encircled_energy,",
-    "    save_figure,",
+    "    plot_convergence, plot_encircled_energy, plot_psf_comparison,",
+    "    plot_psf_cross_sections, plot_radial_profile,",
+    "    plot_reconstructed_psf, plot_recovered_phase,",
+    "    plot_wavefront_3d, save_figure,",
     ")",
     "",
     "support = pupil.amplitude > 0",
@@ -444,8 +449,8 @@ md("30", [
 ])
 code("31", [
     "from src.metrics.quality import zernike_decomposition",
-    "from src.visualization.plots import plot_zernike_bar, plot_zernike_polar",
     "from src.optics.zernike import ZERNIKE_NAMES",
+    "from src.visualization.plots import plot_zernike_bar, plot_zernike_polar",
     "",
     "zernike_coeffs = zernike_decomposition(result_raar.recovered_phase, support, n_terms=15)",
     "",
@@ -479,7 +484,7 @@ md("34a", [
     "- **Phase Structure Function** $D_\\varphi(r) = \\langle |\\varphi(x) - \\varphi(x+r)|^2 \\rangle$: a standard wavefront/turbulence diagnostic that reveals spatial correlations in the recovered phase.",
 ])
 code("34b", [
-    "from src.metrics.quality import compute_mtf, compute_ssim, compute_phase_structure_function",
+    "from src.metrics.quality import compute_mtf, compute_phase_structure_function, compute_ssim",
     "from src.optics.propagator import forward_model",
     "",
     "# --- MTF ---",
@@ -612,7 +617,7 @@ md("37", [
     "The PSF shape is wavelength-dependent: shorter wavelengths produce sharper diffraction-limited cores but are more sensitive to high-spatial-frequency aberrations; longer wavelengths produce broader cores but are more tolerant. Comparing phase retrieval across wavelengths reveals whether the recovered aberrations are consistent (they should be \u2014 the optics don't change with wavelength).",
 ])
 code("38", [
-    "from src.data.downloader import download_all_presets, list_cached_fits, available_presets, FILTER_WAVELENGTH_M",
+    "from src.data.downloader import available_presets, download_all_presets, list_cached_fits",
     "from src.visualization.plots import plot_multi_observation_grid, plot_multi_observation_radial",
     "",
     "# Show what presets are available",
@@ -721,7 +726,10 @@ md("47", [
     "The optional `pinn` solver is available through the package and CLI when PyTorch is installed, but it is excluded from the default notebook comparison because it is slower and has an optional dependency.",
 ])
 code("48", [
-    "from src.visualization.plots import plot_algorithm_comparison, plot_algorithm_dashboard, plot_strehl_rms_bar",
+    "from src.visualization.plots import (",
+    "    plot_algorithm_comparison, plot_algorithm_dashboard,",
+    "    plot_strehl_rms_bar,",
+    ")",
     "",
     "algorithms_to_compare = [",
     "    AlgorithmName.ERROR_REDUCTION,",
@@ -791,23 +799,31 @@ code("48b", [
     "",
     "print(f\"PINN status: {pinn_status}\")",
 ])
-# Cell 47 — Algorithm Comparison (UPDATED: 7 algorithms)
-    "## 18c — Dedicated PINN Comparison",
+md("48c", [
+    "## 18c \u2014 Dedicated PINN Comparison",
     "",
-    "        max_iterations=300,",
-    "",
-    "When `RUN_PINN = False`, the figure/table still show the classical baselines and report the current PINN status.",
+    "When `RUN_PINN = False`, the figure/table still show the classical baselines"
+    " and report the current PINN status.",
 ])
 code("48d", [
+    "from rich.console import Console",
+    "from rich.table import Table",
+    "",
     "from src.metrics.quality import compute_ssim",
     "from src.visualization.plots import plot_pinn_benchmark",
-    "        pinn_hidden_features=64,",
-    "        pinn_hidden_layers=3,",
-    "If you want to run it in this notebook:",
-    "        pinn_log_weight=0.05,",
+    "",
+    "pinn_focus_names = [name for name in [\"RAAR\", \"WF\", \"PINN\"] if name in comparison_results]",
     "pinn_focus_results = {name: comparison_results[name] for name in pinn_focus_names}",
     "",
-    "2. set `RUN_PINN = True` in the setup cell,",
+    "if len(pinn_focus_results) >= 2:",
+    "    fig = plot_pinn_benchmark(psf_data_resized, pinn_focus_results)",
+    "    save_figure(fig, config.output_dir / \"pinn_benchmark.png\")",
+    "",
+    "console = Console()",
+    "table = Table(",
+    "    title=f\"PINN Benchmark \\u2014 {pinn_status}\",",
+    "    show_lines=True,",
+    ")",
     "table.add_column(\"Algorithm\", style=\"bold cyan\")",
     "table.add_column(\"SSIM\", justify=\"right\")",
     "table.add_column(\"Strehl\", justify=\"right\")",
@@ -815,7 +831,7 @@ code("48d", [
     "table.add_column(\"Time (s)\", justify=\"right\")",
     "table.add_column(\"Final cost\", justify=\"right\")",
     "",
-    "pinn_status = \"not requested\"",
+    "for name, res in pinn_focus_results.items():",
     "    ssim = compute_ssim(psf_data_resized.image, res.reconstructed_psf)",
     "    table.add_row(",
     "        name,",
@@ -833,13 +849,117 @@ code("49", [
     "fig",
 ])
 
+# ═══════════════════════════════════════════════════════════════════════
+# Cell 50 — Algorithm Dashboard
+# ═══════════════════════════════════════════════════════════════════════
+code("50", [
+    "fig = plot_algorithm_dashboard(",
+    "    psf_data_resized, comparison_results, support, pupil,",
+    ")",
+    "save_figure(fig, config.output_dir / \"algorithm_dashboard.png\")",
+    "fig",
+])
+
+# ═══════════════════════════════════════════════════════════════════════
+# Cell 51 — Strehl / RMS bar chart
+# ═══════════════════════════════════════════════════════════════════════
+code("51", [
+    "fig = plot_strehl_rms_bar(comparison_results)",
+    "save_figure(fig, config.output_dir / \"strehl_rms_comparison.png\")",
+    "fig",
+])
+
+# ═══════════════════════════════════════════════════════════════════════
+# Cell 52–53 — Convergence comparison
+# ═══════════════════════════════════════════════════════════════════════
+md("52", [
+    "## 20 \u2014 Convergence Comparison",
+    "",
+    "Focal-plane cost vs. iteration for all algorithms on a single"
+    " log-scale axis.",
+])
+code("53", [
+    "fig, ax = plt.subplots(figsize=(10, 5.5))",
+    "for _i, (name, res) in enumerate(comparison_results.items()):",
+    "    ax.semilogy(",
+    "        res.cost_history,",
+    "        label=f\"{name} (Strehl={res.strehl_ratio:.3f})\",",
+    "        linewidth=1.5,",
+    "    )",
+    "ax.set_xlabel(\"Iteration\")",
+    "ax.set_ylabel(\"Cost (focal-plane error)\")",
+    "ax.set_title(\"Convergence Comparison \\u2014 All Algorithms\")",
+    "ax.legend(frameon=True, fontsize=9)",
+    "ax.grid(True, alpha=0.3)",
+    "fig.tight_layout()",
+    "save_figure(fig, config.output_dir / \"convergence_comparison.png\")",
+    "fig",
+])
+
+# ═══════════════════════════════════════════════════════════════════════
+# Cell 54–55 — Results summary table
+# ═══════════════════════════════════════════════════════════════════════
+md("54", [
+    "## 21 \u2014 Results Summary Table",
+])
+code("55", [
+    "from rich.console import Console",
+    "from rich.table import Table",
+    "",
+    "console = Console()",
+    "table = Table(",
+    "    title=f\"Phase Retrieval Results \\u2014 Real HST Data\"",
+    "    f\" ({len(comparison_results)} Algorithms)\",",
+    "    show_lines=True,",
+    ")",
+    "table.add_column(\"Algorithm\", style=\"bold cyan\")",
+    "table.add_column(\"Iterations\", justify=\"right\")",
+    "table.add_column(\"Converged\", justify=\"center\")",
+    "table.add_column(\"Strehl Ratio\", justify=\"right\")",
+    "table.add_column(\"RMS Phase (rad)\", justify=\"right\")",
+    "table.add_column(\"Time (s)\", justify=\"right\")",
+    "",
+    "for name, res in comparison_results.items():",
+    "    table.add_row(",
+    "        name,",
+    "        str(res.n_iterations),",
+    "        \"\\u2705\" if res.converged else \"\\u274c\",",
+    "        f\"{res.strehl_ratio:.4f}\",",
+    "        f\"{res.rms_phase_rad:.4f}\",",
+    "        f\"{res.elapsed_seconds:.2f}\",",
+    "    )",
+    "console.print(table)",
+])
+
+# ═══════════════════════════════════════════════════════════════════════
+# Cell 56–57 — Export results to JSON
+# ═══════════════════════════════════════════════════════════════════════
+md("56", [
+    "## 22 \u2014 Export Results",
+    "",
+    "Every result is a Pydantic model \u2014 we serialise the non-array metadata"
+    " to JSON for reproducibility and record-keeping.",
+])
+code("57", [
+    "for name, res in comparison_results.items():",
+    "    summary = {",
+    "        \"algorithm\": res.algorithm.value,",
+    "        \"n_iterations\": res.n_iterations,",
+    "        \"converged\": res.converged,",
+    "        \"strehl_ratio\": res.strehl_ratio,",
+    "        \"rms_phase_rad\": res.rms_phase_rad,",
+    "        \"elapsed_seconds\": res.elapsed_seconds,",
+    "        \"timestamp\": res.timestamp.isoformat(),",
     "    }",
     "    out_path = config.output_dir / f\"result_{name.lower()}.json\"",
     "    out_path.parent.mkdir(parents=True, exist_ok=True)",
     "    out_path.write_text(json.dumps(summary, indent=2))",
     "    print(f\"\\U0001f4c1 {out_path}\")",
     "",
-    "print(f\"\\n\\U0001f389 Pipeline complete \\u2014 all outputs saved to {config.output_dir}\")",
+    "print(",
+    "    f\"\\n\\U0001f389 Pipeline complete \\u2014 \"",
+    "    f\"all outputs saved to {config.output_dir}\"",
+    ")",
 ])
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -850,21 +970,33 @@ md("60", [
     "",
     "What this notebook demonstrates:",
     "",
-    "- **Real data, not synthetic**: the PSF was recorded by HST's WFC3/UVIS detector from actual stellar photons collected in orbit.",
-    "- **8 algorithms compared**: from the classic ER/GS (1972\u20131982) through RAAR (2005) to state-of-the-art Wirtinger Flow (2015), Douglas-Rachford, and ADMM (2018).",
-    "fig = plot_algorithm_comparison(results, support)",
-    "- **7 iterative algorithms compared by default**: from the classic ER/GS (1972\u20131982) through RAAR (2005) to state-of-the-art Wirtinger Flow (2015), Douglas-Rachford, and ADMM (2018). The optional `pinn` solver can also be run from this notebook when PyTorch is installed and `RUN_PINN = True`.",
-    "- **State-of-the-art enhancements**: Nesterov momentum acceleration, adaptive \u03b2 cosine annealing, TV regularization, Poisson noise model, and multi-start optimization are all built into the base class and work with every algorithm.",
-    "- **Comprehensive metrics**: Strehl ratio, RMS wavefront error, Zernike decomposition, MTF, SSIM, and Phase Structure Function provide a complete picture of optical quality.",
-    "- **Phase retrieval works**: all algorithms successfully recover a wavefront that, when forward-modelled, reproduces the observed PSF structure.",
-    "- **Algorithm trade-offs**: HIO/RAAR/DR converge faster than ER/GS. Wirtinger Flow with spectral init provides a strong starting point. ADMM handles regularization naturally.",
-    "fig = plot_algorithm_dashboard(psf_data_resized, results, support, pupil)",
-    "- **Zernike decomposition** reveals the dominant aberrations \u2014 this is directly actionable for telescope alignment and optical design.",
-    "- **Pydantic validation** catches misconfiguration early \u2014 wrong image shapes, out-of-range parameters, and type errors are all caught at model construction.",
-    "- **Modular design**: swapping telescopes (HST \u2192 JWST), filters, or algorithms requires changing only the configuration \u2014 not the pipeline code.",
+    "- **Real data, not synthetic**: the PSF was recorded by HST\u2019s WFC3/UVIS"
+    " detector from actual stellar photons collected in orbit.",
+    "- **7 iterative algorithms compared by default**: from the classic ER/GS"
+    " (1972\u20131982) through RAAR (2005) to state-of-the-art Wirtinger Flow"
+    " (2015), Douglas-Rachford, and ADMM (2018). The optional `pinn` solver"
+    " can also be run when PyTorch is installed and `RUN_PINN = True`.",
+    "- **State-of-the-art enhancements**: Nesterov momentum acceleration,"
+    " adaptive \u03b2 cosine annealing, TV regularization, Poisson noise model,"
+    " and multi-start optimization are built into the base class.",
+    "- **Comprehensive metrics**: Strehl ratio, RMS wavefront error, Zernike"
+    " decomposition, MTF, SSIM, and Phase Structure Function.",
+    "- **Phase retrieval works**: all algorithms successfully recover a"
+    " wavefront that, when forward-modelled, reproduces the observed PSF.",
+    "- **Algorithm trade-offs**: HIO/RAAR/DR converge faster than ER/GS."
+    " Wirtinger Flow with spectral init provides a strong starting point."
+    " ADMM handles regularization naturally.",
+    "- **Zernike decomposition** reveals the dominant aberrations \u2014 directly"
+    " actionable for telescope alignment and optical design.",
+    "- **Pydantic validation** catches misconfiguration early \u2014 wrong image"
+    " shapes, out-of-range parameters, and type errors are all caught at"
+    " model construction.",
+    "- **Modular design**: swapping telescopes (HST \u2192 JWST), filters, or"
+    " algorithms requires changing only the configuration \u2014 not the code.",
     "",
-    "fig = plot_strehl_rms_bar(results)",
-    "This is the same fundamental technique used operationally by NASA/STScI for HST focus monitoring and JWST mirror alignment \u2014 scaled to a clean, reproducible, state-of-the-art implementation.",
+    "This is the same fundamental technique used operationally by NASA/STScI"
+    " for HST focus monitoring and JWST mirror alignment \u2014 scaled to a clean,"
+    " reproducible, state-of-the-art implementation.",
 ])
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -876,20 +1008,17 @@ notebook = {
         "kernelspec": {
             "display_name": "Python 3",
             "language": "python",
-    "Plotting the focal-plane cost function vs. iteration for all seven algorithms on a single log-scale axis. HIO, RAAR, and the SOTA algorithms (WF, DR, ADMM) typically converge faster than ER/GS due to their advanced update rules.",
-            "name": "python3"
+            "name": "python3",
         },
         "language_info": {
             "name": "python",
-            "pygments_lexer": "ipython3"
-    "for name, res in results.items():",
-        }
+            "pygments_lexer": "ipython3",
+        },
     },
     "nbformat": 4,
-    "nbformat_minor": 5
+    "nbformat_minor": 5,
 }
 
 out_path = Path(__file__).resolve().parent / "notebooks" / "phase_retrieval_hst.ipynb"
-    "ax.set_title(\"Convergence Comparison \\u2014 All 7 Algorithms\")",
 out_path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + "\n")
 print(f"\u2705 Wrote {out_path}  ({len(cells)} cells)")

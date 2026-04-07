@@ -1,9 +1,9 @@
 """Test RAAR on a known synthetic problem to validate the algorithm."""
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 n = 128
-y, x = np.mgrid[-1:1:n*1j, -1:1:n*1j]
+y, x = np.mgrid[-1:1:n*1j, -1:1:n*1j]  # type: ignore[misc]
 r = np.sqrt(x**2 + y**2)
 pupil_amp = np.where(r < 0.9, 1.0, 0.0).astype(np.float64)
 support = pupil_amp > 0
@@ -16,7 +16,7 @@ true_phase[~support] = 0.0
 g_true = pupil_amp * np.exp(1j * true_phase)
 G_true = fftshift(fft2(ifftshift(g_true)))
 obs_psf = np.abs(G_true)**2
-obs_psf /= obs_psf.sum()
+obs_psf = obs_psf / obs_psf.sum()
 target_amp = np.sqrt(obs_psf)
 
 # --------------- RAAR ---------------
@@ -25,7 +25,7 @@ rng = np.random.default_rng(42)
 phase0 = rng.uniform(-0.3, 0.3, size=(n, n))
 g = pupil_amp * np.exp(1j * phase0)
 costs_raar = []
-for i in range(300):
+for _i in range(300):
     G = fftshift(fft2(ifftshift(g)))
     modelled = np.abs(G)
     scale = target_amp.sum() / max(modelled.sum(), 1e-30)
@@ -60,7 +60,7 @@ rng2 = np.random.default_rng(42)
 phase0 = rng2.uniform(-0.3, 0.3, size=(n, n))
 g = pupil_amp * np.exp(1j * phase0)
 costs_er = []
-for i in range(300):
+for _i in range(300):
     G = fftshift(fft2(ifftshift(g)))
     modelled = np.abs(G)
     scale = target_amp.sum() / max(modelled.sum(), 1e-30)

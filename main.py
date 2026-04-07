@@ -24,22 +24,16 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 # Project imports
 from src.models.config import (
     AlgorithmConfig,
     AlgorithmName,
-    DataConfig,
-    PipelineConfig,
-    PupilConfig,
-    TelescopeType,
     default_hst_config,
 )
-from src.models.optics import PSFData, PhaseRetrievalResult, PupilModel
+from src.models.optics import PhaseRetrievalResult, PSFData
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,7 +54,7 @@ print(config.model_dump_json(indent=2))
 # regularly for HST calibration. This is **real data** from the telescope.
 
 # %%
-from src.data.downloader import search_and_download, list_cached_fits
+from src.data.downloader import list_cached_fits, search_and_download
 
 # Check if we already have data cached
 cached = list_cached_fits(config.data.data_dir)
@@ -115,7 +109,7 @@ psf_data_resized = PSFData(
 
 # %%
 from src.optics.pupils import build_pupil
-from src.visualization.plots import plot_pupil, plot_observed_psf, set_style
+from src.visualization.plots import plot_observed_psf, plot_pupil, set_style
 
 set_style()
 
@@ -162,20 +156,19 @@ print(f"   RMS phase:  {result_hio.rms_phase_rad:.4f} rad")
 # ## 6 · Visualise the Results
 
 # %%
+from src.metrics.quality import zernike_decomposition
 from src.visualization.plots import (
-    plot_recovered_phase,
-    plot_reconstructed_psf,
-    plot_psf_residual,
-    plot_psf_comparison,
-    plot_radial_profile,
-    plot_psf_cross_sections,
-    plot_wavefront_3d,
-    plot_encircled_energy,
     plot_convergence,
+    plot_encircled_energy,
+    plot_psf_comparison,
+    plot_psf_cross_sections,
+    plot_radial_profile,
+    plot_reconstructed_psf,
+    plot_recovered_phase,
     plot_summary,
+    plot_wavefront_3d,
     save_figure,
 )
-from src.metrics.quality import zernike_decomposition
 
 support = pupil.amplitude > 0
 
@@ -228,8 +221,8 @@ plt.show()
 # which optical aberrations are present (defocus, coma, astigmatism, spherical …).
 
 # %%
-from src.visualization.plots import plot_zernike_bar, plot_zernike_polar
 from src.optics.zernike import ZERNIKE_NAMES
+from src.visualization.plots import plot_zernike_bar, plot_zernike_polar
 
 zernike_coeffs = zernike_decomposition(result_hio.recovered_phase, support, n_terms=15)
 
@@ -263,7 +256,7 @@ print(f"📁 Saved to {config.output_dir / 'summary_hio.png'}")
 # F606W, F814W) and different detectors (WFC3/UVIS, ACS/WFC).
 
 # %%
-from src.data.downloader import list_cached_fits, available_presets, download_all_presets
+from src.data.downloader import download_all_presets, list_cached_fits
 from src.visualization.plots import plot_multi_observation_grid, plot_multi_observation_radial
 
 all_fits = list_cached_fits(config.data.data_dir)
@@ -294,7 +287,10 @@ for fp in all_fits:
             telescope=psf_i.telescope,
             obs_id=psf_i.obs_id,
         )
-        alg_cfg = AlgorithmConfig(name=AlgorithmName.RAAR, max_iterations=500, beta=0.9, random_seed=42)
+        alg_cfg = AlgorithmConfig(
+            name=AlgorithmName.RAAR, max_iterations=500,
+            beta=0.9, random_seed=42,
+        )
         res_i = AlgorithmRegistry.create(alg_cfg, pupil).run(psf_i_resized)
         observations.append({
             "label": f"{psf_i.obs_id}\n{psf_i.filter_name}",
@@ -318,8 +314,8 @@ if len(observations) >= 2:
 
     # Per-observation PSF comparison
     for obs in observations:
-        lbl = obs["label"].replace("\n", "_")
-        fig = plot_psf_comparison(obs["psf"], obs["result"], log_scale=True)
+        lbl = str(obs["label"]).replace("\n", "_")
+        fig = plot_psf_comparison(obs["psf"], obs["result"], log_scale=True)  # type: ignore[arg-type]
         save_figure(fig, config.output_dir / f"psf_comparison_{lbl}.png")
         plt.show()
 
@@ -330,7 +326,11 @@ if len(observations) >= 2:
 # recovered wavefronts, and Strehl ratios.
 
 # %%
-from src.visualization.plots import plot_algorithm_comparison, plot_algorithm_dashboard, plot_strehl_rms_bar
+from src.visualization.plots import (
+    plot_algorithm_comparison,
+    plot_algorithm_dashboard,
+    plot_strehl_rms_bar,
+)
 
 algorithms_to_compare = [
     AlgorithmName.ERROR_REDUCTION,

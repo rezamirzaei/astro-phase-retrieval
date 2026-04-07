@@ -49,7 +49,7 @@ class WirtingerFlow(PhaseRetriever):
     def _initial_phase(self, n: int) -> np.ndarray:
         """Use spectral initialization if available, else small random."""
         if hasattr(self, "_spectral_phase") and self._spectral_phase is not None:
-            return self._spectral_phase
+            return self._spectral_phase  # type: ignore[no-any-return]
         return self._rng.uniform(-0.3, 0.3, size=(n, n)).astype(np.float64)
 
     def _spectral_init(self, psf_data) -> np.ndarray:
@@ -83,7 +83,7 @@ class WirtingerFlow(PhaseRetriever):
 
         phase = np.angle(z)
         phase[~support] = 0.0
-        return phase
+        return phase  # type: ignore[no-any-return]
 
     def _iterate(
         self,

@@ -6,7 +6,7 @@ import time
 from abc import ABC, abstractmethod
 
 import numpy as np
-from scipy.ndimage import uniform_filter
+from scipy.ndimage import uniform_filter  # type: ignore[import-untyped]
 
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio
 from src.models.config import AlgorithmConfig, BetaSchedule, NoiseModel
@@ -94,7 +94,10 @@ class PhaseRetriever(ABC):
             if len(cost_history) >= 2 * window:
                 recent = np.mean(cost_history[-window:])
                 previous = np.mean(cost_history[-2 * window : -window])
-                if abs(previous - recent) / max(abs(previous), 1e-30) < self.config.tolerance:
+                rel_change = abs(previous - recent) / max(
+                    float(abs(previous)), 1e-30,
+                )
+                if rel_change < self.config.tolerance:
                     converged = True
                     break
 
@@ -179,7 +182,7 @@ class PhaseRetriever(ABC):
             return beta_max - (beta_max - beta_min) * t
 
         if schedule == BetaSchedule.COSINE:
-            return beta_min + 0.5 * (beta_max - beta_min) * (1 + np.cos(np.pi * t))
+            return float(beta_min + 0.5 * (beta_max - beta_min) * (1 + np.cos(np.pi * t)))
 
         return beta_max
 
@@ -202,7 +205,7 @@ class PhaseRetriever(ABC):
             This reduces noise amplification in low-SNR regions.
         """
         if self.config.noise_model == NoiseModel.GAUSSIAN:
-            return target_amplitude * np.exp(1j * np.angle(G + 1e-30))
+            return target_amplitude * np.exp(1j * np.angle(G + 1e-30))  # type: ignore[no-any-return]
 
         # Poisson ML projection (Thibault et al., 2012)
         I_obs = target_amplitude**2
@@ -211,7 +214,7 @@ class PhaseRetriever(ABC):
         I_smooth = uniform_filter(I_model, size=3)
         I_smooth = np.maximum(I_smooth, 1e-30)
         ratio = np.sqrt(np.maximum(I_obs / I_smooth, 0))
-        return ratio * G
+        return ratio * G  # type: ignore[no-any-return]
 
     # ------------------------------------------------------------------
     # Total-variation proximal operator (Chambolle 2004)
@@ -274,7 +277,7 @@ class PhaseRetriever(ABC):
 
         result = phase + weight * (div_x + div_y)
         result[~support] = 0.0
-        return result
+        return result  # type: ignore[no-any-return]
 
     # ------------------------------------------------------------------
     # Helpers

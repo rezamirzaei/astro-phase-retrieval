@@ -139,7 +139,7 @@ class PINNPhaseRetriever(PhaseRetriever):
                 reconstructed_psf=warm_result.reconstructed_psf,
             )
             best_loss = warm_objective
-            best_phase = warm_result.recovered_phase.astype(np.float64).copy()
+            best_phase = warm_result.recovered_phase.astype(np.float64).copy()  # type: ignore[assignment]
 
         # =====================================================================
         # Phase 1 — Adam exploration
@@ -182,7 +182,10 @@ class PINNPhaseRetriever(PhaseRetriever):
             if len(cost_history) >= 2 * window:
                 recent = np.mean(cost_history[-window:])
                 previous = np.mean(cost_history[-2 * window : -window])
-                if abs(previous - recent) / max(abs(previous), 1e-30) < self.config.tolerance:
+                rel_change = abs(previous - recent) / max(
+                    float(abs(previous)), 1e-30,
+                )
+                if rel_change < self.config.tolerance:
                     converged = True
                     break
 

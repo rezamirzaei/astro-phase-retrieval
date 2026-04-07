@@ -140,14 +140,14 @@ def subtract_background(image: np.ndarray, *, percentile: float = 10.0) -> np.nd
     bg = np.percentile(image[np.isfinite(image)], percentile)
     result = image - bg
     result[result < 0] = 0.0
-    return result
+    return result  # type: ignore[no-any-return]
 
 
 def normalise_psf(psf: np.ndarray) -> np.ndarray:
     """Normalise a PSF so that it sums to 1."""
     total = psf.sum()
     if total > 0:
-        return psf / total
+        return psf / total  # type: ignore[no-any-return]
     return psf
 
 

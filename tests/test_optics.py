@@ -124,7 +124,7 @@ class TestZernike:
 
     def test_piston_is_constant(self) -> None:
         n = 64
-        y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]
+        y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]  # type: ignore[misc]
         rho = np.sqrt(x**2 + y**2)
         theta = np.arctan2(y, x)
         Z1 = zernike(1, rho, theta)

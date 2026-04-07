@@ -23,7 +23,7 @@ def pupil_to_psf(pupil_complex: np.ndarray) -> np.ndarray:
     psf = np.abs(ft) ** 2
     total = psf.sum()
     if total > 0:
-        psf /= total
+        psf = psf / total
     return psf
 
 
@@ -61,7 +61,7 @@ def make_complex_pupil(
     ndarray
         Complex field A · exp(iφ).
     """
-    return amplitude * np.exp(1j * phase)
+    return amplitude * np.exp(1j * phase)  # type: ignore[no-any-return]
 
 
 def forward_model(
@@ -108,7 +108,7 @@ def add_defocus(
         Phase + defocus (radians).
     """
     n = phase.shape[0]
-    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]
+    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]  # type: ignore[misc]
     rho2 = x**2 + y**2
     defocus_rad = 2 * np.pi * defocus_waves * rho2  # Seidel defocus
     mask = pupil_amplitude > 0

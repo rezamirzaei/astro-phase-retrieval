@@ -10,7 +10,7 @@ from src.models.optics import PupilModel
 
 def _make_grid(n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Create normalised coordinate grids [-1, 1] × [-1, 1]."""
-    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]
+    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]  # type: ignore[misc]
     rho = np.sqrt(x**2 + y**2)
     theta = np.arctan2(y, x)
     return x, y, rho, theta

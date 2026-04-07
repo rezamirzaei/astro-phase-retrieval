@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -103,7 +104,7 @@ def plot_pupil(pupil: PupilModel, *, ax: plt.Axes | None = None) -> plt.Figure:
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 5))
     else:
-        fig = ax.figure
+        fig = cast(plt.Figure, ax.figure)
     ax.imshow(pupil.amplitude, cmap=_CMAP_PUPIL)
     ax.set_title("Telescope Pupil")
     ax.axis("off")
@@ -122,7 +123,7 @@ def plot_observed_psf(
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 5))
     else:
-        fig = ax.figure
+        fig = cast(plt.Figure, ax.figure)
     img = psf.image.copy()
     if log_scale:
         img = np.log10(img + 1e-12)
@@ -145,7 +146,7 @@ def plot_recovered_phase(
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 5))
     else:
-        fig = ax.figure
+        fig = cast(plt.Figure, ax.figure)
     phase = result.recovered_phase.copy()
     phase[~support] = np.nan
     vmax = np.nanmax(np.abs(phase))
@@ -171,7 +172,7 @@ def plot_reconstructed_psf(
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 5))
     else:
-        fig = ax.figure
+        fig = cast(plt.Figure, ax.figure)
     img = result.reconstructed_psf.copy()
     if log_scale:
         img = np.log10(img + 1e-12)
@@ -194,7 +195,7 @@ def plot_psf_residual(
     if ax is None:
         fig, ax = plt.subplots(figsize=(5, 5))
     else:
-        fig = ax.figure
+        fig = cast(plt.Figure, ax.figure)
 
     obs = psf.image / max(psf.image.sum(), 1e-30)
     rec = result.reconstructed_psf / max(result.reconstructed_psf.sum(), 1e-30)
@@ -282,7 +283,7 @@ def plot_psf_comparison(
         fontweight="bold",
         color="black",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
     return fig
 
 
@@ -296,7 +297,7 @@ def plot_convergence(
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, 4))
     else:
-        fig = ax.figure
+        fig = cast(plt.Figure, ax.figure)
     ax.semilogy(result.cost_history, linewidth=1.5, color=_PALETTE[0])
     ax.set_xlabel("Iteration")
     ax.set_ylabel("Cost (focal-plane error)")
@@ -316,7 +317,7 @@ def plot_zernike_bar(
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 4))
     else:
-        fig = ax.figure
+        fig = cast(plt.Figure, ax.figure)
 
     indices = sorted(coefficients.keys())
     values = [coefficients[j] for j in indices]
@@ -330,7 +331,7 @@ def plot_zernike_bar(
     ax.set_title("Zernike Decomposition of Recovered Wavefront")
     ax.axhline(0, color="k", linewidth=0.5)
     ax.grid(True, axis="y", alpha=0.3)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     return fig
 
 
@@ -382,7 +383,7 @@ def plot_summary(
         fontweight="bold",
         color="black",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     return fig
 
 
@@ -417,7 +418,7 @@ def plot_algorithm_comparison(
         axes[1, col].grid(True, alpha=0.3)
 
     fig.suptitle("Algorithm Comparison", fontsize=14, fontweight="bold", color="black")
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     return fig
 
 
@@ -512,7 +513,7 @@ def plot_psf_cross_sections(
         fontweight="bold",
         color="black",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
     return fig
 
 
@@ -617,17 +618,17 @@ def plot_zernike_polar(
         angles.append(angle)
 
     # De-overlap
-    angles = np.array(angles, dtype=float)
-    for i in range(len(angles)):
+    angles_arr = np.array(angles, dtype=float)
+    for i in range(len(angles_arr)):
         for k in range(i):
-            if abs(angles[i] - angles[k]) < 0.15:
-                angles[i] += 0.2
+            if abs(angles_arr[i] - angles_arr[k]) < 0.15:
+                angles_arr[i] += 0.2
 
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={"projection": "polar"})
     abs_vals = np.abs(values)
     colors = ["#d73027" if v < 0 else "#4575b4" for v in values]
 
-    for angle, r, color, label in zip(angles, abs_vals, colors, labels, strict=False):
+    for angle, r, color, label in zip(angles_arr, abs_vals, colors, labels, strict=False):
         ax.plot([angle, angle], [0, r], color=color, linewidth=2, alpha=0.8)
         ax.plot(angle, r, "o", color=color, markersize=8)
         ax.annotate(
@@ -759,7 +760,7 @@ def plot_algorithm_dashboard(
         fontweight="bold",
         color="black",
     )
-    fig.tight_layout(rect=[0.03, 0, 1, 0.96])
+    fig.tight_layout(rect=(0.03, 0, 1, 0.96))
     return fig
 
 
@@ -838,7 +839,7 @@ def plot_strehl_rms_bar(
 
     # Combined legend
     fig.legend(
-        [bars1, bars2],
+        [bars1, bars2],  # type: ignore[list-item]
         ["Strehl Ratio", "RMS Phase (rad)"],
         loc="upper right",
         bbox_to_anchor=(0.95, 0.92),
@@ -848,7 +849,7 @@ def plot_strehl_rms_bar(
         framealpha=0.95,
         fontsize=10,
     )
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     return fig
 
 
@@ -884,8 +885,6 @@ def plot_pinn_benchmark(
     axes[0, 0].axis("off")
 
     for col, (name, res) in enumerate(results.items(), start=1):
-        if col >= n_cols:
-            break
         rec_n = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
         rec_log = np.log10(rec_n + 1e-12)
         axes[0, col].imshow(rec_log, cmap=_CMAP_PSF, vmin=obs_log.min(), vmax=obs_log.max())
@@ -944,7 +943,7 @@ def plot_pinn_benchmark(
         fontweight="bold",
         color="black",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     return fig
 
 
@@ -1042,7 +1041,7 @@ def plot_multi_observation_grid(
         fontweight="bold",
         color="black",
     )
-    fig.tight_layout(rect=[0.03, 0, 1, 0.96])
+    fig.tight_layout(rect=(0.03, 0, 1, 0.96))
     return fig
 
 
@@ -1095,5 +1094,5 @@ def plot_multi_observation_radial(
         fontweight="bold",
         color="black",
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
     return fig
