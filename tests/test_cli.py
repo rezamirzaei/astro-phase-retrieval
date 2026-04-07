@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import numpy as np
 import pytest
 
 from src.cli import main
@@ -40,9 +43,6 @@ class TestCLI:
             ])
 
         captured = capsys.readouterr()
-        assert "ER" in captured.out
-        assert "Strehl" in captured.out
-
     def test_compare_with_mock_fits(self, tmp_path, psf_data, capsys) -> None:
         """Mock the FITS loading chain and verify `compare` completes."""
         fake_fits = tmp_path / "fake.fits"
@@ -63,3 +63,5 @@ class TestCLI:
         assert "Algorithm" in captured.out
         assert "RAAR" in captured.out
 
+        assert "ER" in captured.out
+        assert "Strehl" in captured.out

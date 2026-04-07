@@ -3,7 +3,7 @@
 The Douglas-Rachford algorithm is a proximal splitting method that finds a
 point in the intersection of two constraint sets using reflectors:
 
-    z_{k+1} = z_k + P_S(R_F(z_k)) − P_F(z_k)
+    z_{k+1} = z_k + γ · (P_S(R_F(z_k)) − P_F(z_k))
 
 where R_F = 2·P_F − I is the reflector of the Fourier-magnitude set and
 P_S is the pupil-support projector.

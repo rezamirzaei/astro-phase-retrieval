@@ -70,7 +70,9 @@ class RAAR(PhaseRetriever):
         # RAAR: g_new = β/2·(R_S·R_F + I)·g  +  (1−β)·P_F·g
         g_new = (beta / 2.0) * (r_s_r_f_g + g) + (1.0 - beta) * p_f_g
 
+        # Cost
         cost = self._focal_cost(target_amplitude, G)
+
         return g_new, cost
 
     # ------------------------------------------------------------------
@@ -91,7 +93,4 @@ class RAAR(PhaseRetriever):
 
         cost = self._focal_cost(target_amplitude, G)
         return g_new, cost
-
-
-
 

@@ -1,8 +1,8 @@
-# Phase Retrieval for Astronomical Wavefront Sensing
+# 🔭 Phase Retrieval for Astronomical Wavefront Sensing
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![CI](https://github.com/<owner>/phase-retrieval/actions/workflows/ci.yml/badge.svg)](https://github.com/<owner>/phase-retrieval/actions/workflows/ci.yml)
+[![CI](https://github.com/rezamirzaeifard/phase-retrieval/actions/workflows/ci.yml/badge.svg)](https://github.com/rezamirzaeifard/phase-retrieval/actions/workflows/ci.yml)
 [![Typed](https://img.shields.io/badge/typing-PEP561-brightgreen.svg)](https://peps.python.org/pep-0561/)
 
 Production-ready implementation of **classic and state-of-the-art** phase retrieval
@@ -41,6 +41,52 @@ are aligned today.
 
 The algorithms alternate between two planes connected by the Fourier transform,
 enforcing known constraints in each plane until the phase estimate converges.
+
+## Architecture
+
+```
+phase-retrieval/
+├── src/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── cli.py               Command-line interface (argparse)
+│   ├── py.typed              PEP 561 marker
+│   ├── algorithms/
+│   │   ├── __init__.py
+│   │   ├── base.py           Abstract base class (momentum, TV, adaptive β, noise model)
+│   │   ├── error_reduction.py
+│   │   ├── gerchberg_saxton.py
+│   │   ├── hybrid_input_output.py
+│   │   ├── raar.py
+│   │   ├── wirtinger_flow.py    ★ State-of-the-art: gradient + spectral init
+│   │   ├── douglas_rachford.py  ★ Proximal splitting
+│   │   ├── admm.py              ★ ADMM with Fourier/support splitting
+│   │   ├── pinn.py              ★ Physics-informed neural field (optional)
+│   │   ├── phase_diversity.py
+│   │   ├── multi_start.py       Multi-start optimization runner
+│   │   └── registry.py          Factory pattern for algorithm selection
+│   ├── data/
+│   │   ├── downloader.py        Curated observations from the MAST archive
+│   │   └── loader.py            FITS I/O, source detection, cutout extraction
+│   ├── metrics/
+│   │   └── quality.py           Strehl, RMS, Zernike, MTF, SSIM, Phase Structure Function
+│   ├── models/
+│   │   ├── config.py            Pipeline, algorithm, pupil, data configs (Pydantic)
+│   │   └── optics.py            PSFData, PupilModel, PhaseRetrievalResult
+│   ├── optics/
+│   │   ├── propagator.py        FFT forward/inverse, defocus injection
+│   │   ├── pupils.py            HST, JWST, generic circular pupil builders
+│   │   └── zernike.py           Noll-ordered Zernike polynomials
+│   └── visualization/
+│       └── plots.py             Publication-quality plotting (matplotlib)
+├── tests/                       Pytest test suite (synthetic data only — no network)
+├── notebooks/
+│   └── phase_retrieval_hst.ipynb  Full interactive tutorial
+├── pyproject.toml
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+└── LICENSE
+```
 
 ## Data
 
@@ -96,7 +142,7 @@ All algorithms benefit from these state-of-the-art enhancements built into the b
 
 ```bash
 # Clone the repository
-git clone https://github.com/<owner>/phase-retrieval.git
+git clone https://github.com/rezamirzaeifard/phase-retrieval.git
 cd phase-retrieval
 
 # Install in editable mode (recommended for development)
@@ -117,9 +163,6 @@ python main.py
 ### Via the CLI
 
 ```bash
-# Download real HST data from MAST
-phase-retrieval download --preset hst-wfc3-uvis-f606w
-
 # Run a single algorithm
 phase-retrieval run --algorithm hio --iterations 500
 
@@ -133,17 +176,17 @@ phase-retrieval run --algorithm raar --iterations 1000 \
 # Multi-start optimization (5 random restarts, keeps best)
 phase-retrieval run --algorithm hio --n-starts 5
 
-# Compare the default iterative algorithms on the same observation
+# Compare all algorithms on the same observation
 phase-retrieval compare --iterations 500
 
 # Poisson noise model for low-SNR data
-phase-retrieval run --algorithm admm --noise-model poisson
-
-# Optional PINN / neural-field solver (requires `pip install -e ".[pinn]"`)
-phase-retrieval run --algorithm pinn --iterations 300
+phase-retrieval run --algorithm raar --noise-model poisson
 
 # List available observation presets
 phase-retrieval download --list
+
+# Optional PINN / neural-field solver (requires pip install -e ".[pinn]")
+phase-retrieval run --algorithm pinn --iterations 300
 ```
 
 ### As a Python module
@@ -160,42 +203,6 @@ pytest
 
 # With coverage
 pytest --cov=src --cov-report=term-missing
-```
-
-All tests use small synthetic data (64×64 grids) — no network or real FITS files
-required.
-
-## Project Structure
-
-```
-src/
-├── algorithms/      Phase retrieval algorithm implementations
-│   ├── base.py          Abstract base class (momentum, TV, adaptive β, noise model)
-│   ├── error_reduction.py
-│   ├── gerchberg_saxton.py
-│   ├── hybrid_input_output.py
-│   ├── raar.py
-│   ├── wirtinger_flow.py    ★ State-of-the-art: gradient + spectral init
-│   ├── douglas_rachford.py  ★ Proximal splitting
-│   ├── admm.py              ★ ADMM with Fourier/support splitting
-│   ├── phase_diversity.py
-│   ├── multi_start.py       Multi-start optimization runner
-│   └── registry.py          Factory pattern for algorithm selection
-├── cli.py           Command-line interface (argparse)
-├── data/            MAST downloader & FITS loader
-│   ├── downloader.py    Curated observations from the MAST archive
-│   └── loader.py        FITS I/O, source detection, cutout extraction
-├── metrics/         Strehl, RMS, Zernike, MTF, SSIM, Phase Structure Function
-│   └── quality.py
-├── models/          Pydantic-validated data models
-│   ├── config.py        Pipeline, algorithm, pupil, data configs
-│   └── optics.py        PSFData, PupilModel, PhaseRetrievalResult
-├── optics/          Pupil models, Zernike basis, Fourier propagation
-│   ├── propagator.py    FFT forward/inverse, defocus injection
-│   ├── pupils.py        HST, JWST, generic circular pupil builders
-│   └── zernike.py       Noll-ordered Zernike polynomials
-└── visualization/   Publication-quality plotting (matplotlib)
-tests/               Pytest test suite (synthetic data only)
 ```
 
 ## References

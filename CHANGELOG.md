@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.1] — 2026-04-07
+
+### Fixed — Critical Bug Fixes
+
+- **`raar.py`**: Fixed corrupt file — floating code at top of file, undefined
+  `cost` variable in return statement, double `@staticmethod` decorator, broken
+  `_er_step` method that referenced `self` in a static method and used
+  undefined variables (`g_new`, `g_prime`).
+- **`douglas_rachford.py`**: Fixed identical corruption pattern — floating code,
+  double `@staticmethod`, broken `_er_step` with undefined variables and `self`
+  references in static method, dangling `)`.
+- **`phase_diversity.py`**: Fixed scrambled code order — variables used before
+  definition (`G1` before `g1`, `G2` before `g2`), code inside parameter lists,
+  and broken single-image `_iterate` fallback method.
+- **`registry.py`**: Fixed syntax error — `PINN` entry was outside the dict
+  literal, and `RAAR` import was missing entirely.
+- **`algorithms/__init__.py`**: Added missing `RAAR` import (was referenced in
+  `__all__` but never imported).
+
+### Improved — Documentation & CI
+
+- **README.md**: Fixed broken code blocks (CLI commands outside fences),
+  placeholder `<owner>` in GitHub URLs, orphaned/duplicate lines, and garbled
+  architecture section. Added proper tree-style project structure.
+- **CONTRIBUTING.md**: Added "Adding a New Algorithm" guide, type-checking
+  section, and updated repository URLs.
+- **CI workflow**: Added `typecheck` job (mypy), `fail-fast: false` for test
+  matrix, proper job names, and `permissions: contents: read`.
+- **CHANGELOG.md**: Added this entry documenting all fixes.
+- **`pyproject.toml`**: Added Python 3.13 classifier.
+
 ## [2.0.0] — 2026-03-30
 
 ### Added — State-of-the-Art Algorithms
