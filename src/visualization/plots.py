@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import TwoSlopeNorm
 
-from src.metrics.quality import compute_ssim
 from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 from src.optics.zernike import ZERNIKE_NAMES
 
@@ -21,7 +20,7 @@ _CMAP_PHASE = "RdBu_r"
 _CMAP_PSF = "inferno"
 _CMAP_PUPIL = "gray"
 
-# Colour palette for multi-line plots (colourblind-friendly)
+# Colour palette used across multi-line plots / bar charts
 _PALETTE = [
     "#4575b4", "#d73027", "#fdae61", "#74add1",
     "#f46d43", "#abd9e9", "#fee090", "#313695",
@@ -30,109 +29,58 @@ _PALETTE = [
 
 
 def set_style() -> None:
-    """Apply a clean, publication-ready matplotlib style.
-
-    Ensures all text, labels, ticks, and legends are visible on white
-    backgrounds regardless of the user's IDE or system theme.
-    """
+    """Apply a clean matplotlib style with guaranteed visibility."""
     plt.rcParams.update({
-        # Figure
         "figure.facecolor": "white",
-        "figure.edgecolor": "white",
-        "figure.dpi": 130,
-        "savefig.dpi": 200,
-        "savefig.facecolor": "white",
-        "savefig.bbox": "tight",
-        "savefig.pad_inches": 0.2,
-        # Axes
         "axes.facecolor": "white",
-        "axes.edgecolor": "#333333",
-        "axes.labelcolor": "black",
-        "axes.titlecolor": "black",
+        "savefig.facecolor": "white",
+        "font.size": 11,
         "axes.titlesize": 13,
-        "axes.titleweight": "bold",
         "axes.labelsize": 11,
-        "axes.labelweight": "medium",
-        "axes.grid": False,
-        "axes.linewidth": 0.8,
-        # Ticks
+        "figure.dpi": 120,
+        "image.origin": "lower",
+        # ── Explicitly force dark text on white background ──
+        "text.color": "black",
+        "axes.labelcolor": "black",
         "xtick.color": "black",
         "ytick.color": "black",
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        "xtick.direction": "out",
-        "ytick.direction": "out",
-        # Font
-        "font.size": 11,
-        "font.family": "sans-serif",
-        "text.color": "black",
-        # Legend
-        "legend.frameon": True,
+        "axes.edgecolor": "black",
         "legend.facecolor": "white",
         "legend.edgecolor": "#999999",
         "legend.framealpha": 0.95,
         "legend.fontsize": 10,
-        "legend.borderpad": 0.4,
-        "legend.labelspacing": 0.4,
-        # Image
-        "image.origin": "lower",
-        # Grid
-        "grid.color": "#cccccc",
-        "grid.alpha": 0.4,
-        "grid.linewidth": 0.5,
     })
 
 
-def _style_legend(
-    ax: plt.Axes,
-    *,
-    loc: str = "best",
-    fontsize: int | float = 10,
-    ncol: int = 1,
-    title: str | None = None,
-    outside: bool = False,
-    **kwargs,
-) -> None:
-    """Apply consistent, always-visible legend styling to an axes.
-
-    Parameters
-    ----------
-    ax : Axes
-        The matplotlib axes.
-    loc : str
-        Legend location (ignored if *outside* is True).
-    fontsize : int | float
-        Label font size.
-    ncol : int
-        Number of columns.
-    title : str | None
-        Optional legend title.
-    outside : bool
-        If True, place the legend below the axes.
-    """
-    handles, labels = ax.get_legend_handles_labels()
-    if not handles:
-        return
-    kw: dict = dict(
+def _legend(ax: plt.Axes, **kwargs) -> None:
+    """Add a legend guaranteed to be visible on any background."""
+    defaults = dict(
         frameon=True,
         facecolor="white",
         edgecolor="#999999",
         framealpha=0.95,
-        fontsize=fontsize,
-        ncol=ncol,
-        title=title,
-        title_fontsize=fontsize,
+        fontsize=10,
+        labelcolor="black",
     )
-    kw.update(kwargs)
-    if outside:
-        kw.update(loc="upper center", bbox_to_anchor=(0.5, -0.15))
-    else:
-        kw["loc"] = loc
-    leg = ax.legend(**kw)
-    for text in leg.get_texts():
-        text.set_color("black")
-    if leg.get_title():
-        leg.get_title().set_color("black")
+    defaults.update(kwargs)
+    ax.legend(**defaults)
+
+
+# ---------------------------------------------------------------------------
+# Saving
+# ---------------------------------------------------------------------------
+
+def save_figure(fig: plt.Figure, path: str | Path, **kwargs) -> None:
+    """Save a matplotlib figure, creating parent dirs as needed."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(
+        path,
+        dpi=kwargs.pop("dpi", 150),
+        bbox_inches=kwargs.pop("bbox_inches", "tight"),
+        facecolor="white",
+        **kwargs,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -260,13 +208,18 @@ def plot_psf_comparison(
     *,
     log_scale: bool = True,
 ) -> plt.Figure:
-    """Side-by-side: Observed PSF | Reconstructed PSF | Residual | Log-residual."""
+    """Side-by-side: Observed PSF | Reconstructed PSF | Residual | Log-residual.
+
+    This makes it easy to see exactly where the reconstruction differs
+    from the measurement.
+    """
     set_style()
     fig, axes = plt.subplots(1, 4, figsize=(22, 5))
 
     obs = psf.image.copy()
     rec = result.reconstructed_psf.copy()
 
+    # Normalise both to unit sum for fair comparison
     obs_n = obs / max(obs.sum(), 1e-30)
     rec_n = rec / max(rec.sum(), 1e-30)
 
@@ -279,8 +232,10 @@ def plot_psf_comparison(
 
     # --- Panel 2: Reconstructed PSF (log, same colour range) ---
     rec_disp = np.log10(rec_n + 1e-12) if log_scale else rec_n
-    im1 = axes[1].imshow(rec_disp, cmap=_CMAP_PSF,
-                          vmin=im0.get_clim()[0], vmax=im0.get_clim()[1])
+    im1 = axes[1].imshow(
+        rec_disp, cmap=_CMAP_PSF,
+        vmin=im0.get_clim()[0], vmax=im0.get_clim()[1],
+    )
     axes[1].set_title(f"Reconstructed PSF — {result.algorithm.value.upper()}")
     axes[1].axis("off")
     fig.colorbar(im1, ax=axes[1], shrink=0.8, label="log₁₀(I)" if log_scale else "I")
@@ -325,10 +280,10 @@ def plot_convergence(
     """Plot convergence curve (cost vs. iteration)."""
     set_style()
     if ax is None:
-        fig, ax = plt.subplots(figsize=(8, 4.5))
+        fig, ax = plt.subplots(figsize=(7, 4))
     else:
         fig = ax.figure
-    ax.semilogy(result.cost_history, linewidth=1.8, color=_PALETTE[0])
+    ax.semilogy(result.cost_history, linewidth=1.5, color=_PALETTE[0])
     ax.set_xlabel("Iteration")
     ax.set_ylabel("Cost (focal-plane error)")
     ax.set_title(f"Convergence — {result.algorithm.value.upper()}")
@@ -345,7 +300,7 @@ def plot_zernike_bar(
     """Bar chart of Zernike coefficients."""
     set_style()
     if ax is None:
-        fig, ax = plt.subplots(figsize=(10, 4.5))
+        fig, ax = plt.subplots(figsize=(10, 4))
     else:
         fig = ax.figure
 
@@ -379,10 +334,12 @@ def plot_summary(
     set_style()
     fig, axes = plt.subplots(2, 3, figsize=(16, 10))
 
+    # Row 1: Pupil, Observed PSF, Residual (Obs − Recon)
     plot_pupil(pupil, ax=axes[0, 0])
     plot_observed_psf(psf, ax=axes[0, 1])
     plot_psf_residual(psf, result, ax=axes[0, 2])
 
+    # Row 2: Recovered phase, Convergence, Zernike coefficients
     support = pupil.amplitude > 0
     plot_recovered_phase(result, support, ax=axes[1, 0])
     plot_convergence(result, ax=axes[1, 1])
@@ -419,6 +376,7 @@ def plot_algorithm_comparison(
         axes = axes.reshape(2, 1)
 
     for col, (name, res) in enumerate(results.items()):
+        # Phase
         phase = res.recovered_phase.copy()
         phase[~support] = np.nan
         vmax = np.nanmax(np.abs(phase)) or 1.0
@@ -427,6 +385,7 @@ def plot_algorithm_comparison(
         axes[0, col].set_title(f"{name}\nStrehl={res.strehl_ratio:.3f}", color="black")
         axes[0, col].axis("off")
 
+        # Convergence
         axes[1, col].semilogy(res.cost_history, linewidth=1.2, color=_PALETTE[col % len(_PALETTE)])
         axes[1, col].set_xlabel("Iteration")
         axes[1, col].set_ylabel("Cost")
@@ -479,7 +438,7 @@ def plot_radial_profile(
     ax.set_xlabel("Radius (pixels)")
     ax.set_ylabel("Azimuthal-average intensity")
     ax.set_title(f"Radial PSF Profile — {result.algorithm.value.upper()}")
-    _style_legend(ax, loc="upper right", fontsize=11)
+    _legend(ax, fontsize=11)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(left=0)
     fig.tight_layout()
@@ -496,24 +455,26 @@ def plot_psf_cross_sections(
     rec = result.reconstructed_psf / max(result.reconstructed_psf.sum(), 1e-30)
     cy, cx = np.unravel_index(np.argmax(obs), obs.shape)
 
-    fig, (ax_h, ax_v) = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig, (ax_h, ax_v) = plt.subplots(1, 2, figsize=(14, 5))
 
+    # Horizontal cut
     ax_h.semilogy(obs[cy, :], label="Observed", linewidth=1.8, color=_PALETTE[0])
     ax_h.semilogy(rec[cy, :], label="Reconstructed", linewidth=1.8, linestyle="--", color=_PALETTE[1])
     ax_h.axvline(cx, color="gray", linestyle=":", linewidth=0.8)
     ax_h.set_xlabel("x (pixels)")
     ax_h.set_ylabel("Intensity")
     ax_h.set_title("Horizontal Cross-Section")
-    _style_legend(ax_h, loc="upper right", fontsize=10)
+    _legend(ax_h, loc="upper right", fontsize=10)
     ax_h.grid(True, alpha=0.3)
 
+    # Vertical cut
     ax_v.semilogy(obs[:, cx], label="Observed", linewidth=1.8, color=_PALETTE[0])
     ax_v.semilogy(rec[:, cx], label="Reconstructed", linewidth=1.8, linestyle="--", color=_PALETTE[1])
     ax_v.axvline(cy, color="gray", linestyle=":", linewidth=0.8)
     ax_v.set_xlabel("y (pixels)")
     ax_v.set_ylabel("Intensity")
     ax_v.set_title("Vertical Cross-Section")
-    _style_legend(ax_v, loc="upper right", fontsize=10)
+    _legend(ax_v, loc="upper right", fontsize=10)
     ax_v.grid(True, alpha=0.3)
 
     fig.suptitle(
@@ -553,7 +514,6 @@ def plot_wavefront_3d(
     ax.set_xlabel("x (normalised)", color="black")
     ax.set_ylabel("y (normalised)", color="black")
     ax.set_zlabel("Phase (rad)", color="black")
-    ax.tick_params(colors="black")
     ax.set_title(
         f"Recovered Wavefront — {result.algorithm.value.upper()}\n"
         f"RMS = {result.rms_phase_rad:.4f} rad",
@@ -595,10 +555,10 @@ def plot_encircled_energy(
     ax.set_xlabel("Radius (pixels)")
     ax.set_ylabel("Encircled Energy (fraction)")
     ax.set_title(f"Encircled Energy — {result.algorithm.value.upper()}")
-    _style_legend(ax, loc="lower right", fontsize=11)
-    ax.grid(True, alpha=0.3)
+    _legend(ax, loc="lower right", fontsize=11)
     ax.set_xlim(left=0)
     ax.set_ylim(0, 1.05)
+    ax.grid(True, alpha=0.3)
     fig.tight_layout()
     return fig
 
@@ -614,12 +574,14 @@ def plot_zernike_polar(
     values = [coefficients[j] for j in indices]
     labels = [ZERNIKE_NAMES.get(j, f"Z{j}") for j in indices]
 
+    # Map each Zernike to an angle based on its azimuthal order m
     angles = []
     for j in indices:
         n, m = _noll_lookup(j)
         angle = np.pi / 2 + m * np.pi / (max(abs(m), 1) + n * 0.2)
         angles.append(angle)
 
+    # De-overlap
     angles = np.array(angles, dtype=float)
     for i in range(len(angles)):
         for k in range(i):
@@ -639,10 +601,11 @@ def plot_zernike_polar(
             fontsize=7, ha="left", color="black",
         )
 
-    ax.set_title("Zernike Polar Map\n(red = negative, blue = positive)",
-                 fontsize=12, pad=20, color="black")
-    ax.set_ylim(0, max(abs_vals) * 1.3 if max(abs_vals) > 0 else 1.0)
-    ax.tick_params(colors="black")
+    ax.set_title(
+        "Zernike Polar Map\n(red = negative, blue = positive)",
+        fontsize=12, pad=20, color="black",
+    )
+    ax.set_ylim(0, max(abs_vals) * 1.3 if len(abs_vals) > 0 and max(abs_vals) > 0 else 1.0)
     fig.tight_layout()
     return fig
 
@@ -653,7 +616,11 @@ def plot_algorithm_dashboard(
     support: np.ndarray,
     pupil: PupilModel,
 ) -> plt.Figure:
-    """Comprehensive 4-row × N-column dashboard comparing all algorithms."""
+    """Comprehensive 4-row × N-column dashboard comparing all algorithms.
+
+    Rows: recovered phase | reconstructed PSF | residual | radial profile.
+    Each column is one algorithm.
+    """
     set_style()
     from src.optics.propagator import forward_model
 
@@ -669,47 +636,47 @@ def plot_algorithm_dashboard(
     r_perf, prof_perf = _azimuthal_average(perfect_psf)
 
     for col, (name, res) in enumerate(results.items()):
-        # Row 0 — Recovered phase
+        # Row 0 — Recovered phase (heatmap)
         phase = res.recovered_phase.copy()
         phase[~support] = np.nan
         vmax = np.nanmax(np.abs(phase)) or 1.0
         norm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
         im0 = axes[0, col].imshow(phase, cmap=_CMAP_PHASE, norm=norm)
-        axes[0, col].set_title(f"{name}\nStrehl={res.strehl_ratio:.3f}  RMS={res.rms_phase_rad:.3f}",
-                               fontsize=10, color="black")
+        axes[0, col].set_title(
+            f"{name}\nStrehl={res.strehl_ratio:.3f}  RMS={res.rms_phase_rad:.3f}",
+            color="black",
+        )
         axes[0, col].axis("off")
         fig.colorbar(im0, ax=axes[0, col], shrink=0.7, label="rad")
 
-        # Row 1 — Reconstructed PSF
+        # Row 1 — Reconstructed PSF (log heatmap)
         rec_n = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
         rec_log = np.log10(rec_n + 1e-12)
         im1 = axes[1, col].imshow(rec_log, cmap=_CMAP_PSF)
-        axes[1, col].set_title("Reconstructed PSF", fontsize=10, color="black")
+        axes[1, col].set_title("Reconstructed PSF", color="black")
         axes[1, col].axis("off")
         fig.colorbar(im1, ax=axes[1, col], shrink=0.7, label="log₁₀(I)")
 
-        # Row 2 — Residual
+        # Row 2 — Residual (diverging heatmap)
         diff = obs_n - rec_n
         vmax_d = np.max(np.abs(diff)) or 1.0
         norm_d = TwoSlopeNorm(vmin=-vmax_d, vcenter=0, vmax=vmax_d)
         im2 = axes[2, col].imshow(diff, cmap="RdBu_r", norm=norm_d)
-        axes[2, col].set_title(f"Residual  RMS={np.sqrt(np.mean(diff**2)):.2e}",
-                               fontsize=10, color="black")
+        axes[2, col].set_title(
+            f"Residual  RMS={np.sqrt(np.mean(diff**2)):.2e}", color="black",
+        )
         axes[2, col].axis("off")
         fig.colorbar(im2, ax=axes[2, col], shrink=0.7, label="Δ I")
 
-        # Row 3 — Radial profile
+        # Row 3 — Radial profile (line plot)
         r_rec, prof_rec = _azimuthal_average(rec_n)
-        axes[3, col].semilogy(r_obs, prof_obs + 1e-15, label="Observed",
-                              linewidth=1.5, color=_PALETTE[0])
-        axes[3, col].semilogy(r_rec, prof_rec + 1e-15, label="Reconstructed",
-                              linewidth=1.5, linestyle="--", color=_PALETTE[1])
-        axes[3, col].semilogy(r_perf, prof_perf + 1e-15, label="Diffraction-lim.",
-                              linewidth=1.0, linestyle=":", color=_PALETTE[3])
+        axes[3, col].semilogy(r_obs, prof_obs + 1e-15, label="Observed", linewidth=1.5, color=_PALETTE[0])
+        axes[3, col].semilogy(r_rec, prof_rec + 1e-15, label="Reconstructed", linewidth=1.5, linestyle="--", color=_PALETTE[1])
+        axes[3, col].semilogy(r_perf, prof_perf + 1e-15, label="Diffraction-lim.", linewidth=1.2, linestyle=":", color=_PALETTE[3])
         axes[3, col].set_xlabel("Radius (px)")
         axes[3, col].set_ylabel("Intensity")
-        axes[3, col].set_title("Radial Profile", fontsize=10, color="black")
-        _style_legend(axes[3, col], fontsize=7, loc="upper right")
+        axes[3, col].set_title("Radial Profile", color="black")
+        _legend(axes[3, col], fontsize=8)
         axes[3, col].grid(True, alpha=0.3)
 
     # Row labels
@@ -741,119 +708,164 @@ def plot_strehl_rms_bar(
     width = 0.35
 
     fig, ax1 = plt.subplots(figsize=(10.5, 6))
-    bars1 = ax1.bar(x - width / 2, strehls, width, label="Strehl Ratio",
-                     color="#4575b4", edgecolor="k", linewidth=0.5)
-    ax1.set_ylabel("Strehl Ratio", color="#4575b4", fontweight="bold")
+
+    bars1 = ax1.bar(
+        x - width / 2, strehls, width,
+        label="Strehl Ratio",
+        color="#4575b4", edgecolor="k", linewidth=0.5,
+    )
+    ax1.set_ylabel("Strehl Ratio", color="#4575b4", fontsize=12)
     ax1.tick_params(axis="y", labelcolor="#4575b4")
     ax1.set_ylim(0, 1.05)
 
     ax2 = ax1.twinx()
-    bars2 = ax2.bar(x + width / 2, rms_vals, width, label="RMS Phase (rad)",
-                     color="#d73027", edgecolor="k", linewidth=0.5)
-    ax2.set_ylabel("RMS Phase (rad)", color="#d73027", fontweight="bold")
+    bars2 = ax2.bar(
+        x + width / 2, rms_vals, width,
+        label="RMS Phase (rad)",
+        color="#d73027", edgecolor="k", linewidth=0.5,
+    )
+    ax2.set_ylabel("RMS Phase (rad)", color="#d73027", fontsize=12)
     ax2.tick_params(axis="y", labelcolor="#d73027")
 
     ax1.set_xticks(x)
     ax1.set_xticklabels(names, fontsize=11, color="black")
-    ax1.tick_params(axis="x", colors="black")
-    ax1.set_title("Algorithm Performance — Strehl Ratio vs. RMS Wavefront Error",
-                   fontsize=13, fontweight="bold", color="black")
+    ax1.set_title(
+        "Algorithm Performance — Strehl Ratio vs. RMS Wavefront Error",
+        fontsize=13, fontweight="bold", color="black",
+    )
 
+    # Add value labels on bars
     for bar in bars1:
-        ax1.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
-                 f"{bar.get_height():.3f}", ha="center", va="bottom", fontsize=9,
-                 color="#4575b4", fontweight="bold")
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
+            f"{bar.get_height():.3f}", ha="center", va="bottom",
+            fontsize=9, color="#4575b4", fontweight="bold",
+        )
     for bar in bars2:
-        ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
-                 f"{bar.get_height():.3f}", ha="center", va="bottom", fontsize=9,
-                 color="#d73027", fontweight="bold")
+        ax2.text(
+            bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
+            f"{bar.get_height():.3f}", ha="center", va="bottom",
+            fontsize=9, color="#d73027", fontweight="bold",
+        )
 
-    # Combined legend inside the plot (upper left, away from bars)
-    handles = [bars1, bars2]
-    labels = ["Strehl Ratio", "RMS Phase (rad)"]
-    ax1.legend(
-        handles, labels,
-        loc="upper left",
+    # Combined legend
+    fig.legend(
+        [bars1, bars2], ["Strehl Ratio", "RMS Phase (rad)"],
+        loc="upper right", bbox_to_anchor=(0.95, 0.92),
         frameon=True, facecolor="white", edgecolor="#999999",
-        framealpha=0.95, fontsize=11,
+        framealpha=0.95, fontsize=10,
     )
     fig.tight_layout()
     return fig
 
 
+# ---------------------------------------------------------------------------
+# PINN benchmark
+# ---------------------------------------------------------------------------
+
 def plot_pinn_benchmark(
     psf: PSFData,
     results: dict[str, PhaseRetrievalResult],
 ) -> plt.Figure:
-    """Focused benchmark view for PINN vs. classical baselines."""
+    """Focused benchmark view for PINN vs. classical baselines.
+
+    Layout:
+      - Top-left: observed PSF (reference)
+      - Top row remaining columns: reconstructed PSFs for each algorithm
+      - Bottom-left: convergence curves (all on one axis)
+      - Bottom-right: radial profiles (all on one axis)
+    """
     set_style()
-    names = list(results.keys())
-    n_alg = len(names)
-    fig, axes = plt.subplots(2, n_alg + 1, figsize=(4.8 * (n_alg + 1), 9))
 
-    obs = psf.image / max(psf.image.sum(), 1e-30)
-    obs_log = np.log10(obs + 1e-12)
-    im_ref = axes[0, 0].imshow(obs_log, cmap=_CMAP_PSF)
-    axes[0, 0].set_title("Observed PSF", color="black")
+    n_alg = len(results)
+    n_cols = max(n_alg + 1, 2)
+    fig, axes = plt.subplots(2, n_cols, figsize=(6 * n_cols, 10))
+
+    obs_n = psf.image / max(psf.image.sum(), 1e-30)
+
+    # Row 0: Observed PSF + reconstructed PSFs
+    obs_log = np.log10(obs_n + 1e-12)
+    axes[0, 0].imshow(obs_log, cmap=_CMAP_PSF)
+    axes[0, 0].set_title("Observed PSF", color="black", fontsize=11)
     axes[0, 0].axis("off")
-    fig.colorbar(im_ref, ax=axes[0, 0], shrink=0.75, label="log₁₀(I)")
 
-    axes[1, 0].axis("off")
-    axes[1, 0].text(
-        0.03, 0.97,
-        "Metrics shown in titles:\nStrehl / RMS / SSIM\nResidual panels show\nlog₁₀(|Obs − Recon|)",
-        transform=axes[1, 0].transAxes,
-        va="top", ha="left", fontsize=11, color="black",
-        bbox={"boxstyle": "round", "facecolor": "#f7f7f7", "edgecolor": "#cccccc"},
-    )
-
-    for col, name in enumerate(names, start=1):
-        res = results[name]
-        rec = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
-        ssim = compute_ssim(obs, rec)
-
-        rec_log = np.log10(rec + 1e-12)
-        im_top = axes[0, col].imshow(rec_log, cmap=_CMAP_PSF)
+    for col, (name, res) in enumerate(results.items(), start=1):
+        if col >= n_cols:
+            break
+        rec_n = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
+        rec_log = np.log10(rec_n + 1e-12)
+        axes[0, col].imshow(rec_log, cmap=_CMAP_PSF, vmin=obs_log.min(), vmax=obs_log.max())
         axes[0, col].set_title(
-            f"{name}\nStrehl={res.strehl_ratio:.3f}  RMS={res.rms_phase_rad:.3f}\nSSIM={ssim:.5f}",
-            fontsize=11, color="black",
+            f"{name}\nStrehl={res.strehl_ratio:.4f}  RMS={res.rms_phase_rad:.4f}",
+            color="black", fontsize=10,
         )
         axes[0, col].axis("off")
-        fig.colorbar(im_top, ax=axes[0, col], shrink=0.75, label="log₁₀(I)")
 
-        abs_resid = np.abs(obs - rec)
-        im_bot = axes[1, col].imshow(np.log10(abs_resid + 1e-12), cmap="magma")
-        axes[1, col].set_title(
-            f"|Residual|  max={np.max(abs_resid):.2e}\n"
-            f"Time={res.elapsed_seconds:.2f}s  Final cost={res.cost_history[-1]:.3g}",
-            fontsize=10, color="black",
+    # Hide unused top-row axes
+    for j in range(n_alg + 1, n_cols):
+        axes[0, j].axis("off")
+
+    # Row 1, col 0: Convergence curves
+    ax_conv = axes[1, 0]
+    for i, (name, res) in enumerate(results.items()):
+        ax_conv.semilogy(
+            res.cost_history,
+            label=f"{name} (Strehl={res.strehl_ratio:.3f})",
+            linewidth=2.0,
+            color=_PALETTE[i % len(_PALETTE)],
         )
-        axes[1, col].axis("off")
-        fig.colorbar(im_bot, ax=axes[1, col], shrink=0.75, label="log₁₀(|Δ|)")
+    ax_conv.set_xlabel("Iteration")
+    ax_conv.set_ylabel("Cost (focal-plane error)")
+    ax_conv.set_title("Convergence", color="black")
+    _legend(ax_conv, fontsize=9)
+    ax_conv.grid(True, alpha=0.3)
 
-    fig.suptitle("PINN Benchmark — Real-data comparison against classical baselines",
-                 fontsize=15, fontweight="bold", color="black")
+    # Row 1, col 1: Radial profiles
+    ax_rad = axes[1, 1]
+    r_obs, prof_obs = _azimuthal_average(obs_n)
+    ax_rad.semilogy(r_obs, prof_obs + 1e-15, label="Observed", linewidth=2.0,
+                    color="gray", linestyle=":")
+    for i, (name, res) in enumerate(results.items()):
+        rec_n = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
+        r_r, prof_r = _azimuthal_average(rec_n)
+        ax_rad.semilogy(r_r, prof_r + 1e-15, label=name, linewidth=2.0,
+                        color=_PALETTE[i % len(_PALETTE)])
+    ax_rad.set_xlabel("Radius (px)")
+    ax_rad.set_ylabel("Azimuthal-average intensity")
+    ax_rad.set_title("Radial Profiles", color="black")
+    _legend(ax_rad, fontsize=9)
+    ax_rad.grid(True, alpha=0.3)
+    ax_rad.set_xlim(left=0)
+
+    # Hide unused bottom-row axes
+    for j in range(2, n_cols):
+        axes[1, j].axis("off")
+
+    fig.suptitle(
+        "PINN Benchmark — Comparison with Classical Baselines",
+        fontsize=14, fontweight="bold", color="black",
+    )
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     return fig
 
 
-def save_figure(fig: plt.Figure, path: Path, *, dpi: int = 200) -> None:
-    """Save a figure to disk with robust settings for visible output."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(
-        path,
-        dpi=dpi,
-        bbox_inches="tight",
-        pad_inches=0.25,
-        facecolor="white",
-        edgecolor="none",
-    )
-
+# ---------------------------------------------------------------------------
+# Multi-observation plots
+# ---------------------------------------------------------------------------
 
 def plot_multi_observation_grid(
     observations: list[dict],
 ) -> plt.Figure:
-    """Compare phase retrieval across multiple real observations."""
+    """Compare phase retrieval across multiple real observations.
+
+    Parameters
+    ----------
+    observations : list[dict]
+        Each dict has keys: ``"label"``, ``"psf"`` (PSFData),
+        ``"result"`` (PhaseRetrievalResult), ``"support"`` (ndarray).
+
+    Shows 4 rows: observed PSF, recovered phase, residual, convergence.
+    """
     set_style()
     n_obs = len(observations)
     fig, axes = plt.subplots(4, n_obs, figsize=(5.5 * n_obs, 20))
@@ -866,41 +878,49 @@ def plot_multi_observation_grid(
         support = obs["support"]
         label = obs["label"]
 
+        # Row 0 — Observed PSF (log heatmap)
         obs_n = psf.image / max(psf.image.sum(), 1e-30)
         obs_log = np.log10(obs_n + 1e-12)
         im0 = axes[0, col].imshow(obs_log, cmap=_CMAP_PSF)
-        axes[0, col].set_title(f"{label}\n{psf.filter_name} ({psf.telescope})",
-                               fontsize=10, color="black")
+        axes[0, col].set_title(f"{label}\n{psf.filter_name} ({psf.telescope})", color="black")
         axes[0, col].axis("off")
         fig.colorbar(im0, ax=axes[0, col], shrink=0.7, label="log₁₀(I)")
 
+        # Row 1 — Recovered phase (diverging heatmap)
         phase = res.recovered_phase.copy()
         phase[~support] = np.nan
         vmax = np.nanmax(np.abs(phase)) or 1.0
         norm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
         im1 = axes[1, col].imshow(phase, cmap=_CMAP_PHASE, norm=norm)
-        axes[1, col].set_title(f"Strehl={res.strehl_ratio:.3f}  RMS={res.rms_phase_rad:.3f}",
-                               fontsize=10, color="black")
+        axes[1, col].set_title(
+            f"Strehl={res.strehl_ratio:.3f}  RMS={res.rms_phase_rad:.3f}",
+            color="black",
+        )
         axes[1, col].axis("off")
         fig.colorbar(im1, ax=axes[1, col], shrink=0.7, label="rad")
 
+        # Row 2 — Residual (diverging heatmap)
         rec_n = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
         diff = obs_n - rec_n
         vmax_d = np.max(np.abs(diff)) or 1.0
         norm_d = TwoSlopeNorm(vmin=-vmax_d, vcenter=0, vmax=vmax_d)
         im2 = axes[2, col].imshow(diff, cmap="RdBu_r", norm=norm_d)
-        axes[2, col].set_title(f"Residual  RMS={np.sqrt(np.mean(diff**2)):.2e}",
-                               fontsize=10, color="black")
+        axes[2, col].set_title(
+            f"Residual  RMS={np.sqrt(np.mean(diff**2)):.2e}", color="black",
+        )
         axes[2, col].axis("off")
         fig.colorbar(im2, ax=axes[2, col], shrink=0.7, label="Δ I")
 
+        # Row 3 — Convergence (line plot)
         axes[3, col].semilogy(res.cost_history, linewidth=1.5, color=_PALETTE[0])
         axes[3, col].set_xlabel("Iteration")
         axes[3, col].set_ylabel("Cost")
-        axes[3, col].set_title(f"{res.n_iterations} iter, {res.elapsed_seconds:.1f}s",
-                               fontsize=10, color="black")
+        axes[3, col].set_title(
+            f"{res.n_iterations} iter, {res.elapsed_seconds:.1f}s", color="black",
+        )
         axes[3, col].grid(True, alpha=0.3)
 
+    # Row labels
     for row, label in enumerate(["Observed PSF", "Recovered Phase", "Residual", "Convergence"]):
         axes[row, 0].annotate(
             label, xy=(-0.3, 0.5), xycoords="axes fraction",
@@ -919,15 +939,21 @@ def plot_multi_observation_grid(
 def plot_multi_observation_radial(
     observations: list[dict],
 ) -> plt.Figure:
-    """Overlay radial PSF profiles from multiple real observations on one plot."""
+    """Overlay radial PSF profiles from multiple real observations on one plot.
+
+    Parameters
+    ----------
+    observations : list[dict]
+        Each dict has keys: ``"label"``, ``"psf"`` (PSFData),
+        ``"result"`` (PhaseRetrievalResult).
+    """
     set_style()
     fig, (ax_obs, ax_rec) = plt.subplots(1, 2, figsize=(16, 6))
 
     for i, obs in enumerate(observations):
         psf = obs["psf"]
         res = obs["result"]
-        label = obs["label"].replace("\n", " ")
-        color = _PALETTE[i % len(_PALETTE)]
+        label = obs["label"]
 
         obs_n = psf.image / max(psf.image.sum(), 1e-30)
         rec_n = res.reconstructed_psf / max(res.reconstructed_psf.sum(), 1e-30)
@@ -935,25 +961,28 @@ def plot_multi_observation_radial(
         r_o, p_o = _azimuthal_average(obs_n)
         r_r, p_r = _azimuthal_average(rec_n)
 
+        color = _PALETTE[i % len(_PALETTE)]
         ax_obs.semilogy(r_o, p_o + 1e-15, label=label, linewidth=1.8, color=color)
         ax_rec.semilogy(r_r, p_r + 1e-15, label=label, linewidth=1.8, color=color)
 
     ax_obs.set_xlabel("Radius (px)")
     ax_obs.set_ylabel("Azimuthal-average intensity")
-    ax_obs.set_title("Observed PSF — Radial Profiles")
-    _style_legend(ax_obs, loc="upper right", fontsize=9)
+    ax_obs.set_title("Observed PSF — Radial Profiles", color="black")
+    _legend(ax_obs, fontsize=9)
     ax_obs.grid(True, alpha=0.3)
     ax_obs.set_xlim(left=0)
 
     ax_rec.set_xlabel("Radius (px)")
     ax_rec.set_ylabel("Azimuthal-average intensity")
-    ax_rec.set_title("Reconstructed PSF — Radial Profiles")
-    _style_legend(ax_rec, loc="upper right", fontsize=9)
+    ax_rec.set_title("Reconstructed PSF — Radial Profiles", color="black")
+    _legend(ax_rec, fontsize=9)
     ax_rec.grid(True, alpha=0.3)
     ax_rec.set_xlim(left=0)
 
-    fig.suptitle("Radial Profiles Across Observations",
-                 fontsize=14, fontweight="bold", color="black")
-    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fig.suptitle(
+        "Radial Profiles Across Observations",
+        fontsize=14, fontweight="bold", color="black",
+    )
+    fig.tight_layout(rect=[0, 0, 1, 0.93])
     return fig
 
