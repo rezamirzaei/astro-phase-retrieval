@@ -8,7 +8,7 @@ focal plane (known amplitude = sqrt(measured PSF)).
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 
@@ -42,5 +42,3 @@ class GerchbergSaxton(PhaseRetriever):
         cost = self._focal_cost(target_amplitude, G)
 
         return g_new, cost
-
-

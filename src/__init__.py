@@ -1,6 +1,6 @@
 """Phase Retrieval for Astronomical Wavefront Sensing."""
 
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version
 
 try:
     __version__ = version("phase-retrieval")

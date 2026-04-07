@@ -28,7 +28,7 @@ References:
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 
@@ -64,9 +64,7 @@ class ADMM(PhaseRetriever):
         # ── g-step: enforce pupil-support constraint ──────────────────
         g_tilde = fftshift(ifft2(ifftshift(G - self._u)))
         g_new = np.zeros_like(g_tilde)
-        g_new[support] = pupil_amplitude[support] * np.exp(
-            1j * np.angle(g_tilde[support] + 1e-30)
-        )
+        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_tilde[support] + 1e-30))
 
         # ── Dual variable update ─────────────────────────────────────
         Fg_new = fftshift(fft2(ifftshift(g_new)))

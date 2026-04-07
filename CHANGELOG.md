@@ -24,17 +24,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **`algorithms/__init__.py`**: Added missing `RAAR` import (was referenced in
   `__all__` but never imported).
 
+### Improved — Code Quality
+
+- **Zero lint warnings**: Fixed all 94 ruff warnings (import sorting, unused
+  imports, line length, blind exception catches).
+- **Dead code removed**: Deleted `_noll_to_nm` and `_noll_to_nm_standard` from
+  `zernike.py` — both were intermediate functions that unconditionally
+  redirected to `_noll_lookup` without contributing any logic.
+- **DRY refactor**: Extracted duplicate `_er_step` method from `RAAR` and
+  `DouglasRachford` into `PhaseRetriever` base class (with defensive `+1e-30`
+  epsilon standardised across both).
+
+### Improved — Test Coverage
+
+- Test count: **104 → 136** tests, all passing.
+- Overall coverage: **72% → 90%** (85% CI gate enforced).
+- `visualization/plots.py`: **38% → 99%** — added smoke tests for all 20+
+  plot functions, `save_figure`, `_azimuthal_average`, `set_style`, plus edge
+  cases (single-algorithm views, linear scale, no-zernike summary).
+- `zernike.py`: **55% → 98%** — tests for Noll indices beyond lookup table,
+  `radial_polynomial` zero-return branch, `zernike_basis` with `start_j=1`.
+- `test_data.py`: expanded with `list_cached_fits` with actual files, filter
+  wavelength spot checks, curated-obs structure validation, unknown-preset
+  `KeyError` test, and preset-set equality check.
+- `test_models.py`: replaced blind `Exception` catches with `ValidationError`.
+
 ### Improved — Documentation & CI
 
-- **README.md**: Fixed broken code blocks (CLI commands outside fences),
-  placeholder `<owner>` in GitHub URLs, orphaned/duplicate lines, and garbled
-  architecture section. Added proper tree-style project structure.
+- **Sphinx docs site**: Added `docs/` with `conf.py` (furo theme, napoleon,
+  myst-parser), API reference pages for all 6 modules, and Makefile.
+- **`pyproject.toml`**: Added `[docs]` optional-dependency group, bumped
+  version to 2.0.1, added Python 3.13 classifier.
+- **CI workflow**: Added `docs` build job (`sphinx-build -W`), added
+  `--cov-fail-under=85` to test job.
+- **SECURITY.md**: Added responsible-disclosure policy.
+- **`.github/dependabot.yml`**: Automated weekly dependency updates for pip
+  and GitHub Actions ecosystems.
 - **CONTRIBUTING.md**: Added "Adding a New Algorithm" guide, type-checking
   section, and updated repository URLs.
-- **CI workflow**: Added `typecheck` job (mypy), `fail-fast: false` for test
-  matrix, proper job names, and `permissions: contents: read`.
 - **CHANGELOG.md**: Added this entry documenting all fixes.
-- **`pyproject.toml`**: Added Python 3.13 classifier.
 
 ## [2.0.0] — 2026-03-30
 

@@ -9,12 +9,11 @@ from src.models.config import PupilConfig, TelescopeType
 from src.optics.propagator import forward_model, make_complex_pupil, pupil_to_psf
 from src.optics.pupils import build_pupil
 from src.optics.zernike import (
-    ZERNIKE_NAMES,
     _noll_lookup,
+    radial_polynomial,
     zernike,
     zernike_basis,
 )
-
 
 # ── Pupil construction ────────────────────────────────────────────────────
 
@@ -74,16 +73,16 @@ class TestPropagation:
 
 class TestZernike:
     def test_noll_table_first_entries(self) -> None:
-        assert _noll_lookup(1) == (0, 0)   # piston
-        assert _noll_lookup(2) == (1, 1)   # tip
+        assert _noll_lookup(1) == (0, 0)  # piston
+        assert _noll_lookup(2) == (1, 1)  # tip
         assert _noll_lookup(3) == (1, -1)  # tilt
-        assert _noll_lookup(4) == (2, 0)   # defocus
+        assert _noll_lookup(4) == (2, 0)  # defocus
         assert _noll_lookup(11) == (4, 0)  # spherical
 
     def test_piston_is_constant(self) -> None:
         n = 64
-        y, x = np.mgrid[-1:1:complex(0, n), -1:1:complex(0, n)]
-        rho = np.sqrt(x ** 2 + y ** 2)
+        y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]
+        rho = np.sqrt(x**2 + y**2)
         theta = np.arctan2(y, x)
         Z1 = zernike(1, rho, theta)
         # Inside unit circle, piston should be constant
@@ -112,3 +111,33 @@ class TestZernike:
         basis, rho, theta = zernike_basis(10, 64)
         assert basis.shape == (10, 64, 64)
         assert rho.shape == (64, 64)
+
+    def test_noll_lookup_beyond_table(self) -> None:
+        """Noll indices > 37 should use the general formula."""
+        for j in [38, 39, 40, 45, 50]:
+            n, m = _noll_lookup(j)
+            assert n >= 0
+            # (n − |m|) must be even for a valid Zernike
+            assert (n - abs(m)) % 2 == 0
+
+    def test_radial_polynomial_odd_nm_returns_zero(self) -> None:
+        """R_n^m is zero when (n - |m|) is odd."""
+        rho = np.linspace(0, 1, 50)
+        result = radial_polynomial(3, 2, rho)
+        np.testing.assert_allclose(result, 0.0)
+
+    def test_radial_polynomial_defocus(self) -> None:
+        """R_2^0(rho) = 2*rho^2 - 1."""
+        rho = np.linspace(0, 1, 100)
+        result = radial_polynomial(2, 0, rho)
+        expected = 2 * rho**2 - 1
+        np.testing.assert_allclose(result, expected, atol=1e-12)
+
+    def test_zernike_basis_start_j_1(self) -> None:
+        """start_j=1 includes piston."""
+        basis, rho, theta = zernike_basis(5, 64, start_j=1)
+        assert basis.shape == (5, 64, 64)
+        # First term (piston) should be constant inside the pupil
+        inside = rho <= 1.0
+        vals = basis[0][inside]
+        assert np.std(vals) < 1e-12

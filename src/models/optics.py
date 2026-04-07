@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -10,13 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.models.config import AlgorithmName
 
-
 # ---------------------------------------------------------------------------
 # Helpers – allow numpy arrays inside pydantic models
 # ---------------------------------------------------------------------------
 
+
 class _NumpyModel(BaseModel):
     """Base model that permits arbitrary types (numpy arrays)."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -24,10 +25,13 @@ class _NumpyModel(BaseModel):
 # PSF data container
 # ---------------------------------------------------------------------------
 
+
 class PSFData(_NumpyModel):
     """Validated container for an observed PSF image."""
 
-    image: np.ndarray = Field(..., description="2-D intensity array (background-subtracted, normalised)")
+    image: np.ndarray = Field(
+        ..., description="2-D intensity array (background-subtracted, normalised)"
+    )
     pixel_scale_arcsec: float = Field(..., gt=0)
     wavelength_m: float = Field(..., gt=0)
     filter_name: str
@@ -63,6 +67,7 @@ class PSFPair(_NumpyModel):
 # Pupil model result
 # ---------------------------------------------------------------------------
 
+
 class PupilModel(_NumpyModel):
     """Computed telescope pupil amplitude mask."""
 
@@ -81,20 +86,25 @@ class PupilModel(_NumpyModel):
 # Phase-retrieval result
 # ---------------------------------------------------------------------------
 
+
 class PhaseRetrievalResult(_NumpyModel):
     """Complete output from a phase-retrieval run."""
 
     algorithm: AlgorithmName
     recovered_phase: np.ndarray = Field(..., description="Recovered pupil-plane phase (radians)")
     recovered_amplitude: np.ndarray = Field(..., description="Recovered pupil-plane amplitude")
-    reconstructed_psf: np.ndarray = Field(..., description="Forward-modelled PSF from recovered wavefront")
-    cost_history: list[float] = Field(default_factory=list, description="Cost function vs. iteration")
+    reconstructed_psf: np.ndarray = Field(
+        ..., description="Forward-modelled PSF from recovered wavefront"
+    )
+    cost_history: list[float] = Field(
+        default_factory=list, description="Cost function vs. iteration"
+    )
     n_iterations: int = Field(..., ge=1)
     converged: bool = False
     elapsed_seconds: float = Field(default=0.0, ge=0)
     rms_phase_rad: float = Field(default=0.0, ge=0, description="RMS wavefront error in radians")
     strehl_ratio: float = Field(default=0.0, ge=0, le=1.0)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("recovered_phase", "recovered_amplitude", "reconstructed_psf")
@@ -103,6 +113,3 @@ class PhaseRetrievalResult(_NumpyModel):
         if v.ndim != 2:
             raise ValueError(f"Array must be 2-D, got {v.ndim}-D")
         return v
-
-
-

@@ -33,7 +33,7 @@ def _sync_pupil_to_image(config, image_shape: tuple[int, int]):
     image_size = image_shape[0]
     if image_size != config.pupil.grid_size:
         logger.warning(
-            "Prepared PSF grid %dx%d differs from configured pupil grid %d; rebuilding pupil to match.",
+            "PSF grid %dx%d != pupil grid %d; rebuilding pupil.",
             image_size,
             image_size,
             config.pupil.grid_size,
@@ -52,14 +52,18 @@ def _has_torch() -> bool:
 
 # ── run ───────────────────────────────────────────────────────────────────
 
+
 def _cmd_run(args: argparse.Namespace) -> None:
     """Run a single phase-retrieval algorithm on a FITS file."""
     from src.algorithms.multi_start import multi_start_run
     from src.algorithms.registry import AlgorithmRegistry
     from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
-    from src.metrics.quality import zernike_decomposition
     from src.models.config import (
-        AlgorithmConfig, AlgorithmName, BetaSchedule, NoiseModel, default_hst_config,
+        AlgorithmConfig,
+        AlgorithmName,
+        BetaSchedule,
+        NoiseModel,
+        default_hst_config,
     )
     from src.models.optics import PSFData
     from src.optics.pupils import build_pupil
@@ -72,6 +76,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         fits_path = Path(args.fits)
     else:
         from src.data.downloader import list_cached_fits
+
         cached = list_cached_fits(config.data.data_dir)
         if not cached:
             logger.error("No FITS files found. Run 'phase-retrieval download' first.")
@@ -136,13 +141,18 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
 # ── compare ───────────────────────────────────────────────────────────────
 
+
 def _cmd_compare(args: argparse.Namespace) -> None:
     """Run all algorithms and print a comparison table."""
     from src.algorithms.multi_start import multi_start_run
     from src.algorithms.registry import AlgorithmRegistry
     from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
     from src.models.config import (
-        AlgorithmConfig, AlgorithmName, BetaSchedule, NoiseModel, default_hst_config,
+        AlgorithmConfig,
+        AlgorithmName,
+        BetaSchedule,
+        NoiseModel,
+        default_hst_config,
     )
     from src.models.optics import PSFData
     from src.optics.pupils import build_pupil
@@ -154,6 +164,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
         fits_path = Path(args.fits)
     else:
         from src.data.downloader import list_cached_fits
+
         cached = list_cached_fits(config.data.data_dir)
         if not cached:
             logger.error("No FITS files found. Run 'phase-retrieval download' first.")
@@ -216,6 +227,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
 
 # ── download ──────────────────────────────────────────────────────────────
 
+
 def _cmd_download(args: argparse.Namespace) -> None:
     """Download observation data from MAST."""
     from src.data.downloader import available_presets, download_preset
@@ -240,24 +252,34 @@ def _add_common_algo_args(parser: argparse.ArgumentParser) -> None:
     """Add shared algorithm arguments to a subcommand parser."""
     parser.add_argument("-n", "--iterations", type=int, default=500, help="Max iterations")
     parser.add_argument("--beta", type=float, default=0.9, help="HIO/RAAR/DR feedback β")
-    parser.add_argument("--beta-schedule", default="constant",
-                        choices=["constant", "linear", "cosine"],
-                        help="Adaptive β schedule")
+    parser.add_argument(
+        "--beta-schedule",
+        default="constant",
+        choices=["constant", "linear", "cosine"],
+        help="Adaptive β schedule",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--fits", type=str, default=None, help="Path to FITS file")
     parser.add_argument("-o", "--output-dir", default="outputs", help="Output directory")
-    parser.add_argument("--momentum", type=float, default=0.0,
-                        help="Nesterov/heavy-ball momentum (0=off)")
-    parser.add_argument("--tv-weight", type=float, default=0.0,
-                        help="Total-variation regularization weight (0=off)")
-    parser.add_argument("--noise-model", default="gaussian",
-                        choices=["gaussian", "poisson"],
-                        help="Noise model for focal-plane projection")
-    parser.add_argument("--n-starts", type=int, default=1,
-                        help="Multi-start: number of random restarts")
+    parser.add_argument(
+        "--momentum", type=float, default=0.0, help="Nesterov/heavy-ball momentum (0=off)"
+    )
+    parser.add_argument(
+        "--tv-weight", type=float, default=0.0, help="Total-variation regularization weight (0=off)"
+    )
+    parser.add_argument(
+        "--noise-model",
+        default="gaussian",
+        choices=["gaussian", "poisson"],
+        help="Noise model for focal-plane projection",
+    )
+    parser.add_argument(
+        "--n-starts", type=int, default=1, help="Multi-start: number of random restarts"
+    )
 
 
 # ── main ──────────────────────────────────────────────────────────────────
+
 
 def main(argv: list[str] | None = None) -> None:
     """CLI entry point."""
@@ -273,8 +295,12 @@ def main(argv: list[str] | None = None) -> None:
 
     # --- run ---
     p_run = sub.add_parser("run", help="Run a single algorithm on a FITS file")
-    p_run.add_argument("-a", "--algorithm", default="hio",
-                       help="Algorithm key (er, gs, hio, raar, wf, dr, admm, pinn)")
+    p_run.add_argument(
+        "-a",
+        "--algorithm",
+        default="hio",
+        help="Algorithm key (er, gs, hio, raar, wf, dr, admm, pinn)",
+    )
     _add_common_algo_args(p_run)
     p_run.set_defaults(func=_cmd_run)
 
@@ -285,7 +311,9 @@ def main(argv: list[str] | None = None) -> None:
 
     # --- download ---
     p_dl = sub.add_parser("download", help="Download observation data from MAST")
-    p_dl.add_argument("-p", "--preset", default="hst-wfc3-uvis-f606w", help="Observation preset key")
+    p_dl.add_argument(
+        "-p", "--preset", default="hst-wfc3-uvis-f606w", help="Observation preset key"
+    )
     p_dl.add_argument("-d", "--data-dir", default="data", help="Download directory")
     p_dl.add_argument("-l", "--list", action="store_true", help="List available presets")
     p_dl.set_defaults(func=_cmd_download)

@@ -11,7 +11,7 @@ from src.models.config import (
     TelescopeType,
     default_hst_config,
 )
-from src.models.optics import PSFData, PSFPair, PhaseRetrievalResult, PupilModel
+from src.models.optics import PhaseRetrievalResult, PSFData, PSFPair, PupilModel
 
 __all__ = [
     "AlgorithmConfig",

@@ -8,57 +8,44 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from functools import lru_cache
-
-
-def _noll_to_nm(j: int) -> tuple[int, int]:
-    """Convert Noll index *j* (1-based) to radial order *n* and azimuthal frequency *m*."""
-    if j < 1:
-        raise ValueError(f"Noll index must be >= 1, got {j}")
-    n = 0
-    j_remaining = j
-    while j_remaining > (n + 1):
-        j_remaining -= (n + 1)
-        n += 1
-    m = -n + 2 * (j_remaining - 1)
-    if j % 2 == 0:
-        m = abs(m)
-    else:
-        m = -abs(m) if m != 0 else 0
-    # Correct conversion using the standard formula
-    return _noll_to_nm_standard(j)
-
-
-def _noll_to_nm_standard(j: int) -> tuple[int, int]:
-    """Robust Noll-to-(n, m) following Noll 1976, Table I."""
-    n = int(np.ceil((-3 + np.sqrt(9 + 8 * (j - 1))) / 2))
-    # ensure n is correct
-    while (n + 1) * (n + 2) // 2 < j:
-        n += 1
-    while n > 0 and (n) * (n + 1) // 2 >= j:
-        n -= 1
-    k = j - n * (n + 1) // 2 - 1  # 0-based index within order n
-    m_abs = n - 2 * ((n * (n + 1) // 2 + n - j + 1) // 2)
-    # Simpler: use the triangular relation
-    m_candidates = list(range(-n, n + 1, 2))
-    # Sort by |m| then sign
-    m_candidates_sorted = sorted(m_candidates, key=lambda x: (abs(x), -x))
-    idx = j - n * (n + 1) // 2 - 1
-    m = m_candidates_sorted[idx] if idx < len(m_candidates_sorted) else 0
-    # Fall back to well-tested formula
-    return _noll_lookup(j)
-
 
 _NOLL_TABLE: dict[int, tuple[int, int]] = {
-    1: (0, 0), 2: (1, 1), 3: (1, -1), 4: (2, 0),
-    5: (2, -2), 6: (2, 2), 7: (3, -1), 8: (3, 1),
-    9: (3, -3), 10: (3, 3), 11: (4, 0), 12: (4, 2),
-    13: (4, -2), 14: (4, 4), 15: (4, -4), 16: (5, 1),
-    17: (5, -1), 18: (5, 3), 19: (5, -3), 20: (5, 5),
-    21: (5, -5), 22: (6, 0), 23: (6, -2), 24: (6, 2),
-    25: (6, -4), 26: (6, 4), 27: (6, -6), 28: (6, 6),
-    29: (7, -1), 30: (7, 1), 31: (7, -3), 32: (7, 3),
-    33: (7, -5), 34: (7, 5), 35: (7, -7), 36: (7, 7),
+    1: (0, 0),
+    2: (1, 1),
+    3: (1, -1),
+    4: (2, 0),
+    5: (2, -2),
+    6: (2, 2),
+    7: (3, -1),
+    8: (3, 1),
+    9: (3, -3),
+    10: (3, 3),
+    11: (4, 0),
+    12: (4, 2),
+    13: (4, -2),
+    14: (4, 4),
+    15: (4, -4),
+    16: (5, 1),
+    17: (5, -1),
+    18: (5, 3),
+    19: (5, -3),
+    20: (5, 5),
+    21: (5, -5),
+    22: (6, 0),
+    23: (6, -2),
+    24: (6, 2),
+    25: (6, -4),
+    26: (6, 4),
+    27: (6, -6),
+    28: (6, 6),
+    29: (7, -1),
+    30: (7, 1),
+    31: (7, -3),
+    32: (7, 3),
+    33: (7, -5),
+    34: (7, 5),
+    35: (7, -7),
+    36: (7, 7),
     37: (8, 0),
 }
 
@@ -73,9 +60,7 @@ def _noll_lookup(j: int) -> tuple[int, int]:
         n += 1
     remainder = j - n * (n + 1) // 2
     m = n - 2 * (remainder - 1) if remainder > 0 else n
-    if j % 2 == 0 and m < 0:
-        m = -m
-    elif j % 2 != 0 and m > 0:
+    if j % 2 == 0 and m < 0 or j % 2 != 0 and m > 0:
         m = -m
     return (n, abs(m) if j % 2 == 0 else -abs(m)) if m != 0 else (n, 0)
 
@@ -153,8 +138,8 @@ def zernike_basis(
     rho : ndarray, shape (grid_size, grid_size)
     theta : ndarray, shape (grid_size, grid_size)
     """
-    y, x = np.mgrid[-1:1:complex(0, grid_size), -1:1:complex(0, grid_size)]
-    rho = np.sqrt(x ** 2 + y ** 2)
+    y, x = np.mgrid[-1 : 1 : complex(0, grid_size), -1 : 1 : complex(0, grid_size)]
+    rho = np.sqrt(x**2 + y**2)
     theta = np.arctan2(y, x)
     basis = np.zeros((n_terms, grid_size, grid_size), dtype=np.float64)
     for idx, j in enumerate(range(start_j, start_j + n_terms)):
@@ -182,6 +167,3 @@ ZERNIKE_NAMES: dict[int, str] = {
     22: "Secondary spherical",
     37: "Tertiary spherical",
 }
-
-
-

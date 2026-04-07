@@ -14,7 +14,7 @@ of the budget (a standard practice in the phase-retrieval literature).
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 
@@ -74,23 +74,3 @@ class RAAR(PhaseRetriever):
         cost = self._focal_cost(target_amplitude, G)
 
         return g_new, cost
-
-    # ------------------------------------------------------------------
-    def _er_step(
-        self,
-        g: np.ndarray,
-        pupil_amplitude: np.ndarray,
-        target_amplitude: np.ndarray,
-        support: np.ndarray,
-    ) -> tuple[np.ndarray, float]:
-        """One ER step: P_S ∘ P_F."""
-        G = fftshift(fft2(ifftshift(g)))
-        G_proj = self._project_fourier(G, target_amplitude)
-        g_prime = fftshift(ifft2(ifftshift(G_proj)))
-
-        g_new = np.zeros_like(g_prime)
-        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support]))
-
-        cost = self._focal_cost(target_amplitude, G)
-        return g_new, cost
-

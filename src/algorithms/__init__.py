@@ -11,8 +11,8 @@ Includes classic and state-of-the-art algorithms:
   • ADMM — Boyd et al. 2011, Chang & Marchesini 2018
 """
 
-from src.algorithms.base import PhaseRetriever
 from src.algorithms.admm import ADMM
+from src.algorithms.base import PhaseRetriever
 from src.algorithms.douglas_rachford import DouglasRachford
 from src.algorithms.error_reduction import ErrorReduction
 from src.algorithms.gerchberg_saxton import GerchbergSaxton

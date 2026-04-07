@@ -12,7 +12,7 @@ import logging
 
 from src.algorithms.registry import AlgorithmRegistry
 from src.models.config import AlgorithmConfig
-from src.models.optics import PSFData, PhaseRetrievalResult, PupilModel
+from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,11 @@ def multi_start_run(
         final_cost = result.cost_history[-1] if result.cost_history else float("inf")
         logger.info(
             "Multi-start %d/%d (seed=%d): cost=%.6f, Strehl=%.4f",
-            i + 1, n_starts, seed, final_cost, result.strehl_ratio,
+            i + 1,
+            n_starts,
+            seed,
+            final_cost,
+            result.strehl_ratio,
         )
 
         if final_cost < best_cost:

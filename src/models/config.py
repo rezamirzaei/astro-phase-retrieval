@@ -2,26 +2,28 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
-class TelescopeType(str, Enum):
+
+class TelescopeType(StrEnum):
     """Supported telescope pupil geometries."""
+
     HST = "hst"
     JWST = "jwst"
     GENERIC_CIRCULAR = "generic_circular"
 
 
-class AlgorithmName(str, Enum):
+class AlgorithmName(StrEnum):
     """Registered phase-retrieval algorithm identifiers."""
+
     ERROR_REDUCTION = "er"
     GERCHBERG_SAXTON = "gs"
     HYBRID_INPUT_OUTPUT = "hio"
@@ -33,15 +35,17 @@ class AlgorithmName(str, Enum):
     PINN = "pinn"
 
 
-class BetaSchedule(str, Enum):
+class BetaSchedule(StrEnum):
     """Adaptive β scheduling strategies."""
+
     CONSTANT = "constant"
     LINEAR = "linear"
     COSINE = "cosine"
 
 
-class NoiseModel(str, Enum):
+class NoiseModel(StrEnum):
     """Noise model for focal-plane projection."""
+
     GAUSSIAN = "gaussian"
     POISSON = "poisson"
 
@@ -50,10 +54,13 @@ class NoiseModel(str, Enum):
 # Data configuration
 # ---------------------------------------------------------------------------
 
+
 class DataConfig(BaseModel):
     """Where to find / download the observation data."""
 
-    data_dir: Path = Field(default=Path("data"), description="Root directory for downloaded FITS files")
+    data_dir: Path = Field(
+        default=Path("data"), description="Root directory for downloaded FITS files"
+    )
     obs_id: str = Field(
         default="JDOX-HST-WFC3",
         description="MAST observation identifier or preset name",
@@ -62,7 +69,9 @@ class DataConfig(BaseModel):
         default="WFC3/UVIS",
         description="Detector used for the observation",
     )
-    cutout_size: int = Field(default=128, ge=32, le=1024, description="PSF cutout half-width in pixels")
+    cutout_size: int = Field(
+        default=128, ge=32, le=1024, description="PSF cutout half-width in pixels"
+    )
     filter_name: str = Field(default="F606W", description="Optical filter bandpass name")
 
     @field_validator("cutout_size")
@@ -77,17 +86,24 @@ class DataConfig(BaseModel):
 # Pupil / optics configuration
 # ---------------------------------------------------------------------------
 
+
 class PupilConfig(BaseModel):
     """Telescope pupil model parameters."""
 
     telescope: TelescopeType = Field(default=TelescopeType.HST)
-    grid_size: int = Field(default=256, ge=64, le=2048, description="Pupil-plane grid side length (px)")
+    grid_size: int = Field(
+        default=256, ge=64, le=2048, description="Pupil-plane grid side length (px)"
+    )
     primary_radius: float = Field(default=1.2, gt=0, description="Primary mirror radius (m)")
-    secondary_radius: float = Field(default=0.396, ge=0, description="Secondary mirror obstruction radius (m)")
+    secondary_radius: float = Field(
+        default=0.396, ge=0, description="Secondary mirror obstruction radius (m)"
+    )
     spider_width: float = Field(default=0.0254, ge=0, description="Spider vane width (m)")
     n_spiders: int = Field(default=4, ge=0, le=8, description="Number of spider vanes")
     wavelength_m: float = Field(default=606e-9, gt=0, description="Observation wavelength (m)")
-    pixel_scale_arcsec: float = Field(default=0.04, gt=0, description="Detector pixel scale (arcsec/px)")
+    pixel_scale_arcsec: float = Field(
+        default=0.04, gt=0, description="Detector pixel scale (arcsec/px)"
+    )
 
     @field_validator("grid_size")
     @classmethod
@@ -101,18 +117,23 @@ class PupilConfig(BaseModel):
 # Algorithm configuration
 # ---------------------------------------------------------------------------
 
+
 class AlgorithmConfig(BaseModel):
     """Phase-retrieval algorithm hyper-parameters."""
 
     name: AlgorithmName = Field(default=AlgorithmName.HYBRID_INPUT_OUTPUT)
     max_iterations: int = Field(default=300, ge=1, le=100_000)
-    tolerance: float = Field(default=1e-8, gt=0, description="Convergence tolerance on cost-function change")
+    tolerance: float = Field(
+        default=1e-8, gt=0, description="Convergence tolerance on cost-function change"
+    )
     beta: float = Field(default=0.9, gt=0, le=1.0, description="HIO / RAAR feedback parameter β")
     beta_schedule: BetaSchedule = Field(
         default=BetaSchedule.CONSTANT,
         description="Adaptive β scheduling: constant, linear ramp-down, or cosine annealing",
     )
-    beta_min: float = Field(default=0.5, ge=0, le=1.0, description="Minimum β for adaptive schedules")
+    beta_min: float = Field(
+        default=0.5, ge=0, le=1.0, description="Minimum β for adaptive schedules"
+    )
     defocus_waves: float = Field(
         default=1.0,
         description="Defocus amount (waves) for phase-diversity second image",
@@ -203,7 +224,7 @@ class AlgorithmConfig(BaseModel):
         default=64,
         ge=8,
         le=512,
-        description="Number of random Fourier features for coordinate encoding (Tancik et al. 2020)",
+        description="Random Fourier features for coordinate encoding",
     )
     pinn_fourier_sigma: float = Field(
         default=4.0,
@@ -231,7 +252,7 @@ class AlgorithmConfig(BaseModel):
         default=0.5,
         ge=0,
         le=2.0,
-        description="Scale of the neural residual phase (in units of π) added on top of the warm-start phase",
+        description="Scale of neural residual phase (units of π)",
     )
     pinn_device: Literal["auto", "cpu", "mps", "cuda"] = Field(
         default="auto",
@@ -243,6 +264,7 @@ class AlgorithmConfig(BaseModel):
 # Pipeline (master) configuration
 # ---------------------------------------------------------------------------
 
+
 class PipelineConfig(BaseModel):
     """Top-level configuration aggregating all sub-configs."""
 
@@ -252,7 +274,7 @@ class PipelineConfig(BaseModel):
     output_dir: Path = Field(default=Path("outputs"))
 
     @model_validator(mode="after")
-    def _sync_wavelength_with_filter(self) -> "PipelineConfig":
+    def _sync_wavelength_with_filter(self) -> PipelineConfig:
         """Auto-set wavelength from filter name when using defaults."""
         _filter_to_wavelength = {
             "F606W": 606e-9,
@@ -272,6 +294,7 @@ class PipelineConfig(BaseModel):
 # ---------------------------------------------------------------------------
 # Convenience constructor
 # ---------------------------------------------------------------------------
+
 
 def default_hst_config() -> PipelineConfig:
     """Return a sensible default config for HST/WFC3/UVIS phase retrieval."""
@@ -296,6 +319,3 @@ def default_hst_config() -> PipelineConfig:
             beta=0.9,
         ),
     )
-
-
-

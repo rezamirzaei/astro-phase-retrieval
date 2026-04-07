@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import patch
-from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 
 from src.cli import main
@@ -23,9 +21,7 @@ class TestCLI:
         captured = capsys.readouterr()
         assert "hst-wfc3-uvis-f606w" in captured.out
 
-    def test_run_with_mock_fits(
-        self, tmp_path, pupil, psf_data, capsys
-    ) -> None:
+    def test_run_with_mock_fits(self, tmp_path, pupil, psf_data, capsys) -> None:
         """Mock the FITS loading chain and verify `run` completes."""
         fake_fits = tmp_path / "fake.fits"
         fake_fits.touch()
@@ -34,15 +30,22 @@ class TestCLI:
             patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
             patch("src.data.loader.prepare_psf_for_retrieval", return_value=psf_data.image),
         ):
-            main([
-                "run",
-                "--algorithm", "er",
-                "--iterations", "10",
-                "--fits", str(fake_fits),
-                "-o", str(tmp_path / "out"),
-            ])
+            main(
+                [
+                    "run",
+                    "--algorithm",
+                    "er",
+                    "--iterations",
+                    "10",
+                    "--fits",
+                    str(fake_fits),
+                    "-o",
+                    str(tmp_path / "out"),
+                ]
+            )
 
-        captured = capsys.readouterr()
+        capsys.readouterr()
+
     def test_compare_with_mock_fits(self, tmp_path, psf_data, capsys) -> None:
         """Mock the FITS loading chain and verify `compare` completes."""
         fake_fits = tmp_path / "fake.fits"
@@ -52,12 +55,17 @@ class TestCLI:
             patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
             patch("src.data.loader.prepare_psf_for_retrieval", return_value=psf_data.image),
         ):
-            main([
-                "compare",
-                "--iterations", "3",
-                "--fits", str(fake_fits),
-                "-o", str(tmp_path / "out"),
-            ])
+            main(
+                [
+                    "compare",
+                    "--iterations",
+                    "3",
+                    "--fits",
+                    str(fake_fits),
+                    "-o",
+                    str(tmp_path / "out"),
+                ]
+            )
 
         captured = capsys.readouterr()
         assert "Algorithm" in captured.out

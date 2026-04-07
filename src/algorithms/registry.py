@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Type
-
-from src.algorithms.base import PhaseRetriever
 from src.algorithms.admm import ADMM
+from src.algorithms.base import PhaseRetriever
 from src.algorithms.douglas_rachford import DouglasRachford
 from src.algorithms.error_reduction import ErrorReduction
 from src.algorithms.gerchberg_saxton import GerchbergSaxton
@@ -21,7 +19,7 @@ from src.models.optics import PupilModel
 class AlgorithmRegistry:
     """Factory that maps algorithm names to concrete implementations."""
 
-    _registry: dict[AlgorithmName, Type[PhaseRetriever]] = {
+    _registry: dict[AlgorithmName, type[PhaseRetriever]] = {
         AlgorithmName.ERROR_REDUCTION: ErrorReduction,
         AlgorithmName.GERCHBERG_SAXTON: GerchbergSaxton,
         AlgorithmName.HYBRID_INPUT_OUTPUT: HybridInputOutput,
@@ -52,8 +50,7 @@ class AlgorithmRegistry:
         klass = cls._registry.get(config.name)
         if klass is None:
             raise ValueError(
-                f"Unknown algorithm '{config.name}'. "
-                f"Available: {list(cls._registry.keys())}"
+                f"Unknown algorithm '{config.name}'. Available: {list(cls._registry.keys())}"
             )
         return klass(config, pupil)
 

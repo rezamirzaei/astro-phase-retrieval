@@ -18,7 +18,7 @@ much better starting point than random phase.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 
@@ -48,7 +48,7 @@ class WirtingerFlow(PhaseRetriever):
 
     def _initial_phase(self, n: int) -> np.ndarray:
         """Use spectral initialization if available, else small random."""
-        if hasattr(self, '_spectral_phase') and self._spectral_phase is not None:
+        if hasattr(self, "_spectral_phase") and self._spectral_phase is not None:
             return self._spectral_phase
         return self._rng.uniform(-0.3, 0.3, size=(n, n)).astype(np.float64)
 
@@ -74,7 +74,7 @@ class WirtingerFlow(PhaseRetriever):
             # Project onto support
             z[~support] = 0.0
             # Normalise
-            norm = np.sqrt(np.sum(np.abs(z)**2))
+            norm = np.sqrt(np.sum(np.abs(z) ** 2))
             if norm > 0:
                 z /= norm
 
@@ -102,7 +102,7 @@ class WirtingerFlow(PhaseRetriever):
 
         # Measured intensity and model intensity
         Y = target_amplitude**2
-        I_model = np.abs(G)**2
+        I_model = np.abs(G) ** 2
 
         # Wirtinger gradient:  ∇L = F⁻¹{ (|G|² − Y) · G } / n²
         residual = I_model - Y

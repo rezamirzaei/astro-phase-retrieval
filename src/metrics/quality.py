@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.fft import fft2, fftshift
 
-from src.optics.propagator import pupil_to_psf, make_complex_pupil
+from src.optics.propagator import make_complex_pupil, pupil_to_psf
 
 
 def compute_rms_phase(phase: np.ndarray, support: np.ndarray) -> float:
@@ -31,7 +31,7 @@ def compute_rms_phase(phase: np.ndarray, support: np.ndarray) -> float:
     if len(vals) == 0:
         return 0.0
     vals = vals - vals.mean()  # Remove piston
-    return float(np.sqrt(np.mean(vals ** 2)))
+    return float(np.sqrt(np.mean(vals**2)))
 
 
 def compute_strehl_ratio(psf: np.ndarray, pupil_amplitude: np.ndarray) -> float:
@@ -82,6 +82,7 @@ def compute_rms_wavelength(rms_rad: float, wavelength_m: float) -> float:
 # MTF — Modulation Transfer Function
 # ---------------------------------------------------------------------------
 
+
 def compute_mtf(psf: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Compute the radially averaged Modulation Transfer Function (MTF).
 
@@ -124,6 +125,7 @@ def compute_mtf(psf: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 # SSIM — Structural Similarity Index
 # ---------------------------------------------------------------------------
 
+
 def compute_ssim(
     observed: np.ndarray,
     reconstructed: np.ndarray,
@@ -164,6 +166,7 @@ def compute_ssim(
 # ---------------------------------------------------------------------------
 # Phase Structure Function
 # ---------------------------------------------------------------------------
+
 
 def compute_phase_structure_function(
     phase: np.ndarray,
@@ -216,13 +219,13 @@ def compute_phase_structure_function(
             # Shifted phase
             phi_shifted = np.full_like(phi, np.nan)
             if dy >= 0 and dx >= 0:
-                phi_shifted[dy:, dx:] = phi[:n - dy if dy > 0 else n, :n - dx if dx > 0 else n]
+                phi_shifted[dy:, dx:] = phi[: n - dy if dy > 0 else n, : n - dx if dx > 0 else n]
             elif dy >= 0 and dx < 0:
-                phi_shifted[dy:, :n + dx] = phi[:n - dy if dy > 0 else n, -dx:]
+                phi_shifted[dy:, : n + dx] = phi[: n - dy if dy > 0 else n, -dx:]
             elif dy < 0 and dx >= 0:
-                phi_shifted[:n + dy, dx:] = phi[-dy:, :n - dx if dx > 0 else n]
+                phi_shifted[: n + dy, dx:] = phi[-dy:, : n - dx if dx > 0 else n]
             else:
-                phi_shifted[:n + dy, :n + dx] = phi[-dy:, -dx:]
+                phi_shifted[: n + dy, : n + dx] = phi[-dy:, -dx:]
 
             valid = np.isfinite(phi) & np.isfinite(phi_shifted)
             if valid.sum() > 0:
@@ -237,6 +240,7 @@ def compute_phase_structure_function(
 # ---------------------------------------------------------------------------
 # Zernike decomposition
 # ---------------------------------------------------------------------------
+
 
 def zernike_decomposition(
     phase: np.ndarray,

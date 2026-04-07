@@ -48,8 +48,8 @@ def support(pupil: PupilModel) -> np.ndarray:
 def true_phase(pupil: PupilModel) -> np.ndarray:
     """A mild astigmatism-like phase map for testing."""
     n = pupil.grid_size
-    y, x = np.mgrid[-1:1:complex(0, n), -1:1:complex(0, n)]
-    phase = 0.5 * (x ** 2 - y ** 2) + 0.3 * x * y
+    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]
+    phase = 0.5 * (x**2 - y**2) + 0.3 * x * y
     mask = pupil.amplitude > 0
     phase[~mask] = 0.0
     return phase

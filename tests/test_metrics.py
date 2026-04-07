@@ -17,7 +17,6 @@ from src.metrics.quality import (
 from src.models.optics import PupilModel
 from src.optics.propagator import forward_model
 
-
 # ── RMS phase ─────────────────────────────────────────────────────────────
 
 
@@ -31,7 +30,9 @@ class TestRMSPhase:
         phase = np.full((pupil.grid_size, pupil.grid_size), 1.5)
         assert compute_rms_phase(phase, support) == pytest.approx(0.0, abs=1e-12)
 
-    def test_nonzero_phase(self, pupil: PupilModel, support: np.ndarray, true_phase: np.ndarray) -> None:
+    def test_nonzero_phase(
+        self, pupil: PupilModel, support: np.ndarray, true_phase: np.ndarray
+    ) -> None:
         rms = compute_rms_phase(true_phase, support)
         assert rms > 0.0
 
@@ -113,7 +114,9 @@ class TestSSIM:
         ssim = compute_ssim(psf, psf)
         assert ssim == pytest.approx(1.0, abs=0.01)
 
-    def test_different_images_ssim_less_than_one(self, pupil: PupilModel, true_phase: np.ndarray) -> None:
+    def test_different_images_ssim_less_than_one(
+        self, pupil: PupilModel, true_phase: np.ndarray
+    ) -> None:
         psf_perfect = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
         psf_aberrated = forward_model(pupil.amplitude, true_phase)
         ssim = compute_ssim(psf_perfect, psf_aberrated)

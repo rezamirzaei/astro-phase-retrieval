@@ -51,8 +51,17 @@ def load_fits_image(filepath: Path, *, ext: int | str = 1) -> tuple[np.ndarray, 
     # Merge: primary header values fill in missing keys in the science header
     merged = {**primary_header, **header}
     # But keep primary's FILTER/INSTRUME/DETECTOR since science ext may lack them
-    for key in ("FILTER", "FILTER1", "FILTER2", "INSTRUME", "DETECTOR", "ROOTNAME",
-                "TARGNAME", "EXPTIME", "DATE-OBS"):
+    for key in (
+        "FILTER",
+        "FILTER1",
+        "FILTER2",
+        "INSTRUME",
+        "DETECTOR",
+        "ROOTNAME",
+        "TARGNAME",
+        "EXPTIME",
+        "DATE-OBS",
+    ):
         if key in primary_header and primary_header[key]:
             merged[key] = primary_header[key]
 
@@ -203,6 +212,7 @@ def _header_filter(header: dict, fallback: str) -> str:
 def _header_wavelength(header: dict, fallback: float) -> float:
     """Look up wavelength from the FITS header filter name."""
     from src.data.downloader import FILTER_WAVELENGTH_M
+
     filt = _header_filter(header, "")
     return FILTER_WAVELENGTH_M.get(filt, fallback)
 
@@ -235,16 +245,13 @@ def prepare_psf_for_retrieval(
         # Zero-pad
         pad = (target_size - current) // 2
         result = np.zeros((target_size, target_size), dtype=np.float64)
-        result[pad: pad + current, pad: pad + current] = img
+        result[pad : pad + current, pad : pad + current] = img
     else:
         # Centre-crop
         crop = (current - target_size) // 2
-        result = img[crop: crop + target_size, crop: crop + target_size].copy()
+        result = img[crop : crop + target_size, crop : crop + target_size].copy()
 
     total = result.sum()
     if total > 0:
         result /= total
     return result
-
-
-

@@ -7,7 +7,7 @@ measured focal-plane amplitude and the known pupil-plane support.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 

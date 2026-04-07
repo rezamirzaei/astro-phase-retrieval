@@ -5,13 +5,19 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.data.downloader import available_presets, list_cached_fits
+from src.data.downloader import (
+    _CURATED_OBS,
+    FILTER_WAVELENGTH_M,
+    available_presets,
+    download_preset,
+    list_cached_fits,
+)
 from src.data.loader import (
     extract_psf_cutout,
     find_brightest_source,
     normalise_psf,
-    subtract_background,
     prepare_psf_for_retrieval,
+    subtract_background,
 )
 from src.models.optics import PSFData
 
@@ -105,3 +111,33 @@ class TestDownloaderHelpers:
 
     def test_list_cached_fits_nonexistent(self, tmp_path) -> None:
         assert list_cached_fits(tmp_path / "nope") == []
+
+    def test_list_cached_fits_with_files(self, tmp_path) -> None:
+        (tmp_path / "a.fits").write_bytes(b"fake")
+        (tmp_path / "sub").mkdir()
+        (tmp_path / "sub" / "b.fits").write_bytes(b"fake")
+        (tmp_path / "c.txt").write_bytes(b"nope")
+        result = list_cached_fits(tmp_path)
+        assert len(result) == 2
+        assert all(p.suffix == ".fits" for p in result)
+
+    def test_filter_wavelength_spot_check(self) -> None:
+        assert FILTER_WAVELENGTH_M["F606W"] == pytest.approx(606e-9)
+        assert FILTER_WAVELENGTH_M["F814W"] == pytest.approx(814e-9)
+        assert FILTER_WAVELENGTH_M["F275W"] == pytest.approx(275e-9)
+
+    def test_curated_obs_structure(self) -> None:
+        for _key, entry in _CURATED_OBS.items():
+            assert "target_name" in entry
+            assert "instrument_name" in entry
+            assert "filters" in entry
+            assert "obs_collection" in entry
+            assert "description" in entry
+
+    def test_download_preset_unknown_key(self, tmp_path) -> None:
+        with pytest.raises(KeyError, match="Unknown preset"):
+            download_preset("no-such-key", tmp_path)
+
+    def test_available_presets_matches_curated(self) -> None:
+        presets = available_presets()
+        assert set(presets.keys()) == set(_CURATED_OBS.keys())

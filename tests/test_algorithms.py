@@ -7,14 +7,13 @@ import importlib.util
 import numpy as np
 import pytest
 
-from src.algorithms.phase_diversity import PhaseDiversity
 from src.algorithms.multi_start import multi_start_run
+from src.algorithms.phase_diversity import PhaseDiversity
 from src.algorithms.registry import AlgorithmRegistry
 from src.metrics.quality import compute_ssim
 from src.models.config import AlgorithmConfig, AlgorithmName, BetaSchedule, NoiseModel
 from src.models.optics import PSFData, PSFPair, PupilModel
 from src.optics.propagator import add_defocus, forward_model
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -179,7 +178,9 @@ class TestEnhancements:
     ) -> None:
         import torch
 
-        def _raise_numpy_unavailable(self) -> np.ndarray:  # pragma: no cover - exercised via monkeypatch
+        def _raise_numpy_unavailable(
+            self,
+        ) -> np.ndarray:  # pragma: no cover - exercised via monkeypatch
             raise RuntimeError("Numpy is not available")
 
         monkeypatch.setattr(torch.Tensor, "numpy", _raise_numpy_unavailable, raising=True)

@@ -168,6 +168,7 @@ def search_and_download(
     moderate = [r for r in obs_table if 1.0 <= float(r["t_exptime"]) <= 30.0]
     if moderate:
         import astropy.table
+
         selected = astropy.table.Table(rows=[moderate[0]], names=obs_table.colnames)
     else:
         selected = obs_table[:1]
@@ -274,6 +275,7 @@ def download_preset(
     moderate = [r for r in obs_table if 1.0 <= float(r["t_exptime"]) <= 30.0]
     if moderate:
         import astropy.table
+
         selected = astropy.table.Table(rows=[moderate[0]], names=obs_table.colnames)
     else:
         selected = obs_table[:1]
@@ -331,8 +333,3 @@ def download_all_presets(
         except Exception as exc:
             logger.error("Failed to download preset '%s': %s", key, exc)
     return results
-
-
-
-
-

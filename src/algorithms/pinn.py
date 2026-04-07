@@ -39,12 +39,11 @@ from src.algorithms.base import PhaseRetriever
 from src.algorithms.raar import RAAR
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio
 from src.models.config import AlgorithmName
-from src.models.optics import PSFData, PhaseRetrievalResult
+from src.models.optics import PhaseRetrievalResult, PSFData
 from src.optics.propagator import forward_model
 
 if TYPE_CHECKING:
-    import torch
-    import torch.nn as nn
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +99,16 @@ class PINNPhaseRetriever(PhaseRetriever):
         rng = torch.Generator(device=device)
         if self.config.random_seed is not None:
             rng.manual_seed(self.config.random_seed + 7)
-        B_matrix = torch.randn(
-            coords.shape[-1], n_fourier, generator=rng, device=device, dtype=dtype,
-        ) * sigma
+        B_matrix = (
+            torch.randn(
+                coords.shape[-1],
+                n_fourier,
+                generator=rng,
+                device=device,
+                dtype=dtype,
+            )
+            * sigma
+        )
 
         model = self._build_phase_field(nn, n_fourier, device, dtype)
 
@@ -138,15 +144,25 @@ class PINNPhaseRetriever(PhaseRetriever):
         # =====================================================================
         # Phase 1 — Adam exploration
         # =====================================================================
-        for iteration in range(1, adam_iters + 1):
+        for _iteration in range(1, adam_iters + 1):
             optimizer.zero_grad(set_to_none=True)
 
             phase = self._forward_phase(
-                model, coords, B_matrix, base_phase, support, n, torch,
+                model,
+                coords,
+                B_matrix,
+                base_phase,
+                support,
+                n,
+                torch,
             )
             psf_pred = self._forward_psf(phase, pupil_amp, torch)
             loss, objective = self._composite_loss(
-                psf_pred, target, phase, support, torch,
+                psf_pred,
+                target,
+                phase,
+                support,
+                torch,
             )
 
             loss.backward()
@@ -165,7 +181,7 @@ class PINNPhaseRetriever(PhaseRetriever):
             # Convergence check
             if len(cost_history) >= 2 * window:
                 recent = np.mean(cost_history[-window:])
-                previous = np.mean(cost_history[-2 * window:-window])
+                previous = np.mean(cost_history[-2 * window : -window])
                 if abs(previous - recent) / max(abs(previous), 1e-30) < self.config.tolerance:
                     converged = True
                     break
@@ -189,7 +205,13 @@ class PINNPhaseRetriever(PhaseRetriever):
             def closure():
                 lbfgs_optimizer.zero_grad()
                 ph = self._forward_phase(
-                    model, coords, B_matrix, base_phase, support, n, torch,
+                    model,
+                    coords,
+                    B_matrix,
+                    base_phase,
+                    support,
+                    n,
+                    torch,
                 )
                 psf_p = self._forward_psf(ph, pupil_amp, torch)
                 ls, obj = self._composite_loss(psf_p, target, ph, support, torch)
@@ -204,11 +226,21 @@ class PINNPhaseRetriever(PhaseRetriever):
             # Update best from L-BFGS
             with torch.no_grad():
                 phase_final = self._forward_phase(
-                    model, coords, B_matrix, base_phase, support, n, torch,
+                    model,
+                    coords,
+                    B_matrix,
+                    base_phase,
+                    support,
+                    n,
+                    torch,
                 )
                 psf_final = self._forward_psf(phase_final, pupil_amp, torch)
                 _, obj_final = self._composite_loss(
-                    psf_final, target, phase_final, support, torch,
+                    psf_final,
+                    target,
+                    phase_final,
+                    support,
+                    torch,
                 )
                 final_val = float(obj_final.cpu())
                 if final_val < best_loss:
@@ -267,14 +299,24 @@ class PINNPhaseRetriever(PhaseRetriever):
     # ------------------------------------------------------------------
 
     def _forward_phase(
-        self, model, coords, B_matrix, base_phase, support, n, torch,
+        self,
+        model,
+        coords,
+        B_matrix,
+        base_phase,
+        support,
+        n,
+        torch,
     ):
         """Compute full phase from the neural field output."""
         proj = coords @ B_matrix  # [N, n_fourier]
-        fourier = torch.cat([
-            torch.sin(2.0 * math.pi * proj),
-            torch.cos(2.0 * math.pi * proj),
-        ], dim=-1)  # [N, 2*n_fourier]
+        fourier = torch.cat(
+            [
+                torch.sin(2.0 * math.pi * proj),
+                torch.cos(2.0 * math.pi * proj),
+            ],
+            dim=-1,
+        )  # [N, 2*n_fourier]
         phase_raw = model(fourier).reshape(n, n)
         residual = self.config.pinn_residual_scale * math.pi * torch.tanh(phase_raw)
         phase = base_phase + residual
@@ -282,9 +324,7 @@ class PINNPhaseRetriever(PhaseRetriever):
 
     def _forward_psf(self, phase, pupil_amp, torch):
         """Differentiable forward model: phase → normalised PSF."""
-        field = pupil_amp.to(torch.complex64) * torch.exp(
-            1j * phase.to(torch.complex64)
-        )
+        field = pupil_amp.to(torch.complex64) * torch.exp(1j * phase.to(torch.complex64))
         focal = torch.fft.fftshift(torch.fft.fft2(torch.fft.ifftshift(field)))
         psf = torch.abs(focal) ** 2
         return psf / psf.sum().clamp_min(1e-30)
@@ -327,9 +367,7 @@ class PINNPhaseRetriever(PhaseRetriever):
         # log1p loss — numerically more stable than log10 and emphasises
         # the PSF wings where faint structure lives
         alpha = 1e4
-        log_loss = torch.mean(
-            (torch.log1p(alpha * psf_pred) - torch.log1p(alpha * target)) ** 2
-        )
+        log_loss = torch.mean((torch.log1p(alpha * psf_pred) - torch.log1p(alpha * target)) ** 2)
 
         # Smoothness (gradient-based)
         smoothness = self._smoothness_penalty(phase, support)
@@ -356,13 +394,16 @@ class PINNPhaseRetriever(PhaseRetriever):
         axis = torch.linspace(-1.0, 1.0, n, device=device, dtype=dtype)
         y, x = torch.meshgrid(axis, axis, indexing="ij")
         rho = torch.sqrt(x.square() + y.square()).clamp(max=1.0)
-        feats = torch.stack([
-            x,
-            y,
-            rho,
-            x.square() - y.square(),
-            x * y,
-        ], dim=-1)
+        feats = torch.stack(
+            [
+                x,
+                y,
+                rho,
+                x.square() - y.square(),
+                x * y,
+            ],
+            dim=-1,
+        )
         return feats.reshape(-1, feats.shape[-1])
 
     # ------------------------------------------------------------------
@@ -396,7 +437,7 @@ class PINNPhaseRetriever(PhaseRetriever):
 
         layers: list[object] = []
         current = in_dim
-        for i in range(n_layers):
+        for _i in range(n_layers):
             layers.append(nn.Linear(current, hidden))
             layers.append(nn.GELU())
             current = hidden
@@ -436,7 +477,9 @@ class PINNPhaseRetriever(PhaseRetriever):
     # Warm start
     # ------------------------------------------------------------------
 
-    def _warm_start_phase(self, psf_data: PSFData) -> tuple[np.ndarray, PhaseRetrievalResult | None]:
+    def _warm_start_phase(
+        self, psf_data: PSFData
+    ) -> tuple[np.ndarray, PhaseRetrievalResult | None]:
         """Initialise from a classical RAAR reconstruction."""
         if not self.config.pinn_warm_start:
             return np.zeros_like(self.pupil.amplitude, dtype=np.float64), None
@@ -504,9 +547,3 @@ class PINNPhaseRetriever(PhaseRetriever):
                 "from the torch package before retrying."
             ) from exc
         return _TorchModules(torch=torch, nn=nn)
-
-
-
-
-
-

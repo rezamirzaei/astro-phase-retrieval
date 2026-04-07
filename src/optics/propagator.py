@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 
 def pupil_to_psf(pupil_complex: np.ndarray) -> np.ndarray:
@@ -108,11 +108,10 @@ def add_defocus(
         Phase + defocus (radians).
     """
     n = phase.shape[0]
-    y, x = np.mgrid[-1:1:complex(0, n), -1:1:complex(0, n)]
-    rho2 = x ** 2 + y ** 2
+    y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]
+    rho2 = x**2 + y**2
     defocus_rad = 2 * np.pi * defocus_waves * rho2  # Seidel defocus
     mask = pupil_amplitude > 0
     result = phase.copy()
     result[mask] += defocus_rad[mask]
     return result
-

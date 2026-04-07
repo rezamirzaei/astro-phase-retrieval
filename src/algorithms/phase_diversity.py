@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio

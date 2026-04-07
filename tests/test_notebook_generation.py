@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 NOTEBOOK_PATH = Path(__file__).resolve().parent.parent / "notebooks" / "phase_retrieval_hst.ipynb"
 
 
@@ -28,7 +27,9 @@ def test_notebook_autoruns_pinn_when_torch_is_available() -> None:
 
 def test_notebook_does_not_contain_stale_manual_pinn_values() -> None:
     text = _notebook_source()
-    assert "RUN_PINN = False  # Set to True to benchmark the optional PINN solver when PyTorch is available" not in text
+    stale_marker = (
+        "RUN_PINN = False  # Set to True to benchmark"
+        " the optional PINN solver when PyTorch is available"
+    )
+    assert stale_marker not in text
     assert "pinn_result = True" not in text
-
-

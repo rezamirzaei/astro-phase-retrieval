@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 from src.models.config import (
     AlgorithmConfig,
@@ -14,8 +15,7 @@ from src.models.config import (
     TelescopeType,
     default_hst_config,
 )
-from src.models.optics import PSFData, PupilModel, PhaseRetrievalResult
-
+from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 
 # ── PSFData ───────────────────────────────────────────────────────────────
 
@@ -77,11 +77,11 @@ class TestAlgorithmConfig:
         assert cfg.beta == 0.9
 
     def test_rejects_beta_out_of_range(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             AlgorithmConfig(beta=1.5)
 
     def test_rejects_negative_iterations(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             AlgorithmConfig(max_iterations=-1)
 
 

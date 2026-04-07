@@ -29,7 +29,7 @@ switch to ER for a clean convergent finish.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 
@@ -74,32 +74,10 @@ class DouglasRachford(PhaseRetriever):
 
         # P_S(R_F(g)): project the reflected point onto the support set
         p_s_rf = np.zeros_like(r_f_g)
-        p_s_rf[support] = pupil_amplitude[support] * np.exp(
-            1j * np.angle(r_f_g[support] + 1e-30)
-        )
+        p_s_rf[support] = pupil_amplitude[support] * np.exp(1j * np.angle(r_f_g[support] + 1e-30))
 
         # DR update: z_{k+1} = z_k + γ · (P_S(R_F(z_k)) − P_F(z_k))
         g_new = g + gamma * (p_s_rf - p_f_g)
-
-        cost = self._focal_cost(target_amplitude, G)
-        return g_new, cost
-
-    def _er_step(
-        self,
-        g: np.ndarray,
-        pupil_amplitude: np.ndarray,
-        target_amplitude: np.ndarray,
-        support: np.ndarray,
-    ) -> tuple[np.ndarray, float]:
-        """One ER step: P_S ∘ P_F (clean convergent finish)."""
-        G = fftshift(fft2(ifftshift(g)))
-        G_proj = self._project_fourier(G, target_amplitude)
-        g_prime = fftshift(ifft2(ifftshift(G_proj)))
-
-        g_new = np.zeros_like(g_prime)
-        g_new[support] = pupil_amplitude[support] * np.exp(
-            1j * np.angle(g_prime[support] + 1e-30)
-        )
 
         cost = self._focal_cost(target_amplitude, G)
         return g_new, cost

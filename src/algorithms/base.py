@@ -6,12 +6,11 @@ import time
 from abc import ABC, abstractmethod
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
 from scipy.ndimage import uniform_filter
 
-from src.models.config import AlgorithmConfig, BetaSchedule, NoiseModel
-from src.models.optics import PhaseRetrievalResult, PupilModel, PSFData
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio
+from src.models.config import AlgorithmConfig, BetaSchedule, NoiseModel
+from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 
 
 class PhaseRetriever(ABC):
@@ -94,7 +93,7 @@ class PhaseRetriever(ABC):
             # This handles algorithms like RAAR whose cost oscillates.
             if len(cost_history) >= 2 * window:
                 recent = np.mean(cost_history[-window:])
-                previous = np.mean(cost_history[-2 * window:-window])
+                previous = np.mean(cost_history[-2 * window : -window])
                 if abs(previous - recent) / max(abs(previous), 1e-30) < self.config.tolerance:
                     converged = True
                     break
@@ -107,6 +106,7 @@ class PhaseRetriever(ABC):
 
         # Build outputs
         from src.optics.propagator import forward_model
+
         recon_psf = forward_model(pupil_amp, phase)
         rms = compute_rms_phase(phase, support)
         strehl = compute_strehl_ratio(recon_psf, pupil_amp)
@@ -206,7 +206,7 @@ class PhaseRetriever(ABC):
 
         # Poisson ML projection (Thibault et al., 2012)
         I_obs = target_amplitude**2
-        I_model = np.abs(G)**2
+        I_model = np.abs(G) ** 2
         # Smooth the model intensity to stabilise the ratio
         I_smooth = uniform_filter(I_model, size=3)
         I_smooth = np.maximum(I_smooth, 1e-30)
@@ -279,6 +279,26 @@ class PhaseRetriever(ABC):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _er_step(
+        self,
+        g: np.ndarray,
+        pupil_amplitude: np.ndarray,
+        target_amplitude: np.ndarray,
+        support: np.ndarray,
+    ) -> tuple[np.ndarray, float]:
+        """One Error-Reduction step: P_S ∘ P_F (clean convergent finish)."""
+        from numpy.fft import fft2, fftshift, ifft2, ifftshift
+
+        G = fftshift(fft2(ifftshift(g)))
+        G_proj = self._project_fourier(G, target_amplitude)
+        g_prime = fftshift(ifft2(ifftshift(G_proj)))
+
+        g_new = np.zeros_like(g_prime)
+        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support] + 1e-30))
+
+        cost = self._focal_cost(target_amplitude, G)
+        return g_new, cost
 
     def _initial_phase(self, n: int) -> np.ndarray:
         """Small random perturbations around zero (diffraction-limited start)."""

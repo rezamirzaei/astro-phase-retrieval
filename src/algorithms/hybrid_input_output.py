@@ -10,7 +10,7 @@ HIO feedback rule modifies both amplitude and phase outside the support.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, ifft2, fftshift, ifftshift
+from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
 
@@ -51,5 +51,3 @@ class HybridInputOutput(PhaseRetriever):
         cost = self._focal_cost(target_amplitude, G)
 
         return g_new, cost
-
-
