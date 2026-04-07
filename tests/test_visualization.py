@@ -374,4 +374,3 @@ class TestEdgeCases:
         fig = plot_psf_comparison(psf, result)
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
-

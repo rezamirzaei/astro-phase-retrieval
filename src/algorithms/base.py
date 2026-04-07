@@ -78,8 +78,7 @@ class PhaseRetriever(ABC):
         # Validate that PSF and pupil grids are compatible
         if psf_data.image.shape != (n, n):
             raise ValueError(
-                f"PSF image shape {psf_data.image.shape} does not match "
-                f"pupil grid ({n}, {n})"
+                f"PSF image shape {psf_data.image.shape} does not match pupil grid ({n}, {n})"
             )
 
         # Normalise target amplitude to match pupil energy (Parseval's theorem)
@@ -144,7 +143,8 @@ class PhaseRetriever(ABC):
                 recent = np.mean(cost_history[-window:])
                 previous = np.mean(cost_history[-2 * window : -window])
                 rel_change = abs(previous - recent) / max(
-                    float(abs(previous)), _EPS,
+                    float(abs(previous)),
+                    _EPS,
                 )
                 if rel_change < self.config.tolerance:
                     converged = True
@@ -383,9 +383,7 @@ class PhaseRetriever(ABC):
         g_prime = fftshift(ifft2(ifftshift(G_proj)))
 
         g_new = np.zeros_like(g_prime)
-        g_new[support] = pupil_amplitude[support] * np.exp(
-            1j * np.angle(g_prime[support] + _EPS)
-        )
+        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support] + _EPS))
 
         cost = self._focal_cost(target_amplitude, G)
         return g_new, cost

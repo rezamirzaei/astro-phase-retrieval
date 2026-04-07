@@ -183,7 +183,8 @@ class PINNPhaseRetriever(PhaseRetriever):
                 recent = np.mean(cost_history[-window:])
                 previous = np.mean(cost_history[-2 * window : -window])
                 rel_change = abs(previous - recent) / max(
-                    float(abs(previous)), 1e-30,
+                    float(abs(previous)),
+                    1e-30,
                 )
                 if rel_change < self.config.tolerance:
                     converged = True
