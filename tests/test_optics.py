@@ -6,8 +6,14 @@ import numpy as np
 import pytest
 
 from src.models.config import PupilConfig, TelescopeType
-from src.optics.propagator import forward_model, make_complex_pupil, pupil_to_psf
-from src.optics.pupils import build_pupil
+from src.optics.propagator import (
+    add_defocus,
+    forward_model,
+    make_complex_pupil,
+    psf_to_pupil,
+    pupil_to_psf,
+)
+from src.optics.pupils import _spider_mask, build_pupil
 from src.optics.zernike import (
     _noll_lookup,
     radial_polynomial,
@@ -38,6 +44,24 @@ class TestBuildPupil:
         # A circular aperture with central obstruction → ~50-80 % open
         assert 0.2 < frac < 0.95
 
+    def test_unknown_telescope_raises(self) -> None:
+        cfg = PupilConfig(grid_size=64)
+        cfg.telescope = "unknown"  # type: ignore[assignment]
+        with pytest.raises(ValueError, match="Unknown telescope"):
+            build_pupil(cfg)
+
+    def test_spider_mask_no_spiders(self) -> None:
+        x = np.zeros((64, 64))
+        y = np.zeros((64, 64))
+        mask = _spider_mask(x, y, n_spiders=0, width_frac=0.01)
+        assert np.all(mask == 1.0)
+
+    def test_spider_mask_zero_width(self) -> None:
+        x = np.zeros((64, 64))
+        y = np.zeros((64, 64))
+        mask = _spider_mask(x, y, n_spiders=4, width_frac=0.0)
+        assert np.all(mask == 1.0)
+
 
 # ── FFT propagation ──────────────────────────────────────────────────────
 
@@ -66,6 +90,25 @@ class TestPropagation:
         cpupil = pupil.amplitude.astype(complex)
         psf = pupil_to_psf(cpupil)
         assert np.all(psf >= 0)
+
+    def test_psf_to_pupil_roundtrip_shape(self, pupil) -> None:
+        cpupil = make_complex_pupil(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        from numpy.fft import fft2, fftshift, ifftshift
+
+        G = fftshift(fft2(ifftshift(cpupil)))
+        recovered = psf_to_pupil(G)
+        assert recovered.shape == cpupil.shape
+
+    def test_add_defocus_preserves_shape(self, pupil) -> None:
+        phase = np.zeros_like(pupil.amplitude)
+        defocused = add_defocus(phase, pupil.amplitude, defocus_waves=1.0)
+        assert defocused.shape == phase.shape
+
+    def test_add_defocus_modifies_phase(self, pupil) -> None:
+        phase = np.zeros_like(pupil.amplitude)
+        defocused = add_defocus(phase, pupil.amplitude, defocus_waves=1.0)
+        support = pupil.amplitude > 0
+        assert np.any(defocused[support] != 0.0)
 
 
 # ── Zernike polynomials ──────────────────────────────────────────────────

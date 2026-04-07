@@ -36,6 +36,11 @@ class TestRMSPhase:
         rms = compute_rms_phase(true_phase, support)
         assert rms > 0.0
 
+    def test_empty_support_returns_zero(self) -> None:
+        phase = np.ones((64, 64))
+        support = np.zeros((64, 64), dtype=bool)
+        assert compute_rms_phase(phase, support) == 0.0
+
 
 # ── Strehl ratio ──────────────────────────────────────────────────────────
 
@@ -51,6 +56,11 @@ class TestStrehlRatio:
         psf = forward_model(pupil.amplitude, true_phase)
         strehl = compute_strehl_ratio(psf, pupil.amplitude)
         assert 0.0 < strehl < 1.0
+
+    def test_zero_pupil_returns_zero(self) -> None:
+        pupil_amp = np.zeros((64, 64))
+        psf = np.zeros((64, 64))
+        assert compute_strehl_ratio(psf, pupil_amp) == 0.0
 
 
 # ── RMS in wavelengths ───────────────────────────────────────────────────
@@ -77,6 +87,13 @@ class TestZernikeDecomposition:
         coeffs = zernike_decomposition(phase, support, n_terms=10)
         # Should have j = 2 .. 11 (skipping piston j=1)
         assert set(coeffs.keys()) == set(range(2, 12))
+
+    def test_empty_support(self) -> None:
+        phase = np.ones((64, 64))
+        support = np.zeros((64, 64), dtype=bool)
+        coeffs = zernike_decomposition(phase, support, n_terms=5)
+        for c in coeffs.values():
+            assert c == 0.0
 
 
 # ── MTF ───────────────────────────────────────────────────────────────────
@@ -122,6 +139,17 @@ class TestSSIM:
         ssim = compute_ssim(psf_perfect, psf_aberrated)
         assert ssim < 1.0
 
+    def test_explicit_data_range(self, pupil: PupilModel) -> None:
+        psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        ssim = compute_ssim(psf, psf, data_range=1.0)
+        assert ssim == pytest.approx(1.0, abs=0.01)
+
+    def test_zero_images_fallback(self) -> None:
+        """Two all-zero images: data_range computed as 0, fallback to 1.0."""
+        z = np.zeros((32, 32))
+        ssim = compute_ssim(z, z)
+        assert isinstance(ssim, float)
+
 
 # ── Phase Structure Function ─────────────────────────────────────────────
 
@@ -141,3 +169,9 @@ class TestPhaseStructureFunction:
         # Structure function should be non-negative and generally increasing
         assert all(v >= 0 for v in sf)
         assert sf[-1] > sf[0]  # larger separations → larger phase differences
+
+    def test_default_max_sep(self, pupil: PupilModel, support: np.ndarray) -> None:
+        """When max_sep is not given, should default to grid_size // 4."""
+        phase = np.zeros((pupil.grid_size, pupil.grid_size))
+        seps, sf = compute_phase_structure_function(phase, support)
+        assert len(seps) == pupil.grid_size // 4

@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.2] — 2026-04-07
+
+### Fixed
+
+- **CI branch target**: Changed trigger from `main` → `master` to match the
+  actual repository default branch — CI now runs on push and PR.
+- **Dead code**: Removed unused bare expression `ca * x + sa * y` in
+  `pupils.py:_spider_mask` (leftover debug line with no side effect).
+- **SECURITY.md**: Replaced placeholder `security@example.com` with GitHub
+  private vulnerability reporting URL.
+
+### Improved — Test Coverage
+
+- Test count: **136 → 206** tests, all passing.
+- Overall coverage: **90% → 98%** (90% CI gate enforced).
+- `data/downloader.py`: **21% → 100%** — added comprehensive mock-based tests
+  for `search_and_download`, `download_preset`, and `download_all_presets`
+  covering curated/general queries, skycell filtering, exposure-time selection,
+  product fallback, and error paths.
+- `data/loader.py`: **62% → 100%** — added FITS I/O tests using `astropy.io.fits`,
+  full `load_psf_from_fits` pipeline test, `_header_filter` / `_header_wavelength`
+  edge cases, and `prepare_psf_for_retrieval` same-size copy path.
+- `cli.py`: **84% → 99%** — added version flag, verbose logging, auto-discovered
+  FITS, multi-start, download preset mock, `_has_torch` failure path, and
+  `_sync_pupil_to_image` error path tests.
+- `metrics/quality.py`: **89% → 95%** — added empty support, zero pupil, explicit
+  data_range, zero-image SSIM fallback, and default max_sep tests.
+- `models/optics.py`: **98% → 100%** — added `PSFPair` shape-mismatch validation
+  test.
+- `optics/pupils.py`: **97% → 100%** — added `_spider_mask` no-spider and
+  zero-width tests, unknown telescope error test.
+- `optics/propagator.py`: **96% → 100%** — added `psf_to_pupil`, `add_defocus`
+  tests.
+- Added `test_main_module.py` — exercises `python -m src` via subprocess.
+
+### Improved — CI/CD
+
+- Added **Python 3.13** to the test matrix (3.11, 3.12, 3.13).
+- Bumped coverage gate from `--cov-fail-under=85` to `--cov-fail-under=90`.
+- Added **GitHub Pages deployment** for Sphinx docs (via `deploy-pages` action).
+
 ## [2.0.1] — 2026-04-07
 
 ### Fixed — Critical Bug Fixes

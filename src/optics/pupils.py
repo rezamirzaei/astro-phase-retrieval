@@ -32,7 +32,6 @@ def _spider_mask(
         ca, sa = np.cos(angle), np.sin(angle)
         # Project (x, y) onto the perpendicular of the vane direction
         perp = np.abs(-sa * x + ca * y)
-        ca * x + sa * y
         blocked = perp < half_w
         mask[blocked] = 0.0
     return mask

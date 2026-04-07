@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(".."))
 # -- Project information -------------------------------------------------------
 project = "phase-retrieval"
 author = "Reza Mirzaeifard"
-release = "2.0.1"
+release = "2.0.2"
 
 # -- General configuration -----------------------------------------------------
 extensions = [
@@ -52,4 +52,5 @@ source_suffix = {
 html_theme = "furo"
 html_title = "phase-retrieval"
 html_static_path = ["_static"]
+
 

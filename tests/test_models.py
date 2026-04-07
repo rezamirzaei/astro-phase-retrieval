@@ -15,7 +15,7 @@ from src.models.config import (
     TelescopeType,
     default_hst_config,
 )
-from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
+from src.models.optics import PhaseRetrievalResult, PSFData, PSFPair, PupilModel
 
 # ── PSFData ───────────────────────────────────────────────────────────────
 
@@ -134,3 +134,44 @@ class TestPhaseRetrievalResult:
                 reconstructed_psf=np.zeros((4, 4)),
                 n_iterations=1,
             )
+
+
+# ── PSFPair ──────────────────────────────────────────────────────────────
+
+
+class TestPSFPair:
+    def test_valid_pair(self) -> None:
+        psf1 = PSFData(
+            image=np.zeros((64, 64)),
+            pixel_scale_arcsec=0.04,
+            wavelength_m=606e-9,
+            filter_name="F606W",
+            telescope="hst",
+        )
+        psf2 = PSFData(
+            image=np.ones((64, 64)) / (64 * 64),
+            pixel_scale_arcsec=0.04,
+            wavelength_m=606e-9,
+            filter_name="F606W",
+            telescope="hst",
+        )
+        pair = PSFPair(focused=psf1, defocused=psf2)
+        assert pair.focused.image.shape == pair.defocused.image.shape
+
+    def test_rejects_shape_mismatch(self) -> None:
+        psf1 = PSFData(
+            image=np.zeros((64, 64)),
+            pixel_scale_arcsec=0.04,
+            wavelength_m=606e-9,
+            filter_name="F606W",
+            telescope="hst",
+        )
+        psf2 = PSFData(
+            image=np.zeros((32, 32)),
+            pixel_scale_arcsec=0.04,
+            wavelength_m=606e-9,
+            filter_name="F606W",
+            telescope="hst",
+        )
+        with pytest.raises(ValueError, match="same shape"):
+            PSFPair(focused=psf1, defocused=psf2)

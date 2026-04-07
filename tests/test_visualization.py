@@ -269,3 +269,95 @@ class TestHelpers:
         img[32, 32] = 1.0
         radii, profile = _azimuthal_average(img)
         assert profile[0] >= profile[-1]
+
+
+class TestEdgeCases:
+    """Test edge cases in plot functions for full coverage of vmax==0 guards."""
+
+    def test_recovered_phase_zero(self, pupil: PupilModel, support: np.ndarray) -> None:
+        """Zero phase everywhere → vmax==0, should hit the guard."""
+        n = pupil.grid_size
+        result = PhaseRetrievalResult(
+            algorithm=AlgorithmName.ERROR_REDUCTION,
+            recovered_phase=np.zeros((n, n)),
+            recovered_amplitude=pupil.amplitude,
+            reconstructed_psf=np.ones((n, n)) / (n * n),
+            cost_history=[1.0],
+            n_iterations=1,
+            strehl_ratio=1.0,
+            rms_phase_rad=0.0,
+            elapsed_seconds=0.1,
+        )
+        fig = plot_recovered_phase(result, support)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_reconstructed_psf_zero(self, pupil: PupilModel) -> None:
+        """Zero PSF → vmax==0 guard in log scale."""
+        n = pupil.grid_size
+        result = PhaseRetrievalResult(
+            algorithm=AlgorithmName.ERROR_REDUCTION,
+            recovered_phase=np.zeros((n, n)),
+            recovered_amplitude=pupil.amplitude,
+            reconstructed_psf=np.zeros((n, n)),
+            cost_history=[1.0],
+            n_iterations=1,
+            strehl_ratio=0.0,
+            rms_phase_rad=0.0,
+            elapsed_seconds=0.1,
+        )
+        fig = plot_reconstructed_psf(result)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_psf_residual_zero(self, pupil: PupilModel) -> None:
+        """Identical PSFs → zero residual → vmax==0 guard."""
+        n = pupil.grid_size
+        img = np.ones((n, n)) / (n * n)
+        psf = PSFData(
+            image=img,
+            pixel_scale_arcsec=0.04,
+            wavelength_m=606e-9,
+            filter_name="T",
+            telescope="test",
+        )
+        result = PhaseRetrievalResult(
+            algorithm=AlgorithmName.ERROR_REDUCTION,
+            recovered_phase=np.zeros((n, n)),
+            recovered_amplitude=pupil.amplitude,
+            reconstructed_psf=img.copy(),
+            cost_history=[1.0],
+            n_iterations=1,
+            strehl_ratio=1.0,
+            rms_phase_rad=0.0,
+            elapsed_seconds=0.1,
+        )
+        fig = plot_psf_residual(psf, result)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_psf_comparison_zero_residual(self, pupil: PupilModel) -> None:
+        """Identical PSFs → zero residual in comparison view."""
+        n = pupil.grid_size
+        img = np.ones((n, n)) / (n * n)
+        psf = PSFData(
+            image=img,
+            pixel_scale_arcsec=0.04,
+            wavelength_m=606e-9,
+            filter_name="T",
+            telescope="test",
+        )
+        result = PhaseRetrievalResult(
+            algorithm=AlgorithmName.ERROR_REDUCTION,
+            recovered_phase=np.zeros((n, n)),
+            recovered_amplitude=pupil.amplitude,
+            reconstructed_psf=img.copy(),
+            cost_history=[1.0],
+            n_iterations=1,
+            strehl_ratio=1.0,
+            rms_phase_rad=0.0,
+            elapsed_seconds=0.1,
+        )
+        fig = plot_psf_comparison(psf, result)
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
