@@ -30,6 +30,7 @@ from __future__ import annotations
 import logging
 import math
 import time
+import warnings
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -541,8 +542,14 @@ class PINNPhaseRetriever(PhaseRetriever):
     @staticmethod
     def _import_torch() -> _TorchModules:
         try:
-            import torch
-            import torch.nn as nn
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r"Failed to initialize NumPy: _ARRAY_API not found",
+                    category=UserWarning,
+                )
+                import torch
+                import torch.nn as nn
         except ImportError as exc:  # pragma: no cover
             raise ImportError(
                 "PINN support requires a working PyTorch install. "

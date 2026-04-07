@@ -1,4 +1,4 @@
-"""Allow ``python -m src`` to launch the CLI."""
+"""Allow ``python -m src`` to launch the CLI for source-checkout compatibility."""
 
 from src.cli import main
 

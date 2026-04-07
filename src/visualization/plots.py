@@ -63,6 +63,11 @@ def set_style() -> None:
 
 def _legend(ax: plt.Axes, **kwargs) -> None:
     """Add a legend guaranteed to be visible on any background."""
+    handles, labels = ax.get_legend_handles_labels()
+    visible = [(handle, label) for handle, label in zip(handles, labels, strict=False) if label]
+    if not visible:
+        return
+
     defaults = dict(
         frameon=True,
         facecolor="white",
@@ -72,7 +77,8 @@ def _legend(ax: plt.Axes, **kwargs) -> None:
         labelcolor="black",
     )
     defaults.update(kwargs)
-    ax.legend(**defaults)
+    legend_handles, legend_labels = zip(*visible, strict=False)
+    ax.legend(legend_handles, legend_labels, **defaults)
 
 
 # ---------------------------------------------------------------------------

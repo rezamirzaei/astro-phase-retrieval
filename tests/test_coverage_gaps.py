@@ -45,7 +45,10 @@ class TestInitVersionFallback:
         """When the package is not installed, __version__ falls back."""
         from importlib.metadata import PackageNotFoundError
 
-        with patch("importlib.metadata.version", side_effect=PackageNotFoundError()):
+        with (
+            patch("pathlib.Path.exists", return_value=False),
+            patch("importlib.metadata.version", side_effect=PackageNotFoundError()),
+        ):
             # Reload the module to re-execute the try/except
             import src
 

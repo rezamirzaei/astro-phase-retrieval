@@ -20,6 +20,9 @@ pip install -e ".[dev]"
 pip install -e ".[pinn]"
 ```
 
+For installed environments, prefer the canonical module path `python -m phase_retrieval ...`.
+When working directly from the repository checkout, `python -m src ...` is also supported.
+
 ## Running Tests
 
 ```bash
@@ -56,6 +59,9 @@ ruff format src/ tests/
 
 # Type check
 mypy src/ --ignore-missing-imports
+
+# Build source and wheel distributions
+python -m build
 ```
 
 ## Pull Request Workflow

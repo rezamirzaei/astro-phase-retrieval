@@ -23,6 +23,25 @@ class TestCLI:
         captured = capsys.readouterr()
         assert "phase-retrieval" in captured.out
 
+    def test_invalid_algorithm_exits_with_argparse_error(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            main(["run", "--algorithm", "not-a-real-algorithm"])
+        assert exc_info.value.code == 2
+        captured = capsys.readouterr()
+        assert "invalid choice" in captured.err
+
+    def test_invalid_download_preset_exits_with_argparse_error(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            main(["download", "--preset", "not-a-real-preset"])
+        assert exc_info.value.code == 2
+        captured = capsys.readouterr()
+        assert "invalid choice" in captured.err
+        assert "Downloading preset" not in captured.out
+
     def test_verbose_download_list(self, capsys: pytest.CaptureFixture[str]) -> None:
         main(["-v", "download", "--list"])
         captured = capsys.readouterr()
@@ -273,25 +292,8 @@ class TestHasTorch:
         assert isinstance(result, bool)
 
     def test_has_torch_false_when_import_fails(self) -> None:
-        import sys
-
         from src.cli import _has_torch
 
-        # Temporarily remove torch from sys.modules so the import is re-attempted
-        saved = sys.modules.pop("torch", None)
-        try:
-            import builtins
-
-            _real_import = builtins.__import__
-
-            def _mock_import(name, *args, **kwargs):
-                if name == "torch":
-                    raise ImportError("mocked")
-                return _real_import(name, *args, **kwargs)
-
-            with patch("builtins.__import__", side_effect=_mock_import):
-                result = _has_torch()
-            assert result is False
-        finally:
-            if saved is not None:
-                sys.modules["torch"] = saved
+        with patch("importlib.util.find_spec", return_value=None):
+            result = _has_torch()
+        assert result is False

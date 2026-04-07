@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -169,8 +171,11 @@ class TestPlots:
 
     def test_plot_pinn_benchmark_empty(self, psf_data) -> None:
         """Empty results dict triggers the unused-axes-hiding loop."""
-        fig = plot_pinn_benchmark(psf_data, {})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fig = plot_pinn_benchmark(psf_data, {})
         assert isinstance(fig, plt.Figure)
+        assert caught == []
         plt.close(fig)
 
     def test_plot_psf_residual(self, psf_data, dummy_result) -> None:

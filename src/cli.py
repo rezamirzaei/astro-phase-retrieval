@@ -10,6 +10,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import logging
 import sys
@@ -43,11 +44,21 @@ def _sync_pupil_to_image(config, image_shape: tuple[int, int]):
 
 
 def _has_torch() -> bool:
-    try:
-        import torch  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    return importlib.util.find_spec("torch") is not None
+
+
+def _algorithm_choices() -> list[str]:
+    """Return the registered algorithm keys for argparse validation."""
+    from src.algorithms.registry import AlgorithmRegistry
+
+    return AlgorithmRegistry.available()
+
+
+def _preset_choices() -> list[str]:
+    """Return curated download preset keys for argparse validation."""
+    from src.data.downloader import available_presets
+
+    return sorted(available_presets())
 
 
 # ── run ───────────────────────────────────────────────────────────────────
@@ -299,6 +310,8 @@ def main(argv: list[str] | None = None) -> None:
         "-a",
         "--algorithm",
         default="hio",
+        choices=_algorithm_choices(),
+        metavar="{" + ",".join(_algorithm_choices()) + "}",
         help="Algorithm key (er, gs, hio, raar, wf, dr, admm, pinn)",
     )
     _add_common_algo_args(p_run)
@@ -312,7 +325,12 @@ def main(argv: list[str] | None = None) -> None:
     # --- download ---
     p_dl = sub.add_parser("download", help="Download observation data from MAST")
     p_dl.add_argument(
-        "-p", "--preset", default="hst-wfc3-uvis-f606w", help="Observation preset key"
+        "-p",
+        "--preset",
+        default="hst-wfc3-uvis-f606w",
+        choices=_preset_choices(),
+        metavar="PRESET",
+        help="Observation preset key",
     )
     p_dl.add_argument("-d", "--data-dir", default="data", help="Download directory")
     p_dl.add_argument("-l", "--list", action="store_true", help="List available presets")

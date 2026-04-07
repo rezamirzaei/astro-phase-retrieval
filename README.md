@@ -152,6 +152,9 @@ pip install -e ".[dev]"
 pip install -e ".[pinn]"
 ```
 
+After installation, the canonical Python package name is `phase_retrieval`.
+For backwards compatibility, the in-repository `src` package still works when running from a checkout.
+
 ## Quick Start
 
 ### As a script (PyCharm / Jupyter-style)
@@ -192,8 +195,10 @@ phase-retrieval run --algorithm pinn --iterations 300
 ### As a Python module
 
 ```bash
-python -m src run --algorithm raar
+python -m phase_retrieval run --algorithm raar
 ```
+
+If you are running directly from a source checkout, `python -m src ...` remains supported.
 
 ## Testing
 
