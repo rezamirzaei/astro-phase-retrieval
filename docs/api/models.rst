@@ -3,6 +3,7 @@ Models
 
 .. automodule:: src.models
    :members:
+   :no-index:
 
 Configuration
 -------------

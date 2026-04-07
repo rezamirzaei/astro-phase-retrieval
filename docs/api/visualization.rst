@@ -3,6 +3,7 @@ Visualization
 
 .. automodule:: src.visualization
    :members:
+   :no-index:
 
 Plots
 -----

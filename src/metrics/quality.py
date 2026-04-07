@@ -173,9 +173,13 @@ def compute_phase_structure_function(
     support: np.ndarray,
     max_sep: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Compute the phase structure function D_φ(r).
+    r"""Compute the phase structure function D_φ(r).
 
-    D_φ(r) = ⟨|φ(x) − φ(x + r)|²⟩  averaged over all angles and positions.
+    .. math::
+
+        D_\varphi(r) = \langle |\varphi(x) - \varphi(x + r)|^2 \rangle
+
+    averaged over all angles and positions.
 
     This is a standard diagnostic for optical wavefront quality and
     atmospheric turbulence characterisation.

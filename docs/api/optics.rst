@@ -3,6 +3,7 @@ Optics
 
 .. automodule:: src.optics
    :members:
+   :no-index:
 
 Propagator
 ----------

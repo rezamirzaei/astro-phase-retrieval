@@ -24,16 +24,20 @@ from src.algorithms.base import PhaseRetriever
 
 
 class WirtingerFlow(PhaseRetriever):
-    """Wirtinger Flow phase retrieval with optional spectral initialization.
+    r"""Wirtinger Flow phase retrieval with optional spectral initialization.
 
     This is a gradient-descent algorithm on the amplitude-based loss:
 
-        L(g) = (1/4n²) Σ_k ( |⟨a_k, g⟩|² − y_k )²
+    .. math::
 
-    where y_k = |F{g}|² are the measured intensities and a_k are the
-    Fourier measurement vectors.  The Wirtinger gradient is:
+        L(g) = \frac{1}{4n^2} \sum_k \bigl( |\langle a_k, g \rangle|^2 - y_k \bigr)^2
 
-        ∇_g L = (1/n²) F⁻¹{ (|G|² − Y) ⊙ G }
+    where :math:`y_k = |F\{g\}|^2` are the measured intensities and
+    :math:`a_k` are the Fourier measurement vectors.  The Wirtinger gradient is:
+
+    .. math::
+
+        \nabla_g L = \frac{1}{n^2} F^{-1}\{ (|G|^2 - Y) \odot G \}
 
     The step size is normalised by the mean intensity for stability.
     """

@@ -4,6 +4,7 @@ Algorithms
 .. automodule:: src.algorithms
    :members:
    :undoc-members:
+   :no-index:
 
 Base Class
 ----------

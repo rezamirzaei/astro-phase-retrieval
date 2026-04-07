@@ -3,6 +3,7 @@ Data
 
 .. automodule:: src.data
    :members:
+   :no-index:
 
 Downloader
 ----------

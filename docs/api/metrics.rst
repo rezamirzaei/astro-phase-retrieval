@@ -3,6 +3,7 @@ Metrics
 
 .. automodule:: src.metrics
    :members:
+   :no-index:
 
 Quality Metrics
 ---------------

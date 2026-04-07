@@ -16,11 +16,11 @@ reflections with specific parameters.
 References:
     Bauschke H.H., Combettes P.L., Luke D.R. (2002)
     "Phase retrieval, error reduction algorithm, and Fienup variants:
-     a view from convex optimization"
-    J. Opt. Soc. Am. A 19(7):1334–1345
+    a view from convex optimization",
+    J. Opt. Soc. Am. A 19(7):1334--1345
 
-    Elser V. (2003) "Phase retrieval by iterated projections"
-    J. Opt. Soc. Am. A 20(1):40–55
+    Elser V. (2003) "Phase retrieval by iterated projections",
+    J. Opt. Soc. Am. A 20(1):40--55
 
 Like RAAR, DR oscillates around the solution.  The final 10% of iterations
 switch to ER for a clean convergent finish.

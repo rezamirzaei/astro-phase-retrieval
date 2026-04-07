@@ -17,7 +17,7 @@ def pupil_to_psf(pupil_complex: np.ndarray) -> np.ndarray:
     Returns
     -------
     ndarray
-        Normalised focal-plane intensity |F{pupil}|².
+        Normalised focal-plane intensity ``|F{pupil}|²``.
     """
     ft = fftshift(fft2(ifftshift(pupil_complex)))
     psf = np.abs(ft) ** 2
