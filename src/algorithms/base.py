@@ -93,6 +93,7 @@ class PhaseRetriever(ABC):
             )
 
         # Initialise complex pupil field with known amplitude + random phase
+        self._psf_image_for_init = psf_data.image
         phase0 = self._initial_phase(n)
         g = pupil_amp * np.exp(1j * phase0)
 
@@ -389,22 +390,62 @@ class PhaseRetriever(ABC):
         return g_new, cost
 
     def _initial_phase(self, n: int) -> np.ndarray:
-        """Small random perturbations around zero (diffraction-limited start).
+        """Compute starting phase via spectral initialization or random.
 
-        The range [-0.3, 0.3] rad is appropriate for near-diffraction-limited
-        systems (e.g. HST); for strongly aberrated pupils a wider range may
-        improve exploration at the cost of slower initial convergence.
+        When ``config.spectral_init`` is *True* (the default) **and** the
+        observed PSF has been stored on ``self`` by :meth:`run`, the leading
+        eigenvector of the weighted measurement matrix is used — this is the
+        same *spectral initialization* that makes Wirtinger Flow effective.
+
+        Otherwise falls back to uniform random in [-1, 1] rad — wide enough
+        to cover real HST-class aberrations.
         """
-        return self._rng.uniform(-0.3, 0.3, size=(n, n)).astype(np.float64)
+        if (
+            self.config.spectral_init
+            and hasattr(self, "_psf_image_for_init")
+            and self._psf_image_for_init is not None
+        ):
+            return self._spectral_init(self._psf_image_for_init, n)
+        return self._rng.uniform(-1.0, 1.0, size=(n, n)).astype(np.float64)
+
+    def _spectral_init(self, psf_image: np.ndarray, n: int) -> np.ndarray:
+        """Spectral initialization via truncated power iteration.
+
+        Computes the leading eigenvector of the weighted measurement matrix
+        ``T = (1/m) Σ_k y_k a_k a_k^H`` by iterating
+        ``z ← IFFT{ Y · FFT{z} }`` and normalising.
+        """
+        Y = psf_image
+        support = self.pupil.amplitude > 0
+        rng = np.random.default_rng(self.config.random_seed)
+        z = self.pupil.amplitude * np.exp(1j * rng.uniform(-np.pi, np.pi, (n, n)))
+
+        for _ in range(50):
+            Z = fftshift(fft2(ifftshift(z)))
+            Z = Y * Z
+            z = fftshift(ifft2(ifftshift(Z)))
+            z[~support] = 0.0
+            norm = np.sqrt(np.sum(np.abs(z) ** 2))
+            if norm > 0:
+                z /= norm
+
+        z *= np.sqrt(np.sum(self.pupil.amplitude**2))
+        phase = np.angle(z)
+        phase[~support] = 0.0
+        return phase  # type: ignore[no-any-return]
 
     @staticmethod
     def _focal_cost(target_amp: np.ndarray, G: np.ndarray) -> float:
-        """Normalised focal-plane amplitude error.
+        """Normalised focal-plane amplitude error (R-factor).
 
-        Returns the mean squared difference between the target and
-        modelled focal-plane amplitudes (scale-corrected), so the cost
-        is comparable across different grid sizes.
+        Returns the sum of squared amplitude residuals normalised by the
+        sum of squared target amplitudes, making the cost scale-invariant
+        and comparable across different grid sizes.
         """
         modelled_amp = np.abs(G)
         scale = target_amp.sum() / max(modelled_amp.sum(), _EPS)
-        return float(np.mean((target_amp - modelled_amp * scale) ** 2))
+        residual = target_amp - modelled_amp * scale
+        denom = np.sum(target_amp**2)
+        if denom > 0:
+            return float(np.sum(residual**2) / denom)
+        return float(np.sum(residual**2))

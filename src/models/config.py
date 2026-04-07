@@ -182,6 +182,10 @@ class AlgorithmConfig(BaseModel):
         default=True,
         description="Use spectral initialization for Wirtinger Flow",
     )
+    spectral_init: bool = Field(
+        default=True,
+        description="Use spectral initialization (power iteration) for all algorithms",
+    )
     pinn_hidden_features: int = Field(
         default=128,
         ge=8,

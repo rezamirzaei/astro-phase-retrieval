@@ -213,23 +213,19 @@ def compute_phase_structure_function(
 
     for i, sep in enumerate(separations):
         diffs = []
-        # Sample at 8 angles for efficiency
+        # Sample at 8 angles in [0, π) — dy ≥ 0 for all samples
         for angle in np.linspace(0, np.pi, 8, endpoint=False):
             dx = int(round(sep * np.cos(angle)))
             dy = int(round(sep * np.sin(angle)))
             if dx == 0 and dy == 0:
-                continue
+                continue  # pragma: no cover — unreachable for sep ≥ 1
 
-            # Shifted phase
+            # Shifted phase (dy is always ≥ 0 for angles in [0, π))
             phi_shifted = np.full_like(phi, np.nan)
-            if dy >= 0 and dx >= 0:
+            if dx >= 0:
                 phi_shifted[dy:, dx:] = phi[: n - dy if dy > 0 else n, : n - dx if dx > 0 else n]
-            elif dy >= 0 and dx < 0:
-                phi_shifted[dy:, : n + dx] = phi[: n - dy if dy > 0 else n, -dx:]
-            elif dy < 0 and dx >= 0:
-                phi_shifted[: n + dy, dx:] = phi[-dy:, : n - dx if dx > 0 else n]
             else:
-                phi_shifted[: n + dy, : n + dx] = phi[-dy:, -dx:]
+                phi_shifted[dy:, : n + dx] = phi[: n - dy if dy > 0 else n, -dx:]
 
             valid = np.isfinite(phi) & np.isfinite(phi_shifted)
             if valid.sum() > 0:

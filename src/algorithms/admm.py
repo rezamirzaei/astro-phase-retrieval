@@ -50,8 +50,6 @@ class ADMM(PhaseRetriever):
         support: np.ndarray,
         iteration: int,
     ) -> tuple[np.ndarray, float]:
-        rho = self._get_beta(iteration)  # use β as the ADMM penalty parameter
-
         # Initialise dual variable on first call
         if self._u is None:
             self._u = np.zeros_like(g, dtype=complex)
@@ -66,9 +64,9 @@ class ADMM(PhaseRetriever):
         g_new = np.zeros_like(g_tilde)
         g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_tilde[support] + 1e-30))
 
-        # ── Dual variable update ─────────────────────────────────────
+        # ── Dual variable update (scaled form: u ← u + Fg − G) ──────
         Fg_new = fftshift(fft2(ifftshift(g_new)))
-        self._u = self._u + rho * (Fg_new - G)
+        self._u = self._u + (Fg_new - G)
 
         # Cost
         cost = self._focal_cost(target_amplitude, Fg)

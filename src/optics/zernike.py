@@ -54,10 +54,8 @@ def _noll_lookup(j: int) -> tuple[int, int]:
     """Lookup or compute (n, m) from Noll index."""
     if j in _NOLL_TABLE:
         return _NOLL_TABLE[j]
-    # General formula
+    # General formula (Noll 1976)
     n = int((-1 + np.sqrt(1 + 8 * j)) / 2)
-    if (n + 1) * (n + 2) // 2 < j:
-        n += 1
     remainder = j - n * (n + 1) // 2
     m = n - 2 * (remainder - 1) if remainder > 0 else n
     if j % 2 == 0 and m < 0 or j % 2 != 0 and m > 0:

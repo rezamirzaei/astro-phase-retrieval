@@ -43,51 +43,18 @@ class WirtingerFlow(PhaseRetriever):
     """
 
     def run(self, psf_data):
-        """Override run to apply spectral initialization when configured."""
+        """Override run to apply WF-specific spectral initialization when configured."""
         if self.config.wf_spectral_init:
-            self._spectral_phase = self._spectral_init(psf_data)
+            self._spectral_phase = self._spectral_init(psf_data.image, psf_data.image.shape[0])
         else:
             self._spectral_phase = None
         return super().run(psf_data)
 
     def _initial_phase(self, n: int) -> np.ndarray:
-        """Use spectral initialization if available, else small random."""
+        """Use WF spectral initialization if available, else delegate to base."""
         if hasattr(self, "_spectral_phase") and self._spectral_phase is not None:
             return self._spectral_phase  # type: ignore[no-any-return]
-        return self._rng.uniform(-0.3, 0.3, size=(n, n)).astype(np.float64)
-
-    def _spectral_init(self, psf_data) -> np.ndarray:
-        """Spectral initialization via truncated power iteration.
-
-        Computes the leading eigenvector of the weighted measurement matrix
-        T = (1/m) Σ_k y_k · a_k a_k^H, which is equivalent to iterating
-        z ← F⁻¹{ Y ⊙ F{z} } and normalizing.
-        """
-        Y = psf_data.image  # intensity
-        n = Y.shape[0]
-        support = self.pupil.amplitude > 0
-
-        # Power iteration in Fourier domain: z ← IFFT{ Y · FFT{z} }
-        rng = np.random.default_rng(self.config.random_seed)
-        z = self.pupil.amplitude * np.exp(1j * rng.uniform(-np.pi, np.pi, (n, n)))
-
-        for _ in range(50):
-            Z = fftshift(fft2(ifftshift(z)))
-            Z = Y * Z  # weight by measured intensity
-            z = fftshift(ifft2(ifftshift(Z)))
-            # Project onto support
-            z[~support] = 0.0
-            # Normalise
-            norm = np.sqrt(np.sum(np.abs(z) ** 2))
-            if norm > 0:
-                z /= norm
-
-        # Scale to match pupil energy
-        z *= np.sqrt(np.sum(self.pupil.amplitude**2))
-
-        phase = np.angle(z)
-        phase[~support] = 0.0
-        return phase  # type: ignore[no-any-return]
+        return super()._initial_phase(n)
 
     def _iterate(
         self,
