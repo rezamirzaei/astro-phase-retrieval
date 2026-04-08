@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 # -- Path setup ----------------------------------------------------------------
 sys.path.insert(0, os.path.abspath(".."))
@@ -11,16 +12,30 @@ sys.path.insert(0, os.path.abspath(".."))
 # -- Project information -------------------------------------------------------
 project = "phase-retrieval"
 author = "Reza Mirzaeifard"
-release = "2.0.2"
+
+try:
+    release = _pkg_version("phase-retrieval")
+except PackageNotFoundError:
+    # Running docs build from a checkout without the package installed
+    import tomllib
+    from pathlib import Path
+
+    _pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    with _pyproject.open("rb") as _fh:
+        release = tomllib.load(_fh)["project"]["version"]
 
 # -- General configuration -----------------------------------------------------
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "myst_parser",
 ]
+
+autosummary_generate = True
+autosummary_imported_members = True
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

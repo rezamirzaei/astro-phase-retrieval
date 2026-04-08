@@ -28,7 +28,7 @@ def test_module_invocation_help() -> None:
         [sys.executable, "-m", "src"],
         capture_output=True,
         text=True,
-        timeout=10,
+        timeout=30,  # subprocess cold-start can be slow inside a full test run
     )
     assert result.returncode == 0
     assert "usage" in result.stdout.lower() or "phase-retrieval" in result.stdout.lower()

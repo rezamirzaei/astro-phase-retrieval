@@ -31,13 +31,14 @@ import numpy as np
 from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
+from src.models.optics import PhaseRetrievalResult, PSFData
 
 
 class ADMM(PhaseRetriever):
     """ADMM-based phase retrieval with Fourier/support splitting."""
 
-    def run(self, psf_data):
-        """Override to initialise dual variable."""
+    def run(self, psf_data: PSFData) -> PhaseRetrievalResult:
+        """Override to initialise dual variable before delegating to base loop."""
         self._u = None  # dual variable, initialised in first iterate
         return super().run(psf_data)
 

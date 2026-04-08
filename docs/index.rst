@@ -6,7 +6,13 @@ real-world HST/JWST astronomical wavefront sensing.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents
+   :caption: User Guide
+
+   cli
+
+.. toctree::
+   :maxdepth: 2
+   :caption: API Reference
 
    api/algorithms
    api/optics
@@ -14,6 +20,11 @@ real-world HST/JWST astronomical wavefront sensing.
    api/metrics
    api/models
    api/visualization
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Project
+
    changelog
 
 Indices and tables

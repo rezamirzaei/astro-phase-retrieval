@@ -6,6 +6,8 @@ import importlib.util
 
 import numpy as np
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from src.algorithms.multi_start import multi_start_run
 from src.algorithms.phase_diversity import PhaseDiversity
@@ -201,6 +203,7 @@ class TestEnhancements:
 
 
 class TestSyntheticRecovery:
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "alg_name",
         [
@@ -300,3 +303,72 @@ class TestAlgorithmRegistry:
         cfg.name = "nonexistent"  # type: ignore[assignment]
         with pytest.raises(ValueError, match="Unknown algorithm"):
             AlgorithmRegistry.create(cfg, pupil)
+
+
+# ── Property-based tests (Hypothesis) ─────────────────────────────────────
+
+
+class TestPropertyBased:
+    """Hypothesis property-based tests for mathematical invariants."""
+
+    @given(
+        phase_scale=st.floats(min_value=0.01, max_value=2.0, allow_nan=False, allow_infinity=False)
+    )
+    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_strehl_ratio_bounded(
+        self,
+        phase_scale: float,
+        pupil: PupilModel,
+    ) -> None:
+        """For any scaled phase map, Strehl ratio must remain in [0, 1]."""
+        from src.metrics.quality import compute_strehl_ratio
+        from src.optics.propagator import forward_model
+
+        n = pupil.grid_size
+        rng = np.random.default_rng(0)
+        phase = rng.standard_normal((n, n)) * phase_scale
+        phase[pupil.amplitude == 0] = 0.0
+        psf = forward_model(pupil.amplitude, phase)
+        strehl = compute_strehl_ratio(psf, pupil.amplitude)
+        assert 0.0 <= strehl <= 1.0, f"Strehl={strehl} out of bounds for scale={phase_scale}"
+
+    @given(
+        rms_rad=st.floats(min_value=0.0, max_value=10.0, allow_nan=False, allow_infinity=False)
+    )
+    @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_rms_phase_nonnegative(
+        self,
+        rms_rad: float,
+        pupil: PupilModel,
+    ) -> None:
+        """RMS phase is always non-negative regardless of phase amplitude."""
+        from src.metrics.quality import compute_rms_phase
+
+        support = pupil.amplitude > 0
+        n = pupil.grid_size
+        rng = np.random.default_rng(1)
+        phase = rng.standard_normal((n, n)) * rms_rad
+        phase[~support] = 0.0
+        rms = compute_rms_phase(phase, support)
+        assert rms >= 0.0, f"RMS={rms} is negative"
+
+    @given(
+        n_iter=st.integers(min_value=1, max_value=50),
+    )
+    @settings(max_examples=10, suppress_health_check=[HealthCheck.function_scoped_fixture])
+    def test_cost_history_length_matches_n_iterations(
+        self,
+        n_iter: int,
+        pupil: PupilModel,
+        psf_data: PSFData,
+    ) -> None:
+        """cost_history length must equal n_iterations for any iteration count."""
+        cfg = AlgorithmConfig(
+            name=AlgorithmName.ERROR_REDUCTION,
+            max_iterations=n_iter,
+            random_seed=7,
+        )
+        result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+        assert len(result.cost_history) == result.n_iterations
+        assert result.n_iterations <= n_iter
+

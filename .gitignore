@@ -27,6 +27,8 @@ env/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+coverage.xml
 
 # --- Jupyter ---
 .ipynb_checkpoints/

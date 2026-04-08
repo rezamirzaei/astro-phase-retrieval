@@ -28,12 +28,22 @@ dependencies = [
     "pydantic>=2.5",
     "rich>=13.7",
     "scikit-image>=0.22",
-    "ipykernel>=7.2.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.2", "mypy>=1.8", "build>=1.2"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-xdist>=3.5",
+    "hypothesis>=6.100",
+    "ruff>=0.2",
+    "mypy>=1.8",
+    "build>=1.2",
+    "pre-commit>=3.7",
+    "pip-audit>=2.7",
+]
 pinn = ["torch>=2.2"]
+notebook = ["ipykernel>=7.2.0", "jupyterlab>=4.0"]
 docs = ["sphinx>=7.0", "furo>=2024.0", "myst-parser>=3.0"]
 
 [project.urls]
@@ -58,6 +68,10 @@ exclude = [
     "/data",
     "/outputs",
     "/notebooks/outputs",
+    "/main.py",
+    "/_diag.py",
+    "/_gen_notebook.py",
+    "/_test_synth.py",
 ]
 
 [tool.ruff]
@@ -65,24 +79,52 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "N", "PERF"]
+ignore = [
+    # Allow mutable class-level defaults in Pydantic models
+    "B006",
+    # Allow complex comprehensions in scientific code
+    "SIM118",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "main.py" = ["E402"]
 "_gen_notebook.py" = ["E501"]
+"_diag.py" = ["E402", "E501"]
+"_test_synth.py" = ["E402"]
 "notebooks/*" = ["E402", "E501"]
+# Uppercase variable names (N806) are standard math notation in algorithm/optics code
+"src/algorithms/*.py" = ["N806", "N803"]
+"src/optics/*.py" = ["N806", "N803"]
+"src/metrics/*.py" = ["N806", "N803"]
+"src/visualization/*.py" = ["N806", "N803"]
+"tests/*" = ["N802", "N803", "N806", "N815", "PERF102"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "slow: marks tests as slow-running (deselect with -m 'not slow')",
+    "integration: marks integration tests requiring network or real FITS files",
+]
 
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["astroquery.*", "astropy.*", "skimage.*"]
+module = ["astroquery.*", "astropy.*", "skimage.*", "torch.*", "scipy.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "notebooks.*", "main", "_diag", "_gen_notebook", "_test_synth"]
+disallow_untyped_defs = false

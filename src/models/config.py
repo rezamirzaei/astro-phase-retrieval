@@ -280,16 +280,10 @@ class PipelineConfig(BaseModel):
     @model_validator(mode="after")
     def _sync_wavelength_with_filter(self) -> PipelineConfig:
         """Auto-set wavelength from filter name when using defaults."""
-        _filter_to_wavelength = {
-            "F606W": 606e-9,
-            "F814W": 814e-9,
-            "F200W": 2.0e-6,
-            "F150W": 1.5e-6,
-            "F110W": 1.1e-6,
-            "F160W": 1.6e-6,
-            "F438W": 438e-9,
-        }
-        wl = _filter_to_wavelength.get(self.data.filter_name)
+        # Import lazily to avoid circular dependency: config → downloader → config
+        from src.data.downloader import FILTER_WAVELENGTH_M  # noqa: PLC0415
+
+        wl = FILTER_WAVELENGTH_M.get(self.data.filter_name)
         if wl is not None:
             self.pupil.wavelength_m = wl
         return self

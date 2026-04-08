@@ -21,6 +21,7 @@ import numpy as np
 from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import PhaseRetriever
+from src.models.optics import PhaseRetrievalResult, PSFData
 
 
 class WirtingerFlow(PhaseRetriever):
@@ -42,7 +43,7 @@ class WirtingerFlow(PhaseRetriever):
     The step size is normalised by the mean intensity for stability.
     """
 
-    def run(self, psf_data):
+    def run(self, psf_data: PSFData) -> PhaseRetrievalResult:
         """Override run to apply WF-specific spectral initialization when configured."""
         if self.config.wf_spectral_init:
             self._spectral_phase = self._spectral_init(psf_data.image, psf_data.image.shape[0])

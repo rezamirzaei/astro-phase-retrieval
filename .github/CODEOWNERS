@@ -1,0 +1,24 @@
+# CODEOWNERS — GitHub automatically requests review from listed owners
+# when a pull request touches matching paths.
+#
+# Format: <pattern>  <@owner or @org/team>
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything not matched below
+*                                   @rezamirzaeifard
+
+# Core algorithm implementations — extra scrutiny required
+src/algorithms/                     @rezamirzaeifard
+src/optics/                         @rezamirzaeifard
+
+# Configuration models — changes here affect the public API
+src/models/                         @rezamirzaeifard
+
+# CI/CD pipeline changes
+.github/                            @rezamirzaeifard
+
+# Documentation
+docs/                               @rezamirzaeifard
+README.md                           @rezamirzaeifard
+CHANGELOG.md                        @rezamirzaeifard
+

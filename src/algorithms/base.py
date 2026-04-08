@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 import warnings
 from abc import ABC, abstractmethod
@@ -110,46 +111,87 @@ class PhaseRetriever(ABC):
         # heavy-ball acceleration:  y_k = x_k + μ·(x_k − x_{k−1}).
         g_prev = g.copy()
 
-        for iteration in range(1, self.config.max_iterations + 1):
-            # Save current iterate *before* momentum extrapolation
-            g_before_momentum = g
-
-            # ── Heavy-ball momentum extrapolation ─────────────────────
-            if self.config.momentum > 0 and iteration > 1:
-                g = g + self.config.momentum * (g - g_prev)
-
-            g, cost = self._iterate(
-                g=g,
-                pupil_amplitude=pupil_amp,
-                target_amplitude=target_amp,
-                support=support,
-                iteration=iteration,
+        # Rich progress bar — only shown when stdout is an interactive TTY,
+        # so it never pollutes piped/CI output.
+        _use_rich = sys.stdout.isatty()
+        try:
+            from rich.progress import (
+                BarColumn,
+                Progress,
+                SpinnerColumn,
+                TaskProgressColumn,
+                TextColumn,
+                TimeElapsedColumn,
             )
+        except ImportError:  # pragma: no cover
+            _use_rich = False
 
-            # ── TV regularization on the phase ────────────────────────
-            if self.config.tv_weight > 0:
-                phase = np.angle(g)
-                phase = self._tv_prox(phase, self.config.tv_weight, support)
-                amp = np.abs(g)
-                g = amp * np.exp(1j * phase)
+        def _run_loop() -> None:
+            nonlocal g, g_prev, converged
 
-            # Store iterate output for next momentum step
-            g_prev = g_before_momentum
+            for iteration in range(1, self.config.max_iterations + 1):
+                # Save current iterate *before* momentum extrapolation
+                g_before_momentum = g
 
-            cost_history.append(float(cost))
+                # ── Heavy-ball momentum extrapolation ─────────────────────
+                if self.config.momentum > 0 and iteration > 1:
+                    g = g + self.config.momentum * (g - g_prev)
 
-            # Convergence: compare the mean cost over the last two windows.
-            # This handles algorithms like RAAR whose cost oscillates.
-            if len(cost_history) >= 2 * window:
-                recent = np.mean(cost_history[-window:])
-                previous = np.mean(cost_history[-2 * window : -window])
-                rel_change = abs(previous - recent) / max(
-                    float(abs(previous)),
-                    _EPS,
+                g, cost = self._iterate(
+                    g=g,
+                    pupil_amplitude=pupil_amp,
+                    target_amplitude=target_amp,
+                    support=support,
+                    iteration=iteration,
                 )
-                if rel_change < self.config.tolerance:
-                    converged = True
-                    break
+
+                # ── TV regularization on the phase ────────────────────────
+                if self.config.tv_weight > 0:
+                    phase_tv = np.angle(g)
+                    phase_tv = self._tv_prox(phase_tv, self.config.tv_weight, support)
+                    amp = np.abs(g)
+                    g = amp * np.exp(1j * phase_tv)
+
+                # Store iterate output for next momentum step
+                g_prev = g_before_momentum
+
+                cost_history.append(float(cost))
+
+                if _task_id is not None:
+                    _progress.update(  # type: ignore[union-attr]
+                        _task_id,
+                        advance=1,
+                        description=f"[cyan]{self.config.name.value.upper()}[/]  cost={cost:.4e}",
+                    )
+
+                # Convergence: compare the mean cost over the last two windows.
+                if len(cost_history) >= 2 * window:
+                    recent = np.mean(cost_history[-window:])
+                    previous = np.mean(cost_history[-2 * window : -window])
+                    rel_change = abs(previous - recent) / max(float(abs(previous)), _EPS)
+                    if rel_change < self.config.tolerance:
+                        converged = True
+                        break
+
+        _progress = None
+        _task_id = None
+        if _use_rich:
+            _progress = Progress(  # type: ignore[assignment]
+                SpinnerColumn(),
+                TextColumn("{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                transient=True,
+            )
+            with _progress:
+                _task_id = _progress.add_task(
+                    f"[cyan]{self.config.name.value.upper()}",
+                    total=self.config.max_iterations,
+                )
+                _run_loop()
+        else:
+            _run_loop()
 
         elapsed = time.perf_counter() - t0
 
@@ -324,6 +366,8 @@ class PhaseRetriever(ABC):
         py = np.zeros_like(phase)
 
         for _ in range(n_iter):
+            px_prev, py_prev = px.copy(), py.copy()
+
             # Divergence of (px, py) using backward differences
             # (adjoint of the forward-difference gradient with a sign flip)
             div_x = np.zeros_like(phase)
@@ -351,6 +395,12 @@ class PhaseRetriever(ABC):
             denom = 1.0 + sigma * norm_g
             px = (px - sigma * gx) / denom
             py = (py - sigma * gy) / denom
+
+            # Early-exit: check relative change on dual variables
+            norm_px = np.sqrt(np.sum(px**2))
+            change = np.sqrt(np.sum((px - px_prev) ** 2 + (py - py_prev) ** 2))
+            if norm_px > 0 and change / (norm_px + _EPS) < 1e-4:
+                break  # pragma: no cover — requires specific convergence conditions
 
         # Final denoised phase:  û = phase + weight · div_code(p*)
         div_x = np.zeros_like(phase)

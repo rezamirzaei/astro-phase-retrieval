@@ -488,6 +488,29 @@ class TestLoadFitsImage:
         with pytest.raises(ValueError, match="No 2-D image"):
             load_fits_image(fpath, ext=99)
 
+    def test_stat_oserror_falls_back_gracefully(self, tmp_path) -> None:
+        """OSError from stat() should be silently absorbed (size treated as 0)."""
+        fpath = tmp_path / "test.fits"
+        _create_test_fits(fpath)
+        with patch("pathlib.Path.stat", side_effect=OSError("permission denied")):
+            # Should NOT raise — falls back to size=0 which is under the limit
+            data, _ = load_fits_image(fpath, ext=1)
+        assert data.ndim == 2
+
+    def test_too_large_file_raises(self, tmp_path) -> None:
+        """Files larger than 2 GiB should raise ValueError before opening."""
+        fpath = tmp_path / "huge.fits"
+        _create_test_fits(fpath)
+        from unittest.mock import MagicMock
+
+        fake_stat = MagicMock()
+        fake_stat.st_size = 3 * 1024**3  # 3 GiB
+        with (
+            patch("pathlib.Path.stat", return_value=fake_stat),
+            pytest.raises(ValueError, match="too large"),
+        ):
+            load_fits_image(fpath)
+
 
 class TestLoadPSFFromFits:
     def test_full_pipeline(self, tmp_path) -> None:

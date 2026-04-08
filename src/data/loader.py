@@ -13,6 +13,9 @@ from src.models.optics import PSFData
 
 logger = logging.getLogger(__name__)
 
+# Guard limit: refuse to open FITS files larger than 2 GiB to prevent OOM
+_MAX_FITS_BYTES: int = 2 * 1024**3
+
 
 def load_fits_image(filepath: Path, *, ext: int | str = 1) -> tuple[np.ndarray, dict]:
     """Read a 2-D image array and header from a FITS file.
@@ -31,6 +34,18 @@ def load_fits_image(filepath: Path, *, ext: int | str = 1) -> tuple[np.ndarray, 
     header : dict
         Merged FITS header (primary + science extension) as a plain dict.
     """
+    filepath = Path(filepath)
+
+    # Guard: refuse to open suspiciously large files to prevent OOM
+    try:
+        file_size = filepath.stat().st_size
+    except OSError:
+        file_size = 0
+    if file_size > _MAX_FITS_BYTES:
+        raise ValueError(
+            f"FITS file is too large ({file_size / 1024**3:.1f} GiB > 2 GiB limit): {filepath}"
+        )
+
     with fits.open(filepath) as hdul:
         # Always capture the primary header for metadata (FILTER, INSTRUME, etc.)
         primary_header = dict(hdul[0].header)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -54,9 +55,10 @@ class TestCLI:
         assert "hst-wfc3-uvis-f606w" in captured.out
 
     def test_run_with_mock_fits(self, tmp_path, pupil, psf_data, capsys) -> None:
-        """Mock the FITS loading chain and verify `run` completes."""
+        """Mock the FITS loading chain and verify `run` completes and writes valid JSON."""
         fake_fits = tmp_path / "fake.fits"
         fake_fits.touch()
+        out_dir = tmp_path / "out"
 
         with (
             patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
@@ -72,11 +74,120 @@ class TestCLI:
                     "--fits",
                     str(fake_fits),
                     "-o",
-                    str(tmp_path / "out"),
+                    str(out_dir),
                 ]
             )
 
         capsys.readouterr()
+
+        # Verify that the JSON result file exists and has the expected keys
+        result_file = out_dir / "result_er.json"
+        assert result_file.exists(), "result_er.json was not written"
+        result_data = json.loads(result_file.read_text())
+        for key in ("algorithm", "strehl_ratio", "rms_phase_rad", "n_iterations", "converged"):
+            assert key in result_data, f"Missing key '{key}' in result JSON"
+        assert result_data["algorithm"] == "er"
+        assert 0.0 <= result_data["strehl_ratio"] <= 1.0
+        assert result_data["rms_phase_rad"] >= 0.0
+
+    def test_run_quiet_flag(self, tmp_path, psf_data, capsys) -> None:
+        """--quiet suppresses progress output but still writes the JSON file."""
+        fake_fits = tmp_path / "fake.fits"
+        fake_fits.touch()
+        out_dir = tmp_path / "quiet_out"
+
+        with (
+            patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
+            patch("src.data.loader.prepare_psf_for_retrieval", return_value=psf_data.image),
+        ):
+            main(
+                [
+                    "run",
+                    "--algorithm",
+                    "er",
+                    "--iterations",
+                    "5",
+                    "--fits",
+                    str(fake_fits),
+                    "-o",
+                    str(out_dir),
+                    "--quiet",
+                ]
+            )
+
+        captured = capsys.readouterr()
+        # No emoji / progress lines in stdout
+        assert "✅" not in captured.out
+        # JSON file still written
+        assert (out_dir / "result_er.json").exists()
+
+    def test_run_output_format_json(self, tmp_path, psf_data, capsys) -> None:
+        """--output-format json prints a JSON object to stdout."""
+        fake_fits = tmp_path / "fake.fits"
+        fake_fits.touch()
+
+        with (
+            patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
+            patch("src.data.loader.prepare_psf_for_retrieval", return_value=psf_data.image),
+        ):
+            main(
+                [
+                    "run",
+                    "--algorithm",
+                    "er",
+                    "--iterations",
+                    "5",
+                    "--fits",
+                    str(fake_fits),
+                    "-o",
+                    str(tmp_path / "json_out"),
+                    "--output-format",
+                    "json",
+                ]
+            )
+
+        captured = capsys.readouterr()
+        parsed = json.loads(captured.out)
+        assert parsed["algorithm"] == "er"
+        assert "strehl_ratio" in parsed
+
+    def test_log_format_json(self, capsys) -> None:
+        """--log-format json should not crash."""
+        main(["--log-format", "json", "download", "--list"])
+        captured = capsys.readouterr()
+        assert "hst-wfc3-uvis-f606w" in captured.out
+
+    def test_compare_saves_json_files(self, tmp_path, psf_data, capsys) -> None:
+        """compare --save writes JSON files for each algorithm."""
+        fake_fits = tmp_path / "fake.fits"
+        fake_fits.touch()
+        out_dir = tmp_path / "cmp_out"
+
+        with (
+            patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
+            patch("src.data.loader.prepare_psf_for_retrieval", return_value=psf_data.image),
+        ):
+            main(
+                [
+                    "compare",
+                    "--iterations",
+                    "3",
+                    "--fits",
+                    str(fake_fits),
+                    "-o",
+                    str(out_dir),
+                    "--save",
+                ]
+            )
+
+        capsys.readouterr()
+        # At least one JSON file should have been written
+        json_files = list(out_dir.glob("result_*.json"))
+        assert len(json_files) >= 1
+        for jf in json_files:
+            data = json.loads(jf.read_text())
+            assert "algorithm" in data
+            assert "strehl_ratio" in data
 
     def test_run_auto_discovered_fits(self, tmp_path, psf_data, capsys) -> None:
         """When no --fits is given, should auto-discover cached FITS."""
@@ -297,3 +408,30 @@ class TestHasTorch:
         with patch("importlib.util.find_spec", return_value=None):
             result = _has_torch()
         assert result is False
+
+
+class TestJsonFormatter:
+    """Exercise the _JsonFormatter used for --log-format json."""
+
+    def test_format_produces_valid_json(self) -> None:
+        import logging
+
+        from src.cli import _JsonFormatter
+
+        formatter = _JsonFormatter()
+        record = logging.LogRecord(
+            name="test.logger",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="hello world",
+            args=(),
+            exc_info=None,
+        )
+        output = formatter.format(record)
+        parsed = json.loads(output)
+        assert parsed["level"] == "INFO"
+        assert parsed["logger"] == "test.logger"
+        assert parsed["msg"] == "hello world"
+        assert "ts" in parsed
+

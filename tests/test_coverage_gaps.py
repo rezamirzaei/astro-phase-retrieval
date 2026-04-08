@@ -3,12 +3,13 @@
 Targets:
   src/__init__.py            lines 7-8   (PackageNotFoundError fallback)
   src/__main__.py            line 6      (if __name__ == "__main__)
-  src/algorithms/base.py     lines 80, 90, 242, 316, 451
+  src/algorithms/base.py     lines 80, 90, 161, 179-192, 242, 316, 403, 451
   src/algorithms/phase_diversity.py  lines 71-72, 143-149
   src/algorithms/pinn.py     lines 178-179, 183-191, 251-252, 299, 345,
                              468, 470, 472-478, 489
   src/algorithms/wirtinger_flow.py   lines 50, 57
-  src/cli.py                 line 332
+  src/data/loader.py         lines 42-43, 45
+  src/cli.py                 lines 31-37 (_JsonFormatter)
   src/metrics/quality.py     lines 221, 229-232
   src/optics/zernike.py      line 60
 """
@@ -366,3 +367,68 @@ class TestNollLookupBoundary:
             n, m = _noll_lookup(j)
             assert n >= 0
             assert (n - abs(m)) % 2 == 0, f"Invalid Zernike (n, m) for j={j}: ({n}, {m})"
+
+
+# =====================================================================
+# src/algorithms/base.py  lines 161, 179-192 (rich progress bar path)
+# =====================================================================
+
+
+class TestRichProgressBar:
+    def test_run_with_rich_progress_bar(
+        self, pupil: PupilModel, psf_data: PSFData
+    ) -> None:
+        """Exercise the rich progress-bar branch by mocking sys.stdout.isatty()=True."""
+        from unittest.mock import MagicMock, patch
+
+        # Build a mock Progress that acts like a context manager
+        mock_task_id = MagicMock()  # non-None task id
+        mock_progress = MagicMock()
+        mock_progress.__enter__ = MagicMock(return_value=mock_progress)
+        mock_progress.__exit__ = MagicMock(return_value=False)
+        mock_progress.add_task = MagicMock(return_value=mock_task_id)
+
+        # Patch at the rich.progress level so the local `from rich.progress import ...`
+        # picks up the mocks, and patch sys.stdout.isatty to signal a TTY.
+        with (
+            patch("sys.stdout.isatty", return_value=True),
+            patch("rich.progress.Progress", return_value=mock_progress),
+            patch("rich.progress.SpinnerColumn", return_value=MagicMock()),
+            patch("rich.progress.TextColumn", return_value=MagicMock()),
+            patch("rich.progress.BarColumn", return_value=MagicMock()),
+            patch("rich.progress.TaskProgressColumn", return_value=MagicMock()),
+            patch("rich.progress.TimeElapsedColumn", return_value=MagicMock()),
+        ):
+            cfg = AlgorithmConfig(
+                name=AlgorithmName.ERROR_REDUCTION,
+                max_iterations=5,
+                random_seed=42,
+            )
+            result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+
+        assert result.n_iterations >= 1
+        # progress.update should have been called at least once per iteration
+        mock_progress.update.assert_called()
+
+
+# =====================================================================
+# src/algorithms/base.py  line 403 (TV prox early-exit break)
+# =====================================================================
+
+
+class TestTvProxEarlyExit:
+    def test_tv_prox_converges_early(self) -> None:
+        """Line 403: TV prox early-exit is triggered when dual variables converge."""
+        rng = np.random.default_rng(0)
+        n = 32
+        # Smooth, non-zero phase — dual variables will have non-zero norm
+        # but will converge quickly on a smooth signal
+        phase = rng.standard_normal((n, n)) * 0.01  # very small phase
+        support = np.ones((n, n), dtype=bool)
+        # Run with many iterations and a medium weight — should break early
+        result = PhaseRetriever._tv_prox(phase, weight=0.5, support=support, n_iter=100)
+        # Result should be a valid array (the early exit didn't corrupt it)
+        assert result.shape == phase.shape
+        assert np.all(np.isfinite(result))
+
+

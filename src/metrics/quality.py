@@ -26,6 +26,14 @@ def compute_rms_phase(phase: np.ndarray, support: np.ndarray) -> float:
     -------
     float
         RMS phase error in radians.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> phase = np.zeros((64, 64))
+    >>> support = np.ones((64, 64), dtype=bool)
+    >>> compute_rms_phase(phase, support)
+    0.0
     """
     vals = phase[support]
     if len(vals) == 0:
@@ -50,6 +58,16 @@ def compute_strehl_ratio(psf: np.ndarray, pupil_amplitude: np.ndarray) -> float:
     -------
     float
         Strehl ratio (0–1).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from src.optics.propagator import forward_model
+    >>> amp = np.zeros((32, 32)); amp[8:24, 8:24] = 1.0  # square aperture
+    >>> phase = np.zeros_like(amp)
+    >>> psf = forward_model(amp, phase)
+    >>> compute_strehl_ratio(psf, amp)
+    1.0
     """
     # Diffraction-limited PSF (zero phase)
     perfect_psf = pupil_to_psf(make_complex_pupil(pupil_amplitude, np.zeros_like(pupil_amplitude)))
@@ -109,14 +127,22 @@ def compute_mtf(psf: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     if dc > 0:
         mtf_2d /= dc
 
-    # Radial average
+    # Radial average — O(n²) one-pass with np.bincount (replaces O(n²·max_r) loop)
     n = psf.shape[0]
     cy, cx = n // 2, n // 2
     y, x = np.ogrid[:n, :n]
     r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2).astype(int)
     max_r = n // 2
     freqs = np.arange(0, max_r) / n  # cycles/pixel
-    profile = np.array([mtf_2d[r == rr].mean() for rr in range(max_r)])
+
+    r_flat = r.ravel()
+    mtf_flat = mtf_2d.ravel()
+    # Only include bins within [0, max_r)
+    mask = r_flat < max_r
+    counts = np.bincount(r_flat[mask], minlength=max_r)
+    sums = np.bincount(r_flat[mask], weights=mtf_flat[mask], minlength=max_r)
+    with np.errstate(invalid="ignore"):
+        profile = np.where(counts > 0, sums / counts, 0.0)
 
     return freqs, profile
 
@@ -211,28 +237,29 @@ def compute_phase_structure_function(
     phi = phase.copy()
     phi[~support] = np.nan
 
+    # Pre-compute all 8 (dx, dy) angle offsets
+    angles = np.linspace(0, np.pi, 8, endpoint=False)
+    angle_offsets = [
+        (int(round(np.cos(a))), int(round(np.sin(a))))
+        for a in angles
+    ]
+
     for i, sep in enumerate(separations):
         diffs = []
-        # Sample at 8 angles in [0, π) — dy ≥ 0 for all samples
-        for angle in np.linspace(0, np.pi, 8, endpoint=False):
-            dx = int(round(sep * np.cos(angle)))
-            dy = int(round(sep * np.sin(angle)))
+        for raw_dx, raw_dy in angle_offsets:
+            dx = sep * raw_dx
+            dy = sep * raw_dy
             if dx == 0 and dy == 0:
-                continue  # pragma: no cover — unreachable for sep ≥ 1
+                continue  # pragma: no cover
 
-            # Shifted phase (dy is always ≥ 0 for angles in [0, π))
-            phi_shifted = np.full_like(phi, np.nan)
-            if dx >= 0:
-                phi_shifted[dy:, dx:] = phi[: n - dy if dy > 0 else n, : n - dx if dx > 0 else n]
-            else:
-                phi_shifted[dy:, : n + dx] = phi[: n - dy if dy > 0 else n, -dx:]
+            # Use np.roll for vectorised shifting (wraps, but NaN mask removes boundary)
+            phi_shifted = np.roll(np.roll(phi, -dy, axis=0), -dx, axis=1)
 
             valid = np.isfinite(phi) & np.isfinite(phi_shifted)
             if valid.sum() > 0:
-                d = (phi[valid] - phi_shifted[valid]) ** 2
-                diffs.append(np.mean(d))
+                diffs.append(np.mean((phi[valid] - phi_shifted[valid]) ** 2))
 
-        structure_fn[i] = np.mean(diffs) if diffs else 0.0
+        structure_fn[i] = float(np.mean(diffs)) if diffs else 0.0
 
     return separations.astype(float), structure_fn
 
