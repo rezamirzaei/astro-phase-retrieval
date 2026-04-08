@@ -37,6 +37,8 @@ from src.models.optics import PhaseRetrievalResult, PSFData
 class ADMM(PhaseRetriever):
     """ADMM-based phase retrieval with Fourier/support splitting."""
 
+    _u: np.ndarray | None
+
     def run(self, psf_data: PSFData) -> PhaseRetrievalResult:
         """Override to initialise dual variable before delegating to base loop."""
         self._u = None  # dual variable, initialised in first iterate

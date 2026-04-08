@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -61,7 +61,7 @@ def set_style() -> None:
     )
 
 
-def _legend(ax: plt.Axes, **kwargs) -> None:
+def _legend(ax: plt.Axes, **kwargs: Any) -> None:
     """Add a legend guaranteed to be visible on any background."""
     handles, labels = ax.get_legend_handles_labels()
     visible = [(handle, label) for handle, label in zip(handles, labels, strict=False) if label]
@@ -86,7 +86,7 @@ def _legend(ax: plt.Axes, **kwargs) -> None:
 # ---------------------------------------------------------------------------
 
 
-def save_figure(fig: plt.Figure, path: str | Path, **kwargs) -> None:
+def save_figure(fig: plt.Figure, path: str | Path, **kwargs: Any) -> None:
     """Save a matplotlib figure, creating parent dirs as needed."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

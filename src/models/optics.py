@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from src.models.config import AlgorithmName
 
@@ -56,7 +56,7 @@ class PSFPair(_NumpyModel):
 
     @field_validator("defocused")
     @classmethod
-    def _same_shape(cls, v: PSFData, info) -> PSFData:
+    def _same_shape(cls, v: PSFData, info: ValidationInfo) -> PSFData:
         foc = info.data.get("focused")
         if foc is not None and v.image.shape != foc.image.shape:
             raise ValueError("Focused and defocused images must have the same shape")

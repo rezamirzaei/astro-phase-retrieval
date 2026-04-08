@@ -45,3 +45,18 @@ notebooks/outputs/
 # --- OS ---
 .DS_Store
 Thumbs.db
+
+# --- Node / Angular frontend ---
+node_modules/
+.angular/
+web/frontend/dist/
+web/frontend/package-lock.json
+
+# --- Database (local SQLite) ---
+*.db
+
+# --- Synthetic data ---
+data/synthetic/
+
+# --- Web outputs ---
+web_outputs/

@@ -1,0 +1,34 @@
+/* Global styles — Angular Material + app-wide theme */
+html, body { height: 100%; margin: 0; }
+body { font-family: Roboto, "Helvetica Neue", sans-serif; background: #f5f5f5; }
+
+/* Utility classes */
+.container   { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.flex-row    { display: flex; gap: 16px; align-items: center; }
+.flex-wrap   { flex-wrap: wrap; }
+.spacer      { flex: 1 1 auto; }
+.mt-16       { margin-top: 16px; }
+.mt-24       { margin-top: 24px; }
+.mb-16       { margin-bottom: 16px; }
+.full-width  { width: 100%; }
+.text-center { text-align: center; }
+.text-muted  { color: rgba(0,0,0,.54); }
+
+/* Card grid */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+
+/* Plot images */
+.plot-img { max-width: 100%; height: auto; border-radius: 4px; border: 1px solid #e0e0e0; }
+
+/* Stat cards */
+.stat-card { text-align: center; padding: 20px; }
+.stat-card .stat-value { font-size: 2rem; font-weight: 500; color: #3f51b5; }
+.stat-card .stat-label { font-size: 0.9rem; color: rgba(0,0,0,.54); }
+
+/* Table tweaks */
+.mat-mdc-table { width: 100%; }
+
+/* Auth pages */
+.auth-container { display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+.auth-card { width: 400px; padding: 32px; }
+

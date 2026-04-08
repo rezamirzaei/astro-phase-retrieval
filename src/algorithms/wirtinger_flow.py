@@ -43,6 +43,8 @@ class WirtingerFlow(PhaseRetriever):
     The step size is normalised by the mean intensity for stability.
     """
 
+    _spectral_phase: np.ndarray | None
+
     def run(self, psf_data: PSFData) -> PhaseRetrievalResult:
         """Override run to apply WF-specific spectral initialization when configured."""
         if self.config.wf_spectral_init:

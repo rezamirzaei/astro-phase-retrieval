@@ -1,0 +1,56 @@
+# Phase Retrieval — Docker Compose
+# Start with:  docker compose up --build
+
+services:
+  # ── PostgreSQL database ────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: phase
+      POSTGRES_PASSWORD: phase
+      POSTGRES_DB: phase
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  # ── FastAPI backend ────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PR_DATABASE_URL: "postgresql://phase:phase@db:5432/phase"
+      PR_SECRET_KEY: "change-me-in-production"
+      PR_DATA_DIR: "/app/data"
+      PR_OUTPUT_DIR: "/app/web_outputs"
+      PR_CORS_ORIGINS: '["http://localhost","http://localhost:80"]'
+    volumes:
+      - app_data:/app/data
+      - app_outputs:/app/web_outputs
+    ports:
+      - "8000:8000"
+
+  # ── Angular frontend (nginx) ───────────────────────────────────────
+  frontend:
+    build:
+      context: web/frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:
+  app_data:
+  app_outputs:
+

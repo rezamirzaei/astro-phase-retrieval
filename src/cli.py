@@ -15,6 +15,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def _configure_logging(verbose: bool = False, log_format: str = "text") -> None:
 # ---------------------------------------------------------------------------
 
 
-def _sync_pupil_to_image(config, image_shape: tuple[int, int]):
+def _sync_pupil_to_image(config: Any, image_shape: tuple[int, int]) -> Any:
     """Keep the pupil grid consistent with the prepared PSF image shape."""
     if len(image_shape) != 2 or image_shape[0] != image_shape[1]:
         raise ValueError(f"Prepared PSF must be square, got shape {image_shape}")
@@ -90,7 +91,7 @@ def _preset_choices() -> list[str]:
     return sorted(available_presets())
 
 
-def _load_psf_and_pupil(args: argparse.Namespace, config):
+def _load_psf_and_pupil(args: argparse.Namespace, config: Any) -> Any:
     """Shared PSF loading + pupil building logic for `run` and `compare`.
 
     Returns

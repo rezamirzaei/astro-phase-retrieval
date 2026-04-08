@@ -207,7 +207,7 @@ class PINNPhaseRetriever(PhaseRetriever):
 
             lbfgs_steps: list[float] = []
 
-            def closure():
+            def closure() -> Any:
                 lbfgs_optimizer.zero_grad()
                 ph = self._forward_phase(
                     model,
@@ -296,7 +296,7 @@ class PINNPhaseRetriever(PhaseRetriever):
             },
         )
 
-    def _iterate(self, **kwargs):  # type: ignore[override]
+    def _iterate(self, **kwargs: Any) -> tuple[np.ndarray, float]:  # type: ignore[override]
         raise NotImplementedError("PINNPhaseRetriever overrides run() directly.")
 
     # ------------------------------------------------------------------
@@ -305,14 +305,14 @@ class PINNPhaseRetriever(PhaseRetriever):
 
     def _forward_phase(
         self,
-        model,
-        coords,
-        B_matrix,
-        base_phase,
-        support,
-        n,
-        torch,
-    ):
+        model: Any,
+        coords: Any,
+        B_matrix: Any,
+        base_phase: Any,
+        support: Any,
+        n: int,
+        torch: Any,
+    ) -> Any:
         """Compute full phase from the neural field output."""
         proj = coords @ B_matrix  # [N, n_fourier]
         fourier = torch.cat(
@@ -327,7 +327,7 @@ class PINNPhaseRetriever(PhaseRetriever):
         phase = base_phase + residual
         return phase * support
 
-    def _forward_psf(self, phase, pupil_amp, torch):
+    def _forward_psf(self, phase: Any, pupil_amp: Any, torch: Any) -> Any:
         """Differentiable forward model: phase → normalised PSF."""
         field = pupil_amp.to(torch.complex64) * torch.exp(1j * phase.to(torch.complex64))
         focal = torch.fft.fftshift(torch.fft.fft2(torch.fft.ifftshift(field)))
@@ -349,7 +349,9 @@ class PINNPhaseRetriever(PhaseRetriever):
     # Composite loss
     # ------------------------------------------------------------------
 
-    def _composite_loss(self, psf_pred, target, phase, support, torch):
+    def _composite_loss(
+        self, psf_pred: Any, target: Any, phase: Any, support: Any, torch: Any
+    ) -> tuple[Any, Any]:
         """Compute the physics-informed composite loss.
 
         Components
@@ -428,7 +430,7 @@ class PINNPhaseRetriever(PhaseRetriever):
     # Network builder
     # ------------------------------------------------------------------
 
-    def _build_phase_field(self, nn, n_fourier: int, device: str, dtype):
+    def _build_phase_field(self, nn: Any, n_fourier: int, device: str, dtype: Any) -> Any:
         """Build a Fourier-encoded MLP phase field.
 
         Architecture: [2·n_fourier] → hidden → GELU → … → hidden → GELU → [1]
