@@ -23,10 +23,8 @@ from src.algorithms.raar import RAAR
 from src.algorithms.registry import AlgorithmRegistry
 from src.algorithms.wirtinger_flow import WirtingerFlow
 
-try:
-    from src.algorithms.pinn import PINNPhaseRetriever
-except ImportError:  # optional dependency
-    PINNPhaseRetriever = None
+# PINNPhaseRetriever is always importable — torch is loaded lazily at run time.
+from src.algorithms.pinn import PINNPhaseRetriever
 
 __all__ = [
     "ADMM",
@@ -37,10 +35,9 @@ __all__ = [
     "HybridInputOutput",
     "PhaseDiversity",
     "PhaseRetriever",
+    "PINNPhaseRetriever",
     "RAAR",
     "WirtingerFlow",
     "multi_start_run",
 ]
 
-if PINNPhaseRetriever is not None:
-    __all__.append("PINNPhaseRetriever")
