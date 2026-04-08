@@ -239,10 +239,7 @@ def compute_phase_structure_function(
 
     # Pre-compute all 8 (dx, dy) angle offsets
     angles = np.linspace(0, np.pi, 8, endpoint=False)
-    angle_offsets = [
-        (int(round(np.cos(a))), int(round(np.sin(a))))
-        for a in angles
-    ]
+    angle_offsets = [(int(round(np.cos(a))), int(round(np.sin(a)))) for a in angles]
 
     for i, sep in enumerate(separations):
         diffs = []

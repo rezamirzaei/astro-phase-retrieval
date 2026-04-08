@@ -332,9 +332,7 @@ class TestPropertyBased:
         strehl = compute_strehl_ratio(psf, pupil.amplitude)
         assert 0.0 <= strehl <= 1.0, f"Strehl={strehl} out of bounds for scale={phase_scale}"
 
-    @given(
-        rms_rad=st.floats(min_value=0.0, max_value=10.0, allow_nan=False, allow_infinity=False)
-    )
+    @given(rms_rad=st.floats(min_value=0.0, max_value=10.0, allow_nan=False, allow_infinity=False))
     @settings(max_examples=20, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_rms_phase_nonnegative(
         self,
@@ -371,4 +369,3 @@ class TestPropertyBased:
         result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
         assert len(result.cost_history) == result.n_iterations
         assert result.n_iterations <= n_iter
-

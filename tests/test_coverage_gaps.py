@@ -375,9 +375,7 @@ class TestNollLookupBoundary:
 
 
 class TestRichProgressBar:
-    def test_run_with_rich_progress_bar(
-        self, pupil: PupilModel, psf_data: PSFData
-    ) -> None:
+    def test_run_with_rich_progress_bar(self, pupil: PupilModel, psf_data: PSFData) -> None:
         """Exercise the rich progress-bar branch by mocking sys.stdout.isatty()=True."""
         from unittest.mock import MagicMock, patch
 
@@ -430,5 +428,3 @@ class TestTvProxEarlyExit:
         # Result should be a valid array (the early exit didn't corrupt it)
         assert result.shape == phase.shape
         assert np.all(np.isfinite(result))
-
-

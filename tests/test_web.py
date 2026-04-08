@@ -15,6 +15,7 @@ from web.main import app
 # Fixtures — in-memory SQLite, isolated per-test
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def db_session() -> Session:  # type: ignore[misc]
     engine = create_engine(
@@ -44,9 +45,14 @@ def client(db_session: Session) -> TestClient:  # type: ignore[misc]
 
 
 def _register_and_login(client: TestClient) -> dict[str, str]:
-    client.post("/api/auth/register", json={
-        "email": "test@example.com", "username": "tester", "password": "password123",
-    })
+    client.post(
+        "/api/auth/register",
+        json={
+            "email": "test@example.com",
+            "username": "tester",
+            "password": "password123",
+        },
+    )
     resp = client.post("/api/auth/login", json={"username": "tester", "password": "password123"})
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -56,35 +62,61 @@ def _register_and_login(client: TestClient) -> dict[str, str]:
 # Auth tests
 # ---------------------------------------------------------------------------
 
+
 class TestAuth:
     def test_register(self, client: TestClient) -> None:
-        resp = client.post("/api/auth/register", json={
-            "email": "a@b.com", "username": "alice", "password": "securepass",
-        })
+        resp = client.post(
+            "/api/auth/register",
+            json={
+                "email": "a@b.com",
+                "username": "alice",
+                "password": "securepass",
+            },
+        )
         assert resp.status_code == 201
         assert resp.json()["username"] == "alice"
 
     def test_register_duplicate(self, client: TestClient) -> None:
-        client.post("/api/auth/register", json={
-            "email": "a@b.com", "username": "alice", "password": "securepass",
-        })
-        resp = client.post("/api/auth/register", json={
-            "email": "a@b.com", "username": "alice2", "password": "securepass",
-        })
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": "a@b.com",
+                "username": "alice",
+                "password": "securepass",
+            },
+        )
+        resp = client.post(
+            "/api/auth/register",
+            json={
+                "email": "a@b.com",
+                "username": "alice2",
+                "password": "securepass",
+            },
+        )
         assert resp.status_code == 409
 
     def test_login_success(self, client: TestClient) -> None:
-        client.post("/api/auth/register", json={
-            "email": "a@b.com", "username": "alice", "password": "securepass",
-        })
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": "a@b.com",
+                "username": "alice",
+                "password": "securepass",
+            },
+        )
         resp = client.post("/api/auth/login", json={"username": "alice", "password": "securepass"})
         assert resp.status_code == 200
         assert "access_token" in resp.json()
 
     def test_login_wrong_password(self, client: TestClient) -> None:
-        client.post("/api/auth/register", json={
-            "email": "a@b.com", "username": "alice", "password": "securepass",
-        })
+        client.post(
+            "/api/auth/register",
+            json={
+                "email": "a@b.com",
+                "username": "alice",
+                "password": "securepass",
+            },
+        )
         resp = client.post("/api/auth/login", json={"username": "alice", "password": "wrong"})
         assert resp.status_code == 401
 
@@ -103,6 +135,7 @@ class TestAuth:
 # Health
 # ---------------------------------------------------------------------------
 
+
 class TestHealth:
     def test_health(self, client: TestClient) -> None:
         assert client.get("/api/health").json() == {"status": "ok"}
@@ -111,6 +144,7 @@ class TestHealth:
 # ---------------------------------------------------------------------------
 # Explain (no auth required for explanations)
 # ---------------------------------------------------------------------------
+
 
 class TestExplain:
     def test_algorithms(self, client: TestClient) -> None:
@@ -141,12 +175,20 @@ class TestExplain:
 # Data
 # ---------------------------------------------------------------------------
 
+
 class TestData:
     def test_synthetic_and_list(self, client: TestClient) -> None:
         headers = _register_and_login(client)
-        resp = client.post("/api/data/synthetic", json={
-            "name": "test_synth", "grid_size": 64, "aberration_rms": 0.5, "telescope": "hst",
-        }, headers=headers)
+        resp = client.post(
+            "/api/data/synthetic",
+            json={
+                "name": "test_synth",
+                "grid_size": 64,
+                "aberration_rms": 0.5,
+                "telescope": "hst",
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         assert resp.json()["filename"].endswith(".npy")
 
@@ -166,6 +208,7 @@ class TestData:
 # Algorithms — run
 # ---------------------------------------------------------------------------
 
+
 class TestAlgorithms:
     def test_list_algorithms(self, client: TestClient) -> None:
         headers = _register_and_login(client)
@@ -177,15 +220,29 @@ class TestAlgorithms:
     def test_run_algorithm(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         # Generate data first
-        client.post("/api/data/synthetic", json={
-            "name": "run_test", "grid_size": 64, "aberration_rms": 0.3, "telescope": "hst",
-        }, headers=headers)
+        client.post(
+            "/api/data/synthetic",
+            json={
+                "name": "run_test",
+                "grid_size": 64,
+                "aberration_rms": 0.3,
+                "telescope": "hst",
+            },
+            headers=headers,
+        )
         files = client.get("/api/data/fits", headers=headers).json()
         fname = [f["filename"] for f in files if "run_test" in f["filename"]][0]
 
-        resp = client.post("/api/algorithms/run", json={
-            "fits_filename": fname, "algorithm": "er", "max_iterations": 10, "grid_size": 64,
-        }, headers=headers)
+        resp = client.post(
+            "/api/algorithms/run",
+            json={
+                "fits_filename": fname,
+                "algorithm": "er",
+                "max_iterations": 10,
+                "grid_size": 64,
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         j = resp.json()
         assert j["status"] == "completed"
@@ -194,15 +251,22 @@ class TestAlgorithms:
 
     def test_run_missing_file(self, client: TestClient) -> None:
         headers = _register_and_login(client)
-        resp = client.post("/api/algorithms/run", json={
-            "fits_filename": "nonexistent.fits", "algorithm": "er", "max_iterations": 10,
-        }, headers=headers)
+        resp = client.post(
+            "/api/algorithms/run",
+            json={
+                "fits_filename": "nonexistent.fits",
+                "algorithm": "er",
+                "max_iterations": 10,
+            },
+            headers=headers,
+        )
         assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
 # Results
 # ---------------------------------------------------------------------------
+
 
 class TestResults:
     def test_list_empty(self, client: TestClient) -> None:
@@ -220,14 +284,28 @@ class TestResults:
     def test_get_result_and_delete(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         # Generate + run
-        client.post("/api/data/synthetic", json={
-            "name": "del_test", "grid_size": 64, "aberration_rms": 0.3, "telescope": "hst",
-        }, headers=headers)
+        client.post(
+            "/api/data/synthetic",
+            json={
+                "name": "del_test",
+                "grid_size": 64,
+                "aberration_rms": 0.3,
+                "telescope": "hst",
+            },
+            headers=headers,
+        )
         files = client.get("/api/data/fits", headers=headers).json()
         fname = [f["filename"] for f in files if "del_test" in f["filename"]][0]
-        run_resp = client.post("/api/algorithms/run", json={
-            "fits_filename": fname, "algorithm": "er", "max_iterations": 5, "grid_size": 64,
-        }, headers=headers)
+        run_resp = client.post(
+            "/api/algorithms/run",
+            json={
+                "fits_filename": fname,
+                "algorithm": "er",
+                "max_iterations": 5,
+                "grid_size": 64,
+            },
+            headers=headers,
+        )
         job_id = run_resp.json()["id"]
 
         # Get single
@@ -238,7 +316,8 @@ class TestResults:
         plots = resp.json()["plots"]
         if plots:
             plot_resp = client.get(
-                f"/api/results/{job_id}/plots/{plots[0]}", headers=headers,
+                f"/api/results/{job_id}/plots/{plots[0]}",
+                headers=headers,
             )
             assert plot_resp.status_code == 200
             assert plot_resp.headers["content-type"] == "image/png"
@@ -249,4 +328,3 @@ class TestResults:
 
         # Verify gone
         assert client.get(f"/api/results/{job_id}", headers=headers).status_code == 404
-

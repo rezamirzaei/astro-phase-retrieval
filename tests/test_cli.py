@@ -434,4 +434,3 @@ class TestJsonFormatter:
         assert parsed["logger"] == "test.logger"
         assert parsed["msg"] == "hello world"
         assert "ts" in parsed
-
