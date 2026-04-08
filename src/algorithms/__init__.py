@@ -19,10 +19,14 @@ from src.algorithms.gerchberg_saxton import GerchbergSaxton
 from src.algorithms.hybrid_input_output import HybridInputOutput
 from src.algorithms.multi_start import multi_start_run
 from src.algorithms.phase_diversity import PhaseDiversity
-from src.algorithms.pinn import PINNPhaseRetriever
 from src.algorithms.raar import RAAR
 from src.algorithms.registry import AlgorithmRegistry
 from src.algorithms.wirtinger_flow import WirtingerFlow
+
+try:
+    from src.algorithms.pinn import PINNPhaseRetriever
+except ImportError:  # optional dependency
+    PINNPhaseRetriever = None
 
 __all__ = [
     "ADMM",
@@ -33,8 +37,10 @@ __all__ = [
     "HybridInputOutput",
     "PhaseDiversity",
     "PhaseRetriever",
-    "PINNPhaseRetriever",
     "RAAR",
     "WirtingerFlow",
     "multi_start_run",
 ]
+
+if PINNPhaseRetriever is not None:
+    __all__.append("PINNPhaseRetriever")

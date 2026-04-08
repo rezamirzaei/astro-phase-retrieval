@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from importlib.util import find_spec
+
 from src.algorithms.admm import ADMM
 from src.algorithms.base import PhaseRetriever
 from src.algorithms.douglas_rachford import DouglasRachford
@@ -9,11 +11,19 @@ from src.algorithms.error_reduction import ErrorReduction
 from src.algorithms.gerchberg_saxton import GerchbergSaxton
 from src.algorithms.hybrid_input_output import HybridInputOutput
 from src.algorithms.phase_diversity import PhaseDiversity
-from src.algorithms.pinn import PINNPhaseRetriever
 from src.algorithms.raar import RAAR
 from src.algorithms.wirtinger_flow import WirtingerFlow
 from src.models.config import AlgorithmConfig, AlgorithmName
 from src.models.optics import PupilModel
+
+
+def _torch_available() -> bool:
+    """Return whether PyTorch is importable in the current environment."""
+    return find_spec("torch") is not None
+
+
+if _torch_available():
+    from src.algorithms.pinn import PINNPhaseRetriever
 
 
 class AlgorithmRegistry:
@@ -28,8 +38,10 @@ class AlgorithmRegistry:
         AlgorithmName.WIRTINGER_FLOW: WirtingerFlow,
         AlgorithmName.DOUGLAS_RACHFORD: DouglasRachford,
         AlgorithmName.ADMM: ADMM,
-        AlgorithmName.PINN: PINNPhaseRetriever,
     }
+
+    if _torch_available():
+        _registry[AlgorithmName.PINN] = PINNPhaseRetriever
 
     @classmethod
     def create(cls, config: AlgorithmConfig, pupil: PupilModel) -> PhaseRetriever:
