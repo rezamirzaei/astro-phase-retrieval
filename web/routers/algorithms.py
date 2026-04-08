@@ -8,9 +8,17 @@ from fastapi import APIRouter, HTTPException
 
 from web.dependencies import CurrentUser, DbSession
 from web.models import Job
-from web.schemas import AlgorithmRunRequest, CompareRequest, CompareResponse, JobResponse
+from web.schemas import (
+    AlgorithmInfo,
+    AlgorithmRunRequest,
+    CompareRequest,
+    CompareResponse,
+    JobResponse,
+)
 from web.services.algorithm_service import (
     compare_algorithms,
+    list_algorithms_with_defaults,
+    list_comparison_plots,
     list_job_plots,
     run_algorithm,
 )
@@ -19,12 +27,10 @@ from web.services.data_service import resolve_fits_path
 router = APIRouter(prefix="/api/algorithms", tags=["algorithms"])
 
 
-@router.get("/", response_model=list[dict[str, str]])
-def list_algorithms(_user: CurrentUser) -> list[dict[str, str]]:
+@router.get("/", response_model=list[AlgorithmInfo])
+def list_algorithms(_user: CurrentUser) -> list[AlgorithmInfo]:
     """List available phase-retrieval algorithms with descriptions."""
-    from src.algorithms.registry import AlgorithmRegistry
-
-    return [{"key": k, "name": k.upper()} for k in AlgorithmRegistry.available()]
+    return list_algorithms_with_defaults()
 
 
 @router.post("/run", response_model=JobResponse)
@@ -86,4 +92,5 @@ def compare(body: CompareRequest, user: CurrentUser, db: DbSession) -> CompareRe
         resp.plots = list_job_plots(j)
         results.append(resp)
 
-    return CompareResponse(results=results, comparison_plots=["comparison.png", "strehl_rms.png"])
+    comparison_plots = list_comparison_plots(jobs[0].id) if jobs else []
+    return CompareResponse(results=results, comparison_plots=comparison_plots)

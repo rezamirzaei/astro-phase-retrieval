@@ -1,5 +1,5 @@
 import { UpperCasePipe } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -28,10 +28,17 @@ import { ApiService, JobResponse } from '../core/api.service';
         <mat-chip>{{ job()!.fits_filename }}</mat-chip>
       </mat-chip-set>
       <h3>Plots</h3>
+      @if (job()!.plots.length === 0) {
+        <p class="text-muted">No figures were generated for this run.</p>
+      }
       <div class="card-grid">
         @for (p of job()!.plots; track p) {
           <mat-card>
-            <img [src]="api.plotUrl(job()!.id, p)" [alt]="p" class="plot-img">
+            @if (plotUrls()[p]) {
+              <img [src]="plotUrls()[p]" [alt]="p" class="plot-img">
+            } @else {
+              <mat-card-content><p class="text-center text-muted">Loading figure…</p></mat-card-content>
+            }
             <mat-card-content><p class="text-center text-muted">{{ p }}</p></mat-card-content>
           </mat-card>
         }
@@ -41,14 +48,41 @@ import { ApiService, JobResponse } from '../core/api.service';
     }
   `,
 })
-export class ResultDetailComponent implements OnInit {
+export class ResultDetailComponent implements OnInit, OnDestroy {
   api = inject(ApiService);
   private route = inject(ActivatedRoute);
   job = signal<JobResponse | null>(null);
+  plotUrls = signal<Record<string, string>>({});
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
-    this.api.getResult(id).subscribe(j => this.job.set(j));
+    this.api.getResult(id).subscribe((j) => {
+      this.job.set(j);
+      this.loadPlots(j);
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.revokePlotUrls();
+  }
+
+  private loadPlots(job: JobResponse): void {
+    this.revokePlotUrls();
+    for (const plotName of job.plots) {
+      this.api.getPlot(job.id, plotName).subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          this.plotUrls.update((urls) => ({ ...urls, [plotName]: url }));
+        },
+      });
+    }
+  }
+
+  private revokePlotUrls(): void {
+    for (const url of Object.values(this.plotUrls())) {
+      URL.revokeObjectURL(url);
+    }
+    this.plotUrls.set({});
   }
 }
 

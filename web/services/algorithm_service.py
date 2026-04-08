@@ -38,10 +38,87 @@ from src.visualization.plots import (
 )
 from web.config import settings
 from web.models import Job
+from web.schemas import AlgorithmDefaults, AlgorithmInfo, PlotReference
 
 matplotlib.use("Agg")  # headless backend for the web server
 
 logger = logging.getLogger(__name__)
+
+
+ALGORITHM_DEFAULTS: dict[str, AlgorithmDefaults] = {
+    "er": AlgorithmDefaults(
+        max_iterations=250,
+        beta=0.85,
+        beta_schedule="constant",
+        momentum=0.0,
+        tv_weight=0.0,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+    "gs": AlgorithmDefaults(
+        max_iterations=300,
+        beta=0.9,
+        beta_schedule="constant",
+        momentum=0.0,
+        tv_weight=0.0,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+    "hio": AlgorithmDefaults(
+        max_iterations=400,
+        beta=0.9,
+        beta_schedule="constant",
+        momentum=0.25,
+        tv_weight=0.0,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+    "raar": AlgorithmDefaults(
+        max_iterations=600,
+        beta=0.9,
+        beta_schedule="cosine",
+        momentum=0.1,
+        tv_weight=0.0,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+    "wf": AlgorithmDefaults(
+        max_iterations=350,
+        beta=0.75,
+        beta_schedule="constant",
+        momentum=0.0,
+        tv_weight=0.0,
+        noise_model="poisson",
+        grid_size=128,
+    ),
+    "dr": AlgorithmDefaults(
+        max_iterations=450,
+        beta=0.9,
+        beta_schedule="linear",
+        momentum=0.0,
+        tv_weight=0.0,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+    "admm": AlgorithmDefaults(
+        max_iterations=300,
+        beta=0.8,
+        beta_schedule="constant",
+        momentum=0.0,
+        tv_weight=1e-4,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+    "pinn": AlgorithmDefaults(
+        max_iterations=250,
+        beta=0.9,
+        beta_schedule="constant",
+        momentum=0.0,
+        tv_weight=5e-5,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +301,9 @@ def compare_algorithms(
     """Run multiple algorithms on the same data and return all jobs."""
     from src.models.optics import PhaseRetrievalResult
 
-    if algorithm_keys is None:
-        algorithm_keys = [
+    resolved_algorithm_keys = algorithm_keys
+    if resolved_algorithm_keys is None:
+        resolved_algorithm_keys = [
             a.value
             for a in [
                 AlgorithmName.ERROR_REDUCTION,
@@ -243,7 +321,7 @@ def compare_algorithms(
     psf_data: PSFData | None = None
     pupil: PupilModel | None = None
 
-    for key in algorithm_keys:
+    for key in resolved_algorithm_keys:
         job = Job(
             user_id=user_id,
             algorithm=key,
@@ -315,6 +393,18 @@ def compare_algorithms(
     return jobs
 
 
+def list_algorithms_with_defaults() -> list[AlgorithmInfo]:
+    """Return available algorithms with recommended UI defaults."""
+    return [
+        AlgorithmInfo(
+            key=key,
+            name=key.upper(),
+            defaults=ALGORITHM_DEFAULTS.get(key, AlgorithmDefaults()),
+        )
+        for key in AlgorithmRegistry.available()
+    ]
+
+
 def list_job_plots(job: Job) -> list[str]:
     """Return the plot filenames available for a completed job."""
     if not job.output_dir:
@@ -323,3 +413,11 @@ def list_job_plots(job: Job) -> list[str]:
     if not out.exists():
         return []
     return sorted(p.name for p in out.glob("*.png"))
+
+
+def list_comparison_plots(job_id: int) -> list[PlotReference]:
+    """Return comparison plot references for a compare run keyed by its first job ID."""
+    cmp_dir = settings.output_dir / "compare" / str(job_id)
+    if not cmp_dir.exists():
+        return []
+    return [PlotReference(job_id=job_id, name=p.name) for p in sorted(cmp_dir.glob("*.png"))]

@@ -79,6 +79,26 @@ class AlgorithmRunRequest(BaseModel):
     grid_size: int = Field(default=128, ge=64, le=512)
 
 
+class AlgorithmDefaults(BaseModel):
+    """Recommended defaults for a specific algorithm in the web UI."""
+
+    max_iterations: int = Field(default=300, ge=1, le=10_000)
+    beta: float = Field(default=0.9, gt=0, le=1.0)
+    beta_schedule: str = Field(default="constant")
+    momentum: float = Field(default=0.0, ge=0, le=0.99)
+    tv_weight: float = Field(default=0.0, ge=0)
+    noise_model: str = Field(default="gaussian")
+    grid_size: int = Field(default=128, ge=64, le=512)
+
+
+class AlgorithmInfo(BaseModel):
+    """Metadata for an available algorithm."""
+
+    key: str
+    name: str
+    defaults: AlgorithmDefaults
+
+
 class CompareRequest(BaseModel):
     """POST /api/algorithms/compare body."""
 
@@ -110,14 +130,21 @@ class JobResponse(BaseModel):
     created_at: datetime
     completed_at: datetime | None = None
     error_message: str | None = None
-    plots: list[str] = []
+    plots: list[str] = Field(default_factory=list)
+
+
+class PlotReference(BaseModel):
+    """Reference to a protected plot asset served by the API."""
+
+    job_id: int
+    name: str
 
 
 class CompareResponse(BaseModel):
     """Response for /api/algorithms/compare."""
 
     results: list[JobResponse]
-    comparison_plots: list[str] = []
+    comparison_plots: list[PlotReference] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

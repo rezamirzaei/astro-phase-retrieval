@@ -10,10 +10,12 @@ export interface JobResponse {
   converged: boolean | null; created_at: string; completed_at: string | null;
   error_message: string | null; plots: string[];
 }
-export interface CompareResponse  { results: JobResponse[]; comparison_plots: string[]; }
+export interface PlotReference      { job_id: number; name: string; }
+export interface CompareResponse    { results: JobResponse[]; comparison_plots: PlotReference[]; }
 export interface FitsFile          { filename: string; filepath: string; size_bytes: number; }
 export interface Preset            { key: string; description: string; }
-export interface AlgoInfo          { key: string; name: string; }
+export interface AlgoDefaults      { max_iterations: number; beta: number; beta_schedule: string; momentum: number; tv_weight: number; noise_model: string; grid_size: number; }
+export interface AlgoInfo          { key: string; name: string; defaults: AlgoDefaults; }
 export interface AlgoExplain       { key: string; name: string; category: string; description: string; reference: string; }
 export interface MetricExplain     { name: string; description: string; unit: string; }
 export interface DashboardStats    { total_runs: number; completed_runs: number; best_strehl: number | null; algorithms_used: string[]; recent_jobs: JobResponse[]; }
@@ -42,6 +44,7 @@ export class ApiService {
   getResult(id: number): Observable<JobResponse> { return this.http.get<JobResponse>(`/api/results/${id}`); }
   deleteResult(id: number): Observable<void> { return this.http.delete<void>(`/api/results/${id}`); }
   plotUrl(jobId: number, name: string): string { return `/api/results/${jobId}/plots/${name}`; }
+  getPlot(jobId: number, name: string): Observable<Blob> { return this.http.get(`/api/results/${jobId}/plots/${name}`, { responseType: 'blob' }); }
   getDashboard(): Observable<DashboardStats> { return this.http.get<DashboardStats>('/api/results/dashboard'); }
 
   /* Explain */
