@@ -112,7 +112,7 @@ known-first-party = ["src", "web", "phase_retrieval"]
 "src/optics/*.py" = ["N806", "N803"]
 "src/metrics/*.py" = ["N806", "N803"]
 "src/visualization/*.py" = ["N806", "N803"]
-"tests/*" = ["N802", "N803", "N806", "N815", "PERF102"]
+"tests/*" = ["N802", "N803", "N806", "N815", "PERF102", "E402"]
 "web/alembic/*" = ["N999", "F401"]
 
 [tool.pytest.ini_options]

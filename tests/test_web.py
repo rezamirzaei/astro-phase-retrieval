@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from web.database import Base, get_db
-from web.main import app
+fastapi = pytest.importorskip("fastapi", reason="web extras not installed")
+sqlalchemy = pytest.importorskip("sqlalchemy", reason="web extras not installed")
+
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from web.database import Base, get_db  # noqa: E402
+from web.main import app  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures — in-memory SQLite, isolated per-test
