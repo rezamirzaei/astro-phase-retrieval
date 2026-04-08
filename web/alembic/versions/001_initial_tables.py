@@ -2,6 +2,7 @@
 
 Revision ID: 001
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -45,4 +46,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("jobs")
     op.drop_table("users")
-

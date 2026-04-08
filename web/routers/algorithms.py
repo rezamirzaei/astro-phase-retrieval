@@ -24,10 +24,7 @@ def list_algorithms(_user: CurrentUser) -> list[dict[str, str]]:
     """List available phase-retrieval algorithms with descriptions."""
     from src.algorithms.registry import AlgorithmRegistry
 
-    return [
-        {"key": k, "name": k.upper()}
-        for k in AlgorithmRegistry.available()
-    ]
+    return [{"key": k, "name": k.upper()} for k in AlgorithmRegistry.available()]
 
 
 @router.post("/run", response_model=JobResponse)
@@ -90,4 +87,3 @@ def compare(body: CompareRequest, user: CurrentUser, db: DbSession) -> CompareRe
         results.append(resp)
 
     return CompareResponse(results=results, comparison_plots=["comparison.png", "strehl_rms.png"])
-

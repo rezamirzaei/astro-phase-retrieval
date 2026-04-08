@@ -52,4 +52,3 @@ def login(body: LoginRequest, db: DbSession) -> dict[str, str]:
 def me(current_user: CurrentUser) -> User:
     """Return the currently authenticated user."""
     return current_user
-

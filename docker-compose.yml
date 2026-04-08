@@ -17,7 +17,7 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "5432:5432"
+      - "4534:5432"
 
   # ── FastAPI backend ────────────────────────────────────────────────
   backend:
@@ -32,12 +32,12 @@ services:
       PR_SECRET_KEY: "change-me-in-production"
       PR_DATA_DIR: "/app/data"
       PR_OUTPUT_DIR: "/app/web_outputs"
-      PR_CORS_ORIGINS: '["http://localhost","http://localhost:80"]'
+      PR_CORS_ORIGINS: '["http://localhost:4532","http://localhost"]'
     volumes:
       - app_data:/app/data
       - app_outputs:/app/web_outputs
     ports:
-      - "8000:8000"
+      - "4533:8000"
 
   # ── Angular frontend (nginx) ───────────────────────────────────────
   frontend:
@@ -47,7 +47,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "4532:80"
 
 volumes:
   pgdata:

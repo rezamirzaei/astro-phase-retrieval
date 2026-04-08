@@ -176,4 +176,3 @@ class DashboardStats(BaseModel):
     best_strehl: float | None
     algorithms_used: list[str]
     recent_jobs: list[JobResponse]
-

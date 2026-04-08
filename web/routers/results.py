@@ -20,9 +20,11 @@ router = APIRouter(prefix="/api/results", tags=["results"])
 @router.get("/", response_model=list[JobResponse])
 def list_results(user: CurrentUser, db: DbSession) -> list[JobResponse]:
     """Return all jobs belonging to the current user, newest first."""
-    rows = db.execute(
-        select(Job).where(Job.user_id == user.id).order_by(Job.created_at.desc())
-    ).scalars().all()
+    rows = (
+        db.execute(select(Job).where(Job.user_id == user.id).order_by(Job.created_at.desc()))
+        .scalars()
+        .all()
+    )
     out: list[JobResponse] = []
     for j in rows:
         resp = JobResponse.model_validate(j)
@@ -103,4 +105,3 @@ def delete_result(job_id: int, user: CurrentUser, db: DbSession) -> None:
         shutil.rmtree(job.output_dir, ignore_errors=True)
     db.delete(job)
     db.commit()
-

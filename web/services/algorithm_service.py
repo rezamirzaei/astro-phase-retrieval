@@ -323,5 +323,3 @@ def list_job_plots(job: Job) -> list[str]:
     if not out.exists():
         return []
     return sorted(p.name for p in out.glob("*.png"))
-
-

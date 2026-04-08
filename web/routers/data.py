@@ -58,4 +58,3 @@ def create_synthetic(body: SyntheticRequest, _user: CurrentUser) -> dict[str, ob
         "filepath": str(path),
         "size_bytes": path.stat().st_size,
     }
-

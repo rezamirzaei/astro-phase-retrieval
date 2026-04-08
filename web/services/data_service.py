@@ -81,5 +81,3 @@ def generate_synthetic_psf(
     np.save(str(out_path), psf)
     logger.info("Saved synthetic PSF → %s", out_path)
     return out_path
-
-

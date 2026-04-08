@@ -67,8 +67,7 @@ _ALGORITHMS: list[dict[str, str]] = [
             "global optimum — provably optimal among first-order methods."
         ),
         "reference": (
-            "Candès E.J., Li X., Soltanolkotabi M. (2015) "
-            "IEEE Trans. IT 61(4):1985-2007"
+            "Candès E.J., Li X., Soltanolkotabi M. (2015) IEEE Trans. IT 61(4):1985-2007"
         ),
     },
     {
@@ -80,9 +79,7 @@ _ALGORITHMS: list[dict[str, str]] = [
             "Particularly effective for non-convex constraint sets. Uses "
             "reflectors to navigate between the two constraint sets."
         ),
-        "reference": (
-            "Bauschke H.H., Combettes P.L., Luke D.R. (2002) JOSA A 19(7):1334-1345"
-        ),
+        "reference": ("Bauschke H.H., Combettes P.L., Luke D.R. (2002) JOSA A 19(7):1334-1345"),
     },
     {
         "key": "admm",
@@ -215,4 +212,3 @@ def explain_science() -> dict[str, str]:
             "• X-ray crystallography"
         ),
     }
-
