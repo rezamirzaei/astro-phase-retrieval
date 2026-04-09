@@ -269,25 +269,25 @@ class _FakeTorch:
         def ifftshift(x: _FT) -> _FT:
             return _FT(np.fft.ifftshift(_uw(x)))
 
-    class no_grad:
+    class no_grad:  # noqa: N801
         def __enter__(self) -> _FakeTorch.no_grad:
             return self
 
         def __exit__(self, *_a: object) -> None:
             pass
 
-    class cuda:
+    class cuda:  # noqa: N801
         @staticmethod
         def is_available() -> bool:
             return False
 
-    class backends:
-        class mps:
+    class backends:  # noqa: N801
+        class mps:  # noqa: N801
             @staticmethod
             def is_available() -> bool:
                 return False
 
-    class optim:
+    class optim:  # noqa: N801
         class Adam:
             def __init__(self, params: object, lr: float = 0.001) -> None:
                 self._p = list(params)  # type: ignore[arg-type]
@@ -319,7 +319,7 @@ class _FakeTorch:
                 if closure is not None:
                     closure()  # type: ignore[operator]
 
-        class lr_scheduler:
+        class lr_scheduler:  # noqa: N801
             class CosineAnnealingWarmRestarts:
                 def __init__(
                     self,
@@ -460,25 +460,25 @@ class TestPINNHelpersMocked:
 
     def test_resolve_device_auto_cuda(self, pupil) -> None:
         class _T(_FakeTorch):
-            class cuda:
+            class cuda:  # noqa: N801
                 @staticmethod
                 def is_available() -> bool:
                     return True
 
-            class backends(_FakeTorch.backends):
+            class backends(_FakeTorch.backends):  # noqa: N801
                 pass
 
         assert PINNPhaseRetriever(_cfg(), pupil)._resolve_device(_T) == "cuda"
 
     def test_resolve_device_auto_mps(self, pupil) -> None:
         class _T(_FakeTorch):
-            class cuda:
+            class cuda:  # noqa: N801
                 @staticmethod
                 def is_available() -> bool:
                     return False
 
-            class backends:
-                class mps:
+            class backends:  # noqa: N801
+                class mps:  # noqa: N801
                     @staticmethod
                     def is_available() -> bool:
                         return True
@@ -497,12 +497,12 @@ class TestPINNHelpersMocked:
         """backends has no ``mps`` attribute at all."""
 
         class _T(_FakeTorch):
-            class cuda:
+            class cuda:  # noqa: N801
                 @staticmethod
                 def is_available() -> bool:
                     return False
 
-            class backends:
+            class backends:  # noqa: N801
                 pass  # no mps
 
         r = PINNPhaseRetriever(_cfg(pinn_device="mps"), pupil)
@@ -585,11 +585,20 @@ class TestPINNHelpersMocked:
     def test_forward_phase(self, pupil) -> None:
         n = 8
         r = PINNPhaseRetriever(
-            _cfg(pinn_hidden_features=8, pinn_hidden_layers=1, pinn_fourier_features=8, pinn_residual_scale=0.5),
+            _cfg(
+                pinn_hidden_features=8,
+                pinn_hidden_layers=1,
+                pinn_fourier_features=8,
+                pinn_residual_scale=0.5,
+            ),
             pupil,
         )
-        model = r._build_phase_field(_FakeNN, n_fourier=8, device="cpu", dtype=np.float32)
-        coords = PINNPhaseRetriever._coordinate_features(_FakeTorch, n, device="cpu", dtype=np.float32)
+        model = r._build_phase_field(
+            _FakeNN, n_fourier=8, device="cpu", dtype=np.float32
+        )
+        coords = PINNPhaseRetriever._coordinate_features(
+            _FakeTorch, n, device="cpu", dtype=np.float32
+        )
         B = _FT(np.random.default_rng(0).standard_normal((5, 8)))
         base = _FT(np.zeros((n, n)))
         support = _FT(np.ones((n, n)))
