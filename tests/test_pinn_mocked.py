@@ -129,9 +129,7 @@ class _FakeNN:
     class GELU:
         def __call__(self, x: _FT) -> _FT:
             d = _uw(x)
-            return _FT(
-                d * 0.5 * (1.0 + np.tanh(np.sqrt(2.0 / np.pi) * (d + 0.044715 * d**3)))
-            )
+            return _FT(d * 0.5 * (1.0 + np.tanh(np.sqrt(2.0 / np.pi) * (d + 0.044715 * d**3))))
 
     class Sequential:
         def __init__(self, *layers: object) -> None:
@@ -592,9 +590,7 @@ class TestPINNHelpersMocked:
             ),
             pupil,
         )
-        model = r._build_phase_field(
-            _FakeNN, n_fourier=8, device="cpu", dtype=np.float32
-        )
+        model = r._build_phase_field(_FakeNN, n_fourier=8, device="cpu", dtype=np.float32)
         coords = PINNPhaseRetriever._coordinate_features(
             _FakeTorch, n, device="cpu", dtype=np.float32
         )
