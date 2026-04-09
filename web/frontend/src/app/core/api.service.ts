@@ -20,6 +20,18 @@ export interface AlgoExplain       { key: string; name: string; category: string
 export interface MetricExplain     { name: string; description: string; unit: string; }
 export interface DashboardStats    { total_runs: number; completed_runs: number; best_strehl: number | null; algorithms_used: string[]; recent_jobs: JobResponse[]; }
 
+/* --- Crystallography DTOs --- */
+export interface CodPreset         { key: string; description: string; }
+export interface CifFile           { filename: string; filepath: string; size_bytes: number; }
+export interface CrystJobResponse  {
+  id: number; algorithm: string; status: string; cif_filename: string;
+  cod_id: string; formula: string; r_factor: number | null;
+  n_iterations: number | null; elapsed_seconds: number | null;
+  converged: boolean | null; created_at: string; completed_at: string | null;
+  error_message: string | null; plots: string[];
+}
+export interface CrystCompareResponse { results: CrystJobResponse[]; }
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   constructor(private http: HttpClient) {}
@@ -51,5 +63,28 @@ export class ApiService {
   explainAlgorithms(): Observable<AlgoExplain[]> { return this.http.get<AlgoExplain[]>('/api/explain/algorithms'); }
   explainMetrics():    Observable<MetricExplain[]> { return this.http.get<MetricExplain[]>('/api/explain/metrics'); }
   explainScience():    Observable<Record<string, string>> { return this.http.get<Record<string, string>>('/api/explain/science'); }
+
+  /* Crystallography */
+  getCodPresets(): Observable<CodPreset[]> { return this.http.get<CodPreset[]>('/api/crystallography/presets'); }
+  downloadCod(key: string): Observable<unknown> { return this.http.post(`/api/crystallography/download/${key}`, {}); }
+  getCifFiles(): Observable<CifFile[]> { return this.http.get<CifFile[]>('/api/crystallography/cif-files'); }
+  simulateDiffraction(body: { cif_filename: string; grid_size: number }): Observable<unknown> {
+    return this.http.post('/api/crystallography/simulate', body);
+  }
+  runCrystallography(body: Record<string, unknown>): Observable<CrystJobResponse> {
+    return this.http.post<CrystJobResponse>('/api/crystallography/run', body);
+  }
+  compareCrystallography(body: Record<string, unknown>): Observable<CrystCompareResponse> {
+    return this.http.post<CrystCompareResponse>('/api/crystallography/compare', body);
+  }
+  getCrystResult(id: number): Observable<CrystJobResponse> {
+    return this.http.get<CrystJobResponse>(`/api/crystallography/${id}`);
+  }
+  crystPlotUrl(jobId: number, name: string): string {
+    return `/api/crystallography/${jobId}/plots/${name}`;
+  }
+  deleteCrystResult(id: number): Observable<void> {
+    return this.http.delete<void>(`/api/crystallography/${id}`);
+  }
 }
 

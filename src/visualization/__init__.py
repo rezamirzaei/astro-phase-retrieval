@@ -1,5 +1,14 @@
-"""Visualization utilities for wavefront and PSF plots."""
+"""Visualization utilities for wavefront, PSF, and crystallography plots."""
 
+from src.visualization.crystallography_plots import (
+    plot_crystal_summary,
+    plot_crystallography_comparison,
+    plot_crystallography_phase,
+    plot_crystallography_result,
+    plot_diffraction_pattern,
+    plot_electron_density,
+    plot_r_factor_comparison,
+)
 from src.visualization.plots import (
     plot_algorithm_comparison,
     plot_algorithm_dashboard,
@@ -29,6 +38,12 @@ __all__ = [
     "plot_algorithm_comparison",
     "plot_algorithm_dashboard",
     "plot_convergence",
+    "plot_crystal_summary",
+    "plot_crystallography_comparison",
+    "plot_crystallography_phase",
+    "plot_crystallography_result",
+    "plot_diffraction_pattern",
+    "plot_electron_density",
     "plot_encircled_energy",
     "plot_multi_observation_grid",
     "plot_multi_observation_radial",
@@ -38,6 +53,7 @@ __all__ = [
     "plot_psf_cross_sections",
     "plot_psf_residual",
     "plot_pupil",
+    "plot_r_factor_comparison",
     "plot_radial_profile",
     "plot_recovered_phase",
     "plot_reconstructed_psf",

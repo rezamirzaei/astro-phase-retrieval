@@ -11,6 +11,7 @@ export const routes: Routes = [
   { path: 'results',   canActivate: [authGuard], loadComponent: () => import('./pages/results.component').then(m => m.ResultsComponent) },
   { path: 'results/:id', canActivate: [authGuard], loadComponent: () => import('./pages/result-detail.component').then(m => m.ResultDetailComponent) },
   { path: 'data',      canActivate: [authGuard], loadComponent: () => import('./pages/data.component').then(m => m.DataComponent) },
+  { path: 'crystallography', canActivate: [authGuard], loadComponent: () => import('./pages/crystallography.component').then(m => m.CrystallographyComponent) },
   { path: 'explain',   canActivate: [authGuard], loadComponent: () => import('./pages/explain.component').then(m => m.ExplainComponent) },
   { path: '**', redirectTo: 'dashboard' },
 ];

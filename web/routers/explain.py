@@ -211,4 +211,14 @@ def explain_science() -> dict[str, str]:
             "• Electron microscopy\n"
             "• X-ray crystallography"
         ),
+        "crystallography": (
+            "X-ray crystallography is one of the original applications of "
+            "phase retrieval. When X-rays scatter off a crystal lattice, the "
+            "detector records diffraction intensities |F(hkl)|² but loses the "
+            "phase φ(hkl). Recovering these phases from the measured intensities "
+            "is the 'crystallographic phase problem' — solved since the 1950s "
+            "using direct methods (Hauptman & Karle, Nobel Prize 1985) and more "
+            "recently with iterative projection algorithms identical to those "
+            "used in astronomical wavefront sensing."
+        ),
     }

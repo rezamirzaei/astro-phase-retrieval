@@ -1,5 +1,14 @@
-"""Data acquisition: MAST download and FITS loading."""
+"""Data acquisition: MAST download, FITS loading, and crystallography."""
 
+from src.data.crystallography import (
+    available_cod_presets,
+    download_cif,
+    download_cod_preset,
+    list_cached_cif,
+    parse_cif,
+    run_crystallography_retrieval,
+    simulate_diffraction,
+)
 from src.data.downloader import (
     available_presets,
     download_all_presets,
@@ -10,11 +19,18 @@ from src.data.downloader import (
 from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
 
 __all__ = [
+    "available_cod_presets",
     "available_presets",
     "download_all_presets",
+    "download_cif",
+    "download_cod_preset",
     "download_preset",
+    "list_cached_cif",
     "list_cached_fits",
     "load_psf_from_fits",
+    "parse_cif",
     "prepare_psf_for_retrieval",
+    "run_crystallography_retrieval",
     "search_and_download",
+    "simulate_diffraction",
 ]

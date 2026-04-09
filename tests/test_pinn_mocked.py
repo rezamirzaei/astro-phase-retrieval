@@ -23,7 +23,7 @@ from src.models.config import AlgorithmConfig, AlgorithmName
 
 def _uw(x: object) -> np.ndarray:
     """Unwrap ``_FT`` to its underlying numpy array, or pass through."""
-    return x._d if isinstance(x, _FT) else x  # type: ignore[union-attr]
+    return x._d if isinstance(x, _FT) else x  # type: ignore[return-value]
 
 
 class _FT:
@@ -67,7 +67,7 @@ class _FT:
         return _FT(self._d @ _uw(o))
 
     def __getitem__(self, k: object) -> _FT:
-        return _FT(self._d[k])
+        return _FT(self._d[k])  # type: ignore[call-overload]
 
     def __float__(self) -> float:
         return float(np.asarray(self._d).flat[0])
@@ -97,8 +97,8 @@ class _FT:
     def cpu(self) -> _FT:
         return self
 
-    def tolist(self) -> list:
-        return self._d.tolist()
+    def tolist(self) -> list:  # type: ignore[type-arg]
+        return self._d.tolist()  # type: ignore[no-any-return]
 
     def to(self, *_a: object, **_kw: object) -> _FT:
         return self
@@ -144,8 +144,8 @@ class _FakeNN:
         def parameters(self):  # noqa: ANN201
             for lay in self._layers:
                 if hasattr(lay, "weight"):
-                    yield lay.weight  # type: ignore[union-attr]
-                    yield lay.bias  # type: ignore[union-attr]
+                    yield lay.weight  # type: ignore[attr-defined]
+                    yield lay.bias  # type: ignore[attr-defined]
 
         def modules(self):  # noqa: ANN201
             yield self
@@ -236,11 +236,13 @@ class _FakeTorch:
     def linspace(
         start: float, end: float, steps: int, device: str | None = None, dtype: object = None
     ) -> _FT:
-        return _FT(np.linspace(start, end, steps), dtype=dtype)
+        return _FT(np.linspace(start, end, steps), dtype=dtype)  # type: ignore[arg-type]
 
     @staticmethod
     def meshgrid(*tensors: _FT, indexing: str = "ij") -> list[_FT]:
-        return [_FT(r) for r in np.meshgrid(*[_uw(t) for t in tensors], indexing=indexing)]
+        unwrapped = [_uw(t) for t in tensors]
+        grids = np.meshgrid(*unwrapped, indexing=indexing)  # type: ignore[call-overload]
+        return [_FT(r) for r in grids]
 
     @staticmethod
     def stack(tensors: list[_FT], dim: int = -1) -> _FT:
@@ -287,7 +289,7 @@ class _FakeTorch:
     class optim:  # noqa: N801
         class Adam:
             def __init__(self, params: object, lr: float = 0.001) -> None:
-                self._p = list(params)  # type: ignore[arg-type]
+                self._p = list(params)  # type: ignore[call-overload]
 
             def zero_grad(self, set_to_none: bool = False) -> None:
                 pass
@@ -307,7 +309,7 @@ class _FakeTorch:
                 tolerance_grad: float = 1e-5,
                 tolerance_change: float = 1e-9,
             ) -> None:
-                self._p = list(params)  # type: ignore[arg-type]
+                self._p = list(params)  # type: ignore[call-overload]
 
             def zero_grad(self) -> None:
                 pass
@@ -355,7 +357,7 @@ def _cfg(**overrides: object) -> AlgorithmConfig:
 
 def _run(retriever: PINNPhaseRetriever, psf_data: object):  # noqa: ANN201
     with patch.object(PINNPhaseRetriever, "_import_torch", return_value=_FAKE_MODULES):
-        return retriever.run(psf_data)
+        return retriever.run(psf_data)  # type: ignore[arg-type]
 
 
 # =====================================================================

@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from web.config import settings
 from web.database import Base, SessionLocal, engine
 from web.models import User
-from web.routers import algorithms, auth, data, explain, results
+from web.routers import algorithms, auth, crystallography, data, explain, results
 from web.security import hash_password
 
 
@@ -70,6 +70,7 @@ app.include_router(data.router)
 app.include_router(algorithms.router)
 app.include_router(results.router)
 app.include_router(explain.router)
+app.include_router(crystallography.router)
 
 
 @app.get("/api/health")

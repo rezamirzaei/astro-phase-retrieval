@@ -27,6 +27,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     jobs: Mapped[list[Job]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    crystallography_jobs: Mapped[list[CrystallographyJob]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Job(Base):
@@ -55,3 +58,33 @@ class Job(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="jobs")
+
+
+class CrystallographyJob(Base):
+    """One crystallography phase-retrieval run."""
+
+    __tablename__ = "crystallography_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    algorithm: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    cif_filename: Mapped[str] = mapped_column(String(500))
+    cod_id: Mapped[str] = mapped_column(String(50), default="")
+    formula: Mapped[str] = mapped_column(String(200), default="")
+    config_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    # Result metrics
+    r_factor: Mapped[float | None] = mapped_column(Float, nullable=True)
+    n_iterations: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    elapsed_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    converged: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    cost_history_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_dir: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="crystallography_jobs")
+

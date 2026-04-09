@@ -203,3 +203,73 @@ class DashboardStats(BaseModel):
     best_strehl: float | None
     algorithms_used: list[str]
     recent_jobs: list[JobResponse]
+
+
+# ---------------------------------------------------------------------------
+# Crystallography
+# ---------------------------------------------------------------------------
+
+
+class CodPresetInfo(BaseModel):
+    key: str
+    description: str
+
+
+class CifFileInfo(BaseModel):
+    filename: str
+    filepath: str
+    size_bytes: int
+
+
+class CrystallographyRunRequest(BaseModel):
+    """POST /api/crystallography/run body."""
+
+    cif_filename: str
+    algorithm: str = Field(default="hio")
+    max_iterations: int = Field(default=500, ge=1, le=10_000)
+    beta: float = Field(default=0.9, gt=0, le=1.0)
+    grid_size: int = Field(default=128, ge=64, le=512)
+
+
+class CrystallographyJobResponse(BaseModel):
+    """Serialised crystallography job result."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    algorithm: str
+    status: str
+    cif_filename: str
+    cod_id: str = ""
+    formula: str = ""
+    r_factor: float | None = None
+    n_iterations: int | None = None
+    elapsed_seconds: float | None = None
+    converged: bool | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+    error_message: str | None = None
+    plots: list[str] = Field(default_factory=list)
+
+
+class CrystallographyCompareRequest(BaseModel):
+    """POST /api/crystallography/compare body."""
+
+    cif_filename: str
+    max_iterations: int = Field(default=500, ge=1, le=10_000)
+    grid_size: int = Field(default=128, ge=64, le=512)
+    algorithms: list[str] | None = None
+
+
+class CrystallographyCompareResponse(BaseModel):
+    """Response for /api/crystallography/compare."""
+
+    results: list[CrystallographyJobResponse]
+
+
+class SimulateDiffractionRequest(BaseModel):
+    """POST /api/crystallography/simulate body."""
+
+    cif_filename: str
+    grid_size: int = Field(default=128, ge=64, le=512)
+

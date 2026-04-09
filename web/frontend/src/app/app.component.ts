@@ -25,6 +25,7 @@ import { AuthService } from './core/auth.service';
         <button mat-button routerLink="/compare" routerLinkActive="active"><mat-icon>compare</mat-icon> Compare</button>
         <button mat-button routerLink="/results" routerLinkActive="active"><mat-icon>assessment</mat-icon> Results</button>
         <button mat-button routerLink="/data" routerLinkActive="active"><mat-icon>storage</mat-icon> Data</button>
+        <button mat-button routerLink="/crystallography" routerLinkActive="active"><mat-icon>science</mat-icon> Crystal</button>
         <button mat-button routerLink="/explain" routerLinkActive="active"><mat-icon>school</mat-icon> Learn</button>
         <button mat-button (click)="logout()"><mat-icon>logout</mat-icon> Logout</button>
       } @else {
