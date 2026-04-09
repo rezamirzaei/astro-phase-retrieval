@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from src.algorithms.pinn import PINNPhaseRetriever, _TorchModules
+from src.algorithms.pinn import _TorchModules, PINNPhaseRetriever
 from src.models.config import AlgorithmConfig, AlgorithmName
 
 
@@ -157,7 +157,7 @@ class _FakeNN:
         def to(self, *_a: object, **_kw: object) -> _FakeNN.Sequential:
             return self
 
-    class init:
+    class init:  # noqa: N801
         @staticmethod
         def xavier_uniform_(_t: object) -> None:
             pass
@@ -166,7 +166,7 @@ class _FakeNN:
         def zeros_(_t: object) -> None:
             pass
 
-    class utils:
+    class utils:  # noqa: N801
         @staticmethod
         def clip_grad_norm_(_params: object, _max_norm: float) -> None:
             pass
@@ -256,7 +256,7 @@ class _FakeTorch:
         def manual_seed(self, _s: int) -> None:
             pass
 
-    class fft:
+    class fft:  # noqa: N801
         @staticmethod
         def fft2(x: _FT) -> _FT:
             return _FT(np.fft.fft2(_uw(x)))
@@ -627,6 +627,7 @@ class TestPINNHelpersMocked:
         """Exercise the try-branch of _import_torch using mocked modules."""
         mock_torch = MagicMock()
         mock_nn = MagicMock()
+        mock_torch.nn = mock_nn
         with patch.dict(sys.modules, {"torch": mock_torch, "torch.nn": mock_nn}):
             result = PINNPhaseRetriever._import_torch()
         assert result.torch is mock_torch
