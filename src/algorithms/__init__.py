@@ -40,4 +40,3 @@ __all__ = [
     "WirtingerFlow",
     "multi_start_run",
 ]
-
