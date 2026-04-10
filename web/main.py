@@ -13,6 +13,7 @@ Environment variables (see ``web/config.py`` for full list):
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import logging.config
 from collections.abc import AsyncIterator
@@ -26,6 +27,20 @@ from web.database import Base, SessionLocal, engine
 from web.models import User
 from web.routers import algorithms, auth, crystallography, data, explain, results
 from web.security import hash_password
+
+# ---------------------------------------------------------------------------
+# Rate-limiting semaphore for concurrent algorithm jobs
+# ---------------------------------------------------------------------------
+_job_semaphore: asyncio.Semaphore | None = None
+
+
+def get_job_semaphore() -> asyncio.Semaphore:
+    """Return the global job semaphore (created lazily inside the event loop)."""
+    global _job_semaphore
+    if _job_semaphore is None:
+        limit = settings.max_concurrent_jobs if settings.max_concurrent_jobs > 0 else 128
+        _job_semaphore = asyncio.Semaphore(limit)
+    return _job_semaphore
 
 # ---------------------------------------------------------------------------
 # Structured JSON logging (machine-readable for log aggregators)
@@ -99,7 +114,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="Phase Retrieval — Web API",
-    version="2.1.0",
+    version="2.2.0",
     description=(
         "REST API for astronomical wavefront sensing and X-ray crystallography: "
         "run state-of-the-art phase-retrieval algorithms, compare results, "

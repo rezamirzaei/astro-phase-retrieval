@@ -70,6 +70,20 @@ PINN
    :members:
    :show-inheritance:
 
+FISTA (Proximal Gradient)
+-------------------------
+
+.. automodule:: src.algorithms.fista
+   :members:
+   :show-inheritance:
+
+Sparse Phase Retrieval (ThWF)
+-----------------------------
+
+.. automodule:: src.algorithms.sparse_pr
+   :members:
+   :show-inheritance:
+
 Multi-Start
 -----------
 

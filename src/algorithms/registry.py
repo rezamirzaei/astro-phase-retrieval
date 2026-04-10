@@ -6,11 +6,13 @@ from src.algorithms.admm import ADMM
 from src.algorithms.base import PhaseRetriever
 from src.algorithms.douglas_rachford import DouglasRachford
 from src.algorithms.error_reduction import ErrorReduction
+from src.algorithms.fista import FISTA
 from src.algorithms.gerchberg_saxton import GerchbergSaxton
 from src.algorithms.hybrid_input_output import HybridInputOutput
 from src.algorithms.phase_diversity import PhaseDiversity
 from src.algorithms.pinn import PINNPhaseRetriever
 from src.algorithms.raar import RAAR
+from src.algorithms.sparse_pr import SparsePhaseRetrieval
 from src.algorithms.wirtinger_flow import WirtingerFlow
 from src.models.config import AlgorithmConfig, AlgorithmName
 from src.models.optics import PupilModel
@@ -29,6 +31,8 @@ class AlgorithmRegistry:
         AlgorithmName.DOUGLAS_RACHFORD: DouglasRachford,
         AlgorithmName.ADMM: ADMM,
         AlgorithmName.PINN: PINNPhaseRetriever,
+        AlgorithmName.FISTA: FISTA,
+        AlgorithmName.SPARSE_PR: SparsePhaseRetrieval,
     }
 
     @classmethod

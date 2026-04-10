@@ -18,11 +18,9 @@ from src.algorithms.base import PhaseRetriever
 class HybridInputOutput(PhaseRetriever):
     """Fienup's Hybrid Input-Output (HIO) algorithm.
 
-    The final 10 % of iterations switch to Error Reduction for a clean
-    convergent finish (standard practice for oscillatory algorithms).
+    The final ``er_finish_fraction`` of iterations switch to Error Reduction
+    for a clean convergent finish (standard practice for oscillatory algorithms).
     """
-
-    _ER_FRACTION = 0.1
 
     def _iterate(
         self,
@@ -33,8 +31,8 @@ class HybridInputOutput(PhaseRetriever):
         support: np.ndarray,
         iteration: int,
     ) -> tuple[np.ndarray, float]:
-        # Switch to ER for the final _ER_FRACTION of iterations
-        er_start = int(self.config.max_iterations * (1.0 - self._ER_FRACTION))
+        # Switch to ER for the final fraction of iterations
+        er_start = int(self.config.max_iterations * (1.0 - self.config.er_finish_fraction))
         if iteration > er_start:
             return self._er_step(g, pupil_amplitude, target_amplitude, support)
 

@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-04-10
+
+### Added — New Algorithms
+
+- **FISTA (Fast Iterative Shrinkage-Thresholding Algorithm)**: Proximal-gradient
+  phase retrieval with Nesterov acceleration (Beck & Teboulle 2009). Supports
+  pluggable regularisers (TV, L1-wavelet). Key `fista`.
+- **Sparse Phase Retrieval (ThWF)**: Thresholded Wirtinger Flow for sparsity-
+  promoting phase recovery (Cai, Li & Ma 2016). Supports hard and soft
+  thresholding with adaptive decay. Key `sparse_pr`.
+
+### Added — Architecture & Reusability
+
+- **Pipeline Orchestrator** (`src/pipeline.py`): Composable, reusable pipeline
+  that unifies data loading → algorithm execution → metric computation →
+  visualization → persistence. Both CLI and web service can delegate to a
+  single `RetrievalPipeline.run_from_psf()` call.
+- **Synthetic Data Generator** (`src/data/synthetic.py`): Configurable synthetic
+  PSF generation with Zernike-composed aberrations, Poisson photon noise,
+  Gaussian read noise, and multiple telescope geometries.
+- **Shared NumpyModel base** (`src/models/_base.py`): Eliminated duplicate
+  `_NumpyModel` classes from `optics.py` and `crystallography.py` — both now
+  inherit from a single shared `NumpyModel` base.
+
+### Added — Configuration & Validation
+
+- **`Regulariser` enum**: `none`, `tv`, `l1_wavelet` — type-safe regulariser
+  selection for FISTA and sparse PR.
+- **`er_finish_fraction`** field: Configurable ER-finish fraction (was hardcoded
+  `_ER_FRACTION = 0.1` in HIO, RAAR, DR). Now set via config, eliminating
+  per-subclass boilerplate.
+- **`sw_sigma_start` / `sw_sigma_end`** fields: Configurable Shrink-Wrap σ
+  annealing schedule (exponential decay).
+- **`sparsity_threshold`** field: Thresholding level for sparse PR.
+- **`proximal_weight` / `fista_lipschitz`** fields: FISTA-specific parameters.
+- **Cross-field `model_validator`** on `AlgorithmConfig`: warns when `admm_rho`
+  is set for non-ADMM algorithms, when `regulariser` is set for non-FISTA
+  algorithms, and when `sw_sigma_start < sw_sigma_end`.
+
+### Improved — Algorithms
+
+- **Shrink-Wrap**: Configurable σ annealing (exponential decay from
+  `sw_sigma_start` → `sw_sigma_end`), connectivity filtering via
+  `scipy.ndimage.label` to remove small isolated support islands.
+- **ER-finish**: Extracted duplicated `_ER_FRACTION` class constants from
+  HIO, RAAR, DR into a unified `config.er_finish_fraction` field.
+- **`multi_start.py`**: Replaced bare `assert` with proper `RuntimeError`
+  guard (not stripped by `-O`).
+
+### Added — CLI
+
+- **`phase-retrieval cryst`** subcommand: Run crystallographic phase retrieval
+  from the command line. Accepts CIF file paths or COD preset keys (e.g.
+  `phase-retrieval cryst nacl`).
+
+### Improved — Web & MLOps
+
+- **Rate-limiting semaphore**: Global `asyncio.Semaphore` keyed to
+  `settings.max_concurrent_jobs` prevents resource exhaustion from parallel
+  algorithm runs.
+- **FISTA/Sparse PR defaults** added to algorithm service.
+- **Compare endpoint** now includes FISTA and Sparse PR in the default set.
+- API version bumped to 2.2.0.
+
+### Improved — Build & Tooling
+
+- **Makefile**: Added `web-dev`, `docker-up`, `audit`, and `benchmark` targets.
+  `lint` and `format` now include `web/`. `install` now includes `[web]` extra.
+- **pyproject.toml**: Bumped version to 2.2.0, added FISTA/sparse keywords.
+
+### Improved — Documentation
+
+- **Sphinx docs**: Added FISTA and Sparse PR to `docs/api/algorithms.rst`.
+- **CHANGELOG.md**: Added this entry.
+
+### Tests — 389 pass, 0 fail
+
+| New test class | Tests |
+|----------------|-------|
+| `TestFISTA` | FISTA convergence, TV regulariser, L1 regulariser, result fields, support |
+| `TestSparsePR` | Sparse PR runs, soft threshold, result shape |
+| `TestSyntheticDataGenerator` | Basic gen, Poisson noise, read noise, normalisation, RMS target, reproducibility |
+| `TestPipelineOrchestrator` | Pipeline run, output saving |
+| `TestCrossFieldValidation` | admm_rho warning, regulariser warning, sigma warning |
+| `TestRegistryCompleteness` | All algorithms registered |
+| `TestERFinishFraction` | Custom ER fraction, zero ER fraction |
+| `TestNumpyModelBase` | Shared base import, PSFData works |
+
 ## [2.0.2] — 2026-04-07
 
 ### Fixed

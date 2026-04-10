@@ -19,6 +19,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+
+class Regulariser(StrEnum):
+    """Regulariser for proximal-gradient algorithms."""
+
+    NONE = "none"
+    TV = "tv"
+    L1_WAVELET = "l1_wavelet"
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -44,6 +52,8 @@ class AlgorithmName(StrEnum):
     DOUGLAS_RACHFORD = "dr"
     ADMM = "admm"
     PINN = "pinn"
+    FISTA = "fista"
+    SPARSE_PR = "sparse_pr"
 
 
 class BetaSchedule(StrEnum):
@@ -319,6 +329,80 @@ class AlgorithmConfig(BaseModel):
         default=0.7, gt=0, le=1.0,
         description="LR scheduler multiplicative decay γ for PINN",
     )
+
+    # ── ER-finish (shared across HIO, RAAR, DR) ──────────────────────
+    er_finish_fraction: float = Field(
+        default=0.1, ge=0.0, le=0.5,
+        description="Fraction of total iterations used for ER polish at the end",
+    )
+
+    # ── Proximal-gradient / FISTA ─────────────────────────────────────
+    regulariser: Regulariser = Field(
+        default=Regulariser.NONE,
+        description="Regulariser for FISTA/proximal gradient: none, tv, l1_wavelet",
+    )
+    proximal_weight: float = Field(
+        default=1e-3, ge=0,
+        description="Regularisation weight λ for FISTA proximal step",
+    )
+    fista_lipschitz: float = Field(
+        default=1.0, gt=0,
+        description="Lipschitz constant estimate for FISTA step-size (auto-estimated if 0)",
+    )
+
+    # ── Sparse phase retrieval ────────────────────────────────────────
+    sparsity_threshold: float = Field(
+        default=0.1, ge=0, le=1.0,
+        description="Thresholding level for sparse PR (fraction of max)",
+    )
+
+    # ── Shrink-Wrap annealing ─────────────────────────────────────────
+    sw_sigma_start: float = Field(
+        default=3.0, ge=1.0, le=20.0,
+        description="Initial Gaussian σ for Shrink-Wrap smoothing",
+    )
+    sw_sigma_end: float = Field(
+        default=1.0, ge=0.5, le=10.0,
+        description="Final Gaussian σ for Shrink-Wrap smoothing",
+    )
+
+    # ── Cross-field validators ────────────────────────────────────────
+    @model_validator(mode="after")
+    def _validate_cross_fields(self) -> AlgorithmConfig:
+        """Validate field combinations for consistency."""
+        import warnings
+
+        # admm_rho only meaningful for ADMM
+        if self.admm_rho != 1.0 and self.name != AlgorithmName.ADMM:
+            warnings.warn(
+                f"admm_rho={self.admm_rho} is set but algorithm is "
+                f"'{self.name.value}' (not ADMM) — parameter will be ignored.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Regulariser only meaningful for FISTA
+        if self.regulariser != Regulariser.NONE and self.name not in (
+            AlgorithmName.FISTA, AlgorithmName.SPARSE_PR
+        ):
+            warnings.warn(
+                f"regulariser='{self.regulariser.value}' is set but algorithm is "
+                f"'{self.name.value}' — regulariser will be ignored; "
+                f"use tv_weight for TV regularisation in the base loop.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # sw_sigma_start >= sw_sigma_end
+        if self.sw_sigma_start < self.sw_sigma_end:
+            warnings.warn(
+                f"sw_sigma_start ({self.sw_sigma_start}) < sw_sigma_end "
+                f"({self.sw_sigma_end}) — sigma will be clamped.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        return self
 
 
 # ---------------------------------------------------------------------------

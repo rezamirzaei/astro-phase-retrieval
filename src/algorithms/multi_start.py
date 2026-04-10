@@ -72,6 +72,7 @@ def multi_start_run(
             best_cost = final_cost
             best_result = result
 
-    assert best_result is not None
+    if best_result is None:
+        raise RuntimeError("multi_start_run failed to produce any result")
     logger.info("Best start: cost=%.6f, Strehl=%.4f", best_cost, best_result.strehl_ratio)
     return best_result

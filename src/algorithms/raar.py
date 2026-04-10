@@ -22,9 +22,6 @@ from src.algorithms.base import PhaseRetriever
 class RAAR(PhaseRetriever):
     """Relaxed Averaged Alternating Reflections + ER finish."""
 
-    # Fraction of total iterations used for the final ER polish
-    _ER_FRACTION = 0.1
-
     def _iterate(
         self,
         *,
@@ -34,8 +31,8 @@ class RAAR(PhaseRetriever):
         support: np.ndarray,
         iteration: int,
     ) -> tuple[np.ndarray, float]:
-        # Switch to ER for the last _ER_FRACTION of iterations
-        er_start = int(self.config.max_iterations * (1.0 - self._ER_FRACTION))
+        # Switch to ER for the last fraction of iterations
+        er_start = int(self.config.max_iterations * (1.0 - self.config.er_finish_fraction))
         if iteration > er_start:
             return self._er_step(g, pupil_amplitude, target_amplitude, support)
 

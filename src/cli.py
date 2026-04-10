@@ -346,6 +346,77 @@ def _add_common_algo_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+# ── cryst (crystallography) ───────────────────────────────────────────────
+
+
+def _cmd_cryst(args: argparse.Namespace) -> None:
+    """Run crystallographic phase retrieval on a CIF file."""
+    from src.data.crystallography import (
+        available_cod_presets,
+        download_cod_preset,
+        parse_cif,
+        run_crystallography_retrieval,
+        simulate_diffraction,
+    )
+
+    cif_arg = args.cif
+    quiet = getattr(args, "quiet", False)
+
+    # Check if it's a preset key
+    presets = available_cod_presets()
+    if cif_arg in presets:
+        if not quiet:
+            print(f"⬇️  Downloading COD preset '{cif_arg}'...")
+        cif_path = download_cod_preset(cif_arg, Path("data"))
+    else:
+        cif_path = Path(cif_arg)
+        if not cif_path.exists():
+            logger.error("CIF file not found: %s", cif_path)
+            sys.exit(1)
+
+    # Parse and simulate
+    crystal = parse_cif(cif_path)
+    if not quiet:
+        print(f"🔬 {crystal.formula} — {crystal.space_group}")
+        print(f"   a={crystal.a:.2f} b={crystal.b:.2f} c={crystal.c:.2f} Å")
+
+    diffraction = simulate_diffraction(crystal, grid_size=args.grid_size)
+
+    # Run phase retrieval
+    result = run_crystallography_retrieval(
+        diffraction,
+        algorithm_name=args.algorithm,
+        max_iterations=args.iterations,
+        beta=args.beta,
+        random_seed=args.seed,
+    )
+
+    if not quiet:
+        print(
+            f"✅ {args.algorithm.upper()} — "
+            f"{result.n_iterations} iter, "
+            f"R-factor={result.r_factor:.4f}, "
+            f"{result.elapsed_seconds:.2f}s"
+        )
+
+    # Save results
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary = {
+        "algorithm": result.algorithm.value,
+        "formula": crystal.formula,
+        "space_group": crystal.space_group,
+        "r_factor": result.r_factor,
+        "n_iterations": result.n_iterations,
+        "converged": result.converged,
+        "elapsed_seconds": result.elapsed_seconds,
+    }
+    out_path = out_dir / f"cryst_result_{args.algorithm}.json"
+    out_path.write_text(json.dumps(summary, indent=2))
+    if not quiet:
+        print(f"📁 {out_path}")
+
+
 # ── main ──────────────────────────────────────────────────────────────────
 
 
@@ -416,6 +487,28 @@ def main(argv: list[str] | None = None) -> None:
     p_dl.add_argument("-d", "--data-dir", default="data", help="Download directory")
     p_dl.add_argument("-l", "--list", action="store_true", help="List available presets")
     p_dl.set_defaults(func=_cmd_download)
+
+    # --- cryst (crystallography) ---
+    p_cryst = sub.add_parser("cryst", help="Run crystallographic phase retrieval on a CIF file")
+    p_cryst.add_argument(
+        "cif",
+        type=str,
+        help="Path to CIF file or COD preset key (nacl, quartz, diamond, ...)",
+    )
+    p_cryst.add_argument(
+        "-a", "--algorithm", default="hio",
+        choices=_algorithm_choices(),
+        help="Algorithm key",
+    )
+    p_cryst.add_argument("-n", "--iterations", type=int, default=500, help="Max iterations")
+    p_cryst.add_argument("--beta", type=float, default=0.9, help="Feedback β")
+    p_cryst.add_argument("--grid-size", type=int, default=128, help="Grid size")
+    p_cryst.add_argument("--seed", type=int, default=42, help="Random seed")
+    p_cryst.add_argument("-o", "--output-dir", default="outputs", help="Output directory")
+    p_cryst.add_argument(
+        "--quiet", "-q", action="store_true", help="Suppress progress output"
+    )
+    p_cryst.set_defaults(func=_cmd_cryst)
 
     args = parser.parse_args(argv)
     _configure_logging(args.verbose, getattr(args, "log_format", "text"))

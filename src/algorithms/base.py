@@ -173,7 +173,7 @@ class PhaseRetriever(ABC):
 
                 # ── Shrink-Wrap dynamic support refinement ────────────────
                 if self.config.use_sw_constraint and (iteration % _SW_UPDATE_PERIOD == 0):
-                    support = self._shrink_wrap_step(g, pupil_amp, support)
+                    support = self._shrink_wrap_step(g, pupil_amp, support, iteration)
 
                 # Store iterate output for next momentum step
                 g_prev = g_before_momentum
@@ -446,6 +446,7 @@ class PhaseRetriever(ABC):
         g: np.ndarray,
         pupil_amplitude: np.ndarray,
         current_support: np.ndarray,
+        iteration: int | None = None,
     ) -> np.ndarray:
         """Refine the support mask using the current estimate of the object.
 
@@ -455,10 +456,11 @@ class PhaseRetriever(ABC):
         1. Smoothing the current amplitude estimate with a Gaussian of width σ
         2. Thresholding at ``support_threshold × max(smoothed amplitude)``
         3. Intersecting with the original pupil mask
+        4. Removing small isolated support islands (connectivity filtering)
 
-        σ starts at ``sigma_start`` and is annealed toward 1.0 over iterations.
-        A shrinking σ allows the algorithm to first find the rough object shape
-        then progressively tighten the support.
+        σ is annealed from ``sw_sigma_start`` to ``sw_sigma_end`` over
+        the iteration budget using exponential decay, allowing the algorithm
+        to first find the rough object shape then progressively tighten.
 
         Parameters
         ----------
@@ -468,25 +470,53 @@ class PhaseRetriever(ABC):
             Original pupil amplitude mask (defines hard outer boundary).
         current_support : ndarray of bool
             Current support estimate (refined in-place).
+        iteration : int | None
+            Current iteration (used for sigma annealing).
 
         Returns
         -------
         ndarray of bool
             Updated support mask.
         """
+        from scipy.ndimage import label as ndimage_label
+
+        # Annealed sigma: exponential decay from sigma_start to sigma_end
+        sigma_start = self.config.sw_sigma_start
+        sigma_end = self.config.sw_sigma_end
+        if iteration is not None and self.config.max_iterations > 1:
+            t = (iteration - 1) / max(self.config.max_iterations - 1, 1)
+            sigma = sigma_start * (sigma_end / max(sigma_start, 1e-6)) ** t
+        else:
+            sigma = sigma_start
+
+        sigma = max(sigma, sigma_end)
+
         # Smoothed amplitude of the current estimate
         amp = np.abs(g)
-        n_support = float(np.sum(current_support))
-        n_pupil = max(float(np.sum(pupil_amplitude > 0)), 1.0)
-        sigma = max(1.0, 3.0 * (1.0 - n_support / n_pupil))
         smoothed = gaussian_filter(amp, sigma=sigma)
 
         # Threshold
         thresh = self.config.support_threshold * float(smoothed.max())
         new_support = (smoothed >= thresh) & (pupil_amplitude > 0)
 
+        # Connectivity filtering: remove small isolated islands
+        # (keeps only the largest connected component)
+        n_pupil_px = max(float(np.sum(pupil_amplitude > 0)), 1.0)
+        min_island_size = max(int(0.01 * n_pupil_px), 4)
+
+        labeled, n_features = ndimage_label(new_support)
+        if n_features > 1:
+            component_sizes = np.bincount(labeled.ravel())
+            # component_sizes[0] is background; find largest foreground
+            component_sizes[0] = 0
+            largest = component_sizes.argmax()
+            # Remove islands smaller than threshold
+            for label_id in range(1, n_features + 1):
+                if label_id != largest and component_sizes[label_id] < min_island_size:
+                    new_support[labeled == label_id] = False
+
         # Ensure the support does not completely collapse (fallback to pupil)
-        if float(new_support.sum()) < 0.05 * float((pupil_amplitude > 0).sum()):
+        if float(new_support.sum()) < 0.05 * n_pupil_px:
             return current_support  # refuse the update to prevent degeneracy
 
         return new_support  # type: ignore[return-value]

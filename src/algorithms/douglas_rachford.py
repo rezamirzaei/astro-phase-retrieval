@@ -37,8 +37,6 @@ from src.algorithms.base import PhaseRetriever
 class DouglasRachford(PhaseRetriever):
     """Douglas-Rachford splitting + ER finish for phase retrieval."""
 
-    _ER_FRACTION = 0.1
-
     def _iterate(
         self,
         *,
@@ -48,7 +46,7 @@ class DouglasRachford(PhaseRetriever):
         support: np.ndarray,
         iteration: int,
     ) -> tuple[np.ndarray, float]:
-        er_start = int(self.config.max_iterations * (1.0 - self._ER_FRACTION))
+        er_start = int(self.config.max_iterations * (1.0 - self.config.er_finish_fraction))
         if iteration > er_start:
             return self._er_step(g, pupil_amplitude, target_amplitude, support)
 

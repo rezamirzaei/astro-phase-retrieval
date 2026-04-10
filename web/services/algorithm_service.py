@@ -118,6 +118,24 @@ ALGORITHM_DEFAULTS: dict[str, AlgorithmDefaults] = {
         noise_model="gaussian",
         grid_size=128,
     ),
+    "fista": AlgorithmDefaults(
+        max_iterations=400,
+        beta=0.9,
+        beta_schedule="constant",
+        momentum=0.0,
+        tv_weight=0.0,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
+    "sparse_pr": AlgorithmDefaults(
+        max_iterations=350,
+        beta=0.75,
+        beta_schedule="constant",
+        momentum=0.0,
+        tv_weight=0.0,
+        noise_model="gaussian",
+        grid_size=128,
+    ),
 }
 
 
@@ -338,6 +356,8 @@ def compare_algorithms(
                 AlgorithmName.WIRTINGER_FLOW,
                 AlgorithmName.DOUGLAS_RACHFORD,
                 AlgorithmName.ADMM,
+                AlgorithmName.FISTA,
+                AlgorithmName.SPARSE_PR,
             ]
         ]
 

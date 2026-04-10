@@ -6,27 +6,17 @@ from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 
+from src.models._base import NumpyModel
 from src.models.config import AlgorithmName
-
-# ---------------------------------------------------------------------------
-# Helpers – allow numpy arrays inside pydantic models
-# ---------------------------------------------------------------------------
-
-
-class _NumpyModel(BaseModel):
-    """Base model that permits arbitrary types (numpy arrays)."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
 
 # ---------------------------------------------------------------------------
 # PSF data container
 # ---------------------------------------------------------------------------
 
 
-class PSFData(_NumpyModel):
+class PSFData(NumpyModel):
     """Validated container for an observed PSF image."""
 
     image: np.ndarray = Field(
@@ -48,7 +38,7 @@ class PSFData(_NumpyModel):
         return v
 
 
-class PSFPair(_NumpyModel):
+class PSFPair(NumpyModel):
     """Focused + defocused PSF pair for phase-diversity retrieval."""
 
     focused: PSFData
@@ -68,7 +58,7 @@ class PSFPair(_NumpyModel):
 # ---------------------------------------------------------------------------
 
 
-class PupilModel(_NumpyModel):
+class PupilModel(NumpyModel):
     """Computed telescope pupil amplitude mask."""
 
     amplitude: np.ndarray = Field(..., description="2-D binary/soft pupil amplitude")
@@ -87,7 +77,7 @@ class PupilModel(_NumpyModel):
 # ---------------------------------------------------------------------------
 
 
-class PhaseRetrievalResult(_NumpyModel):
+class PhaseRetrievalResult(NumpyModel):
     """Complete output from a phase-retrieval run."""
 
     algorithm: AlgorithmName

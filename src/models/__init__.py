@@ -1,5 +1,6 @@
 """Pydantic-validated data models for the phase-retrieval pipeline."""
 
+from src.models._base import NumpyModel
 from src.models.config import (
     AlgorithmConfig,
     AlgorithmName,
@@ -8,6 +9,7 @@ from src.models.config import (
     NoiseModel,
     PipelineConfig,
     PupilConfig,
+    Regulariser,
     TelescopeType,
     default_hst_config,
 )
@@ -31,12 +33,14 @@ __all__ = [
     "DataConfig",
     "DiffractionPattern",
     "NoiseModel",
+    "NumpyModel",
     "PSFData",
     "PSFPair",
     "PhaseRetrievalResult",
     "PipelineConfig",
     "PupilConfig",
     "PupilModel",
+    "Regulariser",
     "TelescopeType",
     "default_hst_config",
 ]

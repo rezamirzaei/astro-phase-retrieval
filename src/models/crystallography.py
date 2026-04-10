@@ -6,16 +6,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 
+from src.models._base import NumpyModel
 from src.models.config import AlgorithmName
-
-
-class _NumpyModel(BaseModel):
-    """Base model that permits arbitrary types (numpy arrays)."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
 
 # ---------------------------------------------------------------------------
 # Atom site
@@ -58,7 +52,7 @@ class CrystalStructure(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class DiffractionPattern(_NumpyModel):
+class DiffractionPattern(NumpyModel):
     """2-D diffraction intensity pattern for phase retrieval."""
 
     image: np.ndarray = Field(
@@ -84,7 +78,7 @@ class DiffractionPattern(_NumpyModel):
 # ---------------------------------------------------------------------------
 
 
-class CrystallographyResult(_NumpyModel):
+class CrystallographyResult(NumpyModel):
     """Complete output from a crystallographic phase-retrieval run."""
 
     algorithm: AlgorithmName
