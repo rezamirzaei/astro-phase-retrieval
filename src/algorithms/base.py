@@ -1,4 +1,20 @@
-"""Abstract base class for all phase-retrieval algorithms."""
+"""Abstract base class for all phase-retrieval algorithms.
+
+Design
+------
+Every concrete algorithm implements :meth:`_iterate`, which performs one
+update step and returns the new complex pupil field **g** plus the scalar
+cost for that iteration.  The base :meth:`run` loop handles:
+
+* Energy normalisation of the target amplitude
+* Spectral or random phase initialisation
+* Heavy-ball (Nesterov) momentum acceleration
+* Adaptive β scheduling (constant / linear / cosine)
+* Total-variation regularisation via the Chambolle (2004) proximal operator
+* **Shrink-Wrap** dynamic support refinement (Marchesini et al. 2003)
+* Convergence detection via sliding-window relative-change criterion
+* Optional Rich progress bar on interactive terminals
+"""
 
 from __future__ import annotations
 
@@ -9,7 +25,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from numpy.fft import fft2, fftshift, ifft2, ifftshift
-from scipy.ndimage import uniform_filter  # type: ignore[import-untyped]
+from scipy.ndimage import gaussian_filter, uniform_filter  # type: ignore[import-untyped]
 
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio
 from src.models.config import AlgorithmConfig, BetaSchedule, NoiseModel
@@ -23,6 +39,9 @@ _EPS: float = 1e-30
 # converges when the relative change in mean cost between two consecutive
 # windows drops below `tolerance`.
 _CONVERGENCE_WINDOW: int = 20
+
+# Shrink-Wrap: update every N iterations (standard: every 10 % of budget)
+_SW_UPDATE_PERIOD: int = 20
 
 
 class PhaseRetriever(ABC):
@@ -127,7 +146,7 @@ class PhaseRetriever(ABC):
             _use_rich = False
 
         def _run_loop() -> None:
-            nonlocal g, g_prev, converged
+            nonlocal g, g_prev, converged, support
 
             for iteration in range(1, self.config.max_iterations + 1):
                 # Save current iterate *before* momentum extrapolation
@@ -151,6 +170,10 @@ class PhaseRetriever(ABC):
                     phase_tv = self._tv_prox(phase_tv, self.config.tv_weight, support)
                     amp = np.abs(g)
                     g = amp * np.exp(1j * phase_tv)
+
+                # ── Shrink-Wrap dynamic support refinement ────────────────
+                if self.config.use_sw_constraint and (iteration % _SW_UPDATE_PERIOD == 0):
+                    support = self._shrink_wrap_step(g, pupil_amp, support)
 
                 # Store iterate output for next momentum step
                 g_prev = g_before_momentum
@@ -415,7 +438,61 @@ class PhaseRetriever(ABC):
         return result  # type: ignore[no-any-return]
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Shrink-Wrap support refinement (Marchesini et al. 2003)
+    # ------------------------------------------------------------------
+
+    def _shrink_wrap_step(
+        self,
+        g: np.ndarray,
+        pupil_amplitude: np.ndarray,
+        current_support: np.ndarray,
+    ) -> np.ndarray:
+        """Refine the support mask using the current estimate of the object.
+
+        The Shrink-Wrap algorithm (Marchesini et al., PRB 68, 140101, 2003)
+        dynamically updates the real-space support constraint by:
+
+        1. Smoothing the current amplitude estimate with a Gaussian of width σ
+        2. Thresholding at ``support_threshold × max(smoothed amplitude)``
+        3. Intersecting with the original pupil mask
+
+        σ starts at ``sigma_start`` and is annealed toward 1.0 over iterations.
+        A shrinking σ allows the algorithm to first find the rough object shape
+        then progressively tighten the support.
+
+        Parameters
+        ----------
+        g : complex ndarray
+            Current pupil-plane field estimate.
+        pupil_amplitude : ndarray
+            Original pupil amplitude mask (defines hard outer boundary).
+        current_support : ndarray of bool
+            Current support estimate (refined in-place).
+
+        Returns
+        -------
+        ndarray of bool
+            Updated support mask.
+        """
+        # Smoothed amplitude of the current estimate
+        amp = np.abs(g)
+        n_support = float(np.sum(current_support))
+        n_pupil = max(float(np.sum(pupil_amplitude > 0)), 1.0)
+        sigma = max(1.0, 3.0 * (1.0 - n_support / n_pupil))
+        smoothed = gaussian_filter(amp, sigma=sigma)
+
+        # Threshold
+        thresh = self.config.support_threshold * float(smoothed.max())
+        new_support = (smoothed >= thresh) & (pupil_amplitude > 0)
+
+        # Ensure the support does not completely collapse (fallback to pupil)
+        if float(new_support.sum()) < 0.05 * float((pupil_amplitude > 0).sum()):
+            return current_support  # refuse the update to prevent degeneracy
+
+        return new_support  # type: ignore[return-value]
+
+    # ------------------------------------------------------------------
+    # Standard Error-Reduction step (used by several algorithms)
     # ------------------------------------------------------------------
 
     def _er_step(

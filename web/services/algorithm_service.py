@@ -269,6 +269,21 @@ def run_algorithm(
         result = retriever.run(psf_data)
 
         out_dir = settings.output_dir / str(job.id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Persist config snapshot for full reproducibility
+        (out_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "algorithm": job.algorithm,
+                    "fits_filename": job.fits_filename,
+                    "grid_size": grid_size,
+                    **cfg_raw,
+                },
+                indent=2,
+            )
+        )
+
         _generate_plots(psf_data, pupil, result, out_dir)
 
         job.status = "completed"
@@ -281,6 +296,16 @@ def run_algorithm(
         job.output_dir = str(out_dir)
         job.completed_at = datetime.now(UTC)
         db.commit()
+
+        logger.info(
+            "Job %d completed: alg=%s strehl=%.4f rms=%.4f iter=%d time=%.2fs",
+            job.id,
+            job.algorithm,
+            result.strehl_ratio,
+            result.rms_phase_rad,
+            result.n_iterations,
+            result.elapsed_seconds,
+        )
     except Exception as exc:
         job.status = "failed"
         job.error_message = str(exc)
@@ -337,8 +362,8 @@ def compare_algorithms(
 
             if psf_data is None:
                 psf_data, pupil = _load_psf(fits_path, grid_size)
-            assert psf_data is not None
-            assert pupil is not None
+            if psf_data is None or pupil is None:  # should never happen, but guards against mypy
+                raise RuntimeError("PSF / pupil failed to load")
 
             alg_cfg = AlgorithmConfig(
                 name=AlgorithmName(key),

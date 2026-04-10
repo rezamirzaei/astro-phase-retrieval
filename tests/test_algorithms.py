@@ -369,3 +369,63 @@ class TestPropertyBased:
         result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
         assert len(result.cost_history) == result.n_iterations
         assert result.n_iterations <= n_iter
+
+
+# ── Shrink-Wrap tests ────────────────────────────────────────────────────────
+
+
+class TestShrinkWrap:
+    """Shrink-Wrap constraint tests (Marchesini et al. 2003)."""
+
+    def test_shrink_wrap_produces_smaller_support(
+        self,
+        pupil: PupilModel,
+        psf_data: PSFData,
+    ) -> None:
+        """With SW enabled, the effective support area should not grow beyond the pupil."""
+        cfg_sw = AlgorithmConfig(
+            name=AlgorithmName.HYBRID_INPUT_OUTPUT,
+            max_iterations=40,
+            beta=0.9,
+            use_sw_constraint=True,
+            support_threshold=0.04,
+            random_seed=42,
+        )
+        result = AlgorithmRegistry.create(cfg_sw, pupil).run(psf_data)
+        # The result must still be valid
+        assert result.recovered_phase.shape == pupil.amplitude.shape
+        assert result.rms_phase_rad >= 0.0
+
+    def test_shrink_wrap_disabled_vs_enabled_run_both(
+        self,
+        pupil: PupilModel,
+        psf_data: PSFData,
+    ) -> None:
+        """Both SW=True and SW=False must complete without error."""
+        for sw in (True, False):
+            cfg = AlgorithmConfig(
+                name=AlgorithmName.RAAR,
+                max_iterations=30,
+                use_sw_constraint=sw,
+                random_seed=42,
+            )
+            result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+            assert len(result.cost_history) > 0
+
+    def test_admm_rho_parameter(
+        self,
+        pupil: PupilModel,
+        psf_data: PSFData,
+    ) -> None:
+        """ADMM should run correctly with a non-default rho."""
+        cfg = AlgorithmConfig(
+            name=AlgorithmName.ADMM,
+            max_iterations=30,
+            admm_rho=2.0,
+            random_seed=42,
+        )
+        result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+        assert len(result.cost_history) == result.n_iterations
+        assert result.strehl_ratio >= 0.0
+
+

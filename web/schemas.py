@@ -1,4 +1,13 @@
-"""Pydantic v2 request / response schemas for every API endpoint."""
+"""Pydantic v2 request / response schemas for every API endpoint.
+
+Design principles:
+* Enum-typed fields give 422 validation at the API boundary — invalid algorithm
+  names or noise models are rejected before reaching the service layer.
+* ``AlgorithmParams`` is the single source of truth for shared hyper-parameters;
+  ``AlgorithmRunRequest`` and ``AlgorithmDefaults`` both inherit from it to
+  avoid drift.
+* All ``from_attributes=True`` models handle ORM-to-schema conversion.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +15,8 @@ import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from src.models.config import AlgorithmName, BetaSchedule, NoiseModel
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -61,34 +72,35 @@ class LoginRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Algorithm execution
+# Algorithm execution — shared base and request/response models
 # ---------------------------------------------------------------------------
 
 
-class AlgorithmRunRequest(BaseModel):
+class AlgorithmParams(BaseModel):
+    """Shared algorithm hyper-parameters — the single source of truth.
+
+    Both ``AlgorithmRunRequest`` and ``AlgorithmDefaults`` inherit from here
+    so the two schemas stay in sync automatically.
+    """
+
+    max_iterations: int = Field(default=300, ge=1, le=10_000)
+    beta: float = Field(default=0.9, gt=0, le=1.0)
+    beta_schedule: BetaSchedule = Field(default=BetaSchedule.CONSTANT)
+    momentum: float = Field(default=0.0, ge=0, le=0.99)
+    tv_weight: float = Field(default=0.0, ge=0, description="TV regularisation weight (0 = off)")
+    noise_model: NoiseModel = Field(default=NoiseModel.GAUSSIAN)
+    grid_size: int = Field(default=128, ge=64, le=512)
+
+
+class AlgorithmRunRequest(AlgorithmParams):
     """POST /api/algorithms/run body."""
 
     fits_filename: str
-    algorithm: str
-    max_iterations: int = Field(default=300, ge=1, le=10_000)
-    beta: float = Field(default=0.9, gt=0, le=1.0)
-    beta_schedule: str = Field(default="constant")
-    momentum: float = Field(default=0.0, ge=0, le=0.99)
-    tv_weight: float = Field(default=0.0, ge=0)
-    noise_model: str = Field(default="gaussian")
-    grid_size: int = Field(default=128, ge=64, le=512)
+    algorithm: AlgorithmName
 
 
-class AlgorithmDefaults(BaseModel):
-    """Recommended defaults for a specific algorithm in the web UI."""
-
-    max_iterations: int = Field(default=300, ge=1, le=10_000)
-    beta: float = Field(default=0.9, gt=0, le=1.0)
-    beta_schedule: str = Field(default="constant")
-    momentum: float = Field(default=0.0, ge=0, le=0.99)
-    tv_weight: float = Field(default=0.0, ge=0)
-    noise_model: str = Field(default="gaussian")
-    grid_size: int = Field(default=128, ge=64, le=512)
+class AlgorithmDefaults(AlgorithmParams):
+    """Recommended defaults for a specific algorithm (returned by GET /api/algorithms/)."""
 
 
 class AlgorithmInfo(BaseModel):
@@ -105,7 +117,7 @@ class CompareRequest(BaseModel):
     fits_filename: str
     max_iterations: int = Field(default=300, ge=1, le=10_000)
     grid_size: int = Field(default=128, ge=64, le=512)
-    algorithms: list[str] | None = None
+    algorithms: list[AlgorithmName] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +237,7 @@ class CrystallographyRunRequest(BaseModel):
     """POST /api/crystallography/run body."""
 
     cif_filename: str
-    algorithm: str = Field(default="hio")
+    algorithm: AlgorithmName = AlgorithmName.HYBRID_INPUT_OUTPUT
     max_iterations: int = Field(default=500, ge=1, le=10_000)
     beta: float = Field(default=0.9, gt=0, le=1.0)
     grid_size: int = Field(default=128, ge=64, le=512)
@@ -258,7 +270,7 @@ class CrystallographyCompareRequest(BaseModel):
     cif_filename: str
     max_iterations: int = Field(default=500, ge=1, le=10_000)
     grid_size: int = Field(default=128, ge=64, le=512)
-    algorithms: list[str] | None = None
+    algorithms: list[AlgorithmName] | None = None
 
 
 class CrystallographyCompareResponse(BaseModel):
@@ -272,4 +284,6 @@ class SimulateDiffractionRequest(BaseModel):
 
     cif_filename: str
     grid_size: int = Field(default=128, ge=64, le=512)
+
+
 

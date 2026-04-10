@@ -1,4 +1,15 @@
-"""Pydantic configuration models for every stage of the pipeline."""
+"""Pydantic configuration models for every stage of the pipeline.
+
+Design
+------
+* ``AlgorithmConfig`` carries all hyper-parameters for every algorithm.
+  PINN-specific fields are grouped at the bottom with a ``pinn_`` prefix so
+  they are easily identified but remain in one flat model (avoids the need
+  for callers to construct nested configs).
+* ``admm_rho`` is the ADMM augmented-Lagrangian penalty parameter ρ.
+  It is separate from ``beta`` (which is a relaxation / feedback coefficient)
+  because the two parameters play fundamentally different roles.
+"""
 
 from __future__ import annotations
 
@@ -44,7 +55,15 @@ class BetaSchedule(StrEnum):
 
 
 class NoiseModel(StrEnum):
-    """Noise model for focal-plane projection."""
+    """Noise model for focal-plane projection.
+
+    ``GAUSSIAN``
+        Standard amplitude replacement: G' = |y| · exp(iφ).  Fast and
+        works well for high-SNR data.
+    ``POISSON``
+        Maximum-likelihood (ML) projection appropriate for photon-counting
+        detectors.  Thibault & Guizar-Sicairos, NJP 14, 063004 (2012).
+    """
 
     GAUSSIAN = "gaussian"
     POISSON = "poisson"
@@ -119,7 +138,41 @@ class PupilConfig(BaseModel):
 
 
 class AlgorithmConfig(BaseModel):
-    """Phase-retrieval algorithm hyper-parameters."""
+    """Phase-retrieval algorithm hyper-parameters.
+
+    Core parameters
+    ~~~~~~~~~~~~~~~
+    ``name``             : Algorithm key (see :class:`AlgorithmName`).
+    ``max_iterations``   : Hard iteration limit.
+    ``tolerance``        : Relative cost-change threshold for early stopping.
+    ``beta``             : Feedback / relaxation parameter β (HIO, RAAR, DR).
+    ``beta_schedule``    : Cosine / linear annealing of β.
+    ``beta_min``         : Minimum β for adaptive schedules.
+
+    Regularisation
+    ~~~~~~~~~~~~~~
+    ``tv_weight``        : TV proximal weight λ (0 = off).
+    ``noise_model``      : Gaussian (default) or Poisson ML projection.
+    ``use_sw_constraint``: Enable Shrink-Wrap dynamic support (Marchesini 2003).
+    ``support_threshold``: Fraction of max amplitude for SW thresholding.
+
+    ADMM
+    ~~~~
+    ``admm_rho``         : Augmented-Lagrangian penalty ρ (distinct from β).
+
+    Enhancements
+    ~~~~~~~~~~~~
+    ``momentum``         : Nesterov / heavy-ball momentum coefficient.
+    ``n_starts``         : Multi-start restarts (best result returned).
+    ``wf_step_size``     : Wirtinger Flow learning rate μ.
+    ``wf_spectral_init`` : Use spectral init for WF (recommended).
+    ``spectral_init``    : Use spectral init for all algorithms.
+
+    PINN (neural field)
+    ~~~~~~~~~~~~~~~~~~~
+    All ``pinn_*`` fields configure the PINN solver (only used when
+    ``name == AlgorithmName.PINN``).
+    """
 
     name: AlgorithmName = Field(default=AlgorithmName.HYBRID_INPUT_OUTPUT)
     max_iterations: int = Field(default=300, ge=1, le=100_000)
@@ -140,15 +193,29 @@ class AlgorithmConfig(BaseModel):
     )
     use_sw_constraint: bool = Field(
         default=True,
-        description="Apply shrink-wrap (dynamic support) refinement",
+        description=(
+            "Apply Shrink-Wrap dynamic support refinement "
+            "(Marchesini et al., PRB 68, 140101, 2003)"
+        ),
     )
     support_threshold: float = Field(
         default=0.04,
         ge=0,
         le=1,
-        description="Fraction of max amplitude for automatic support estimation",
+        description="Fraction of max smoothed amplitude for Shrink-Wrap thresholding",
     )
     random_seed: int | None = Field(default=42, description="RNG seed for reproducibility")
+
+    # ── ADMM-specific ─────────────────────────────────────────────────
+    admm_rho: float = Field(
+        default=1.0,
+        gt=0,
+        description=(
+            "ADMM augmented-Lagrangian penalty ρ.  "
+            "Larger ρ enforces G = F{g} more aggressively at the cost of "
+            "slower sub-problem convergence.  Distinct from β."
+        ),
+    )
 
     # ── State-of-the-art enhancements ─────────────────────────────────
     momentum: float = Field(
@@ -186,81 +253,71 @@ class AlgorithmConfig(BaseModel):
         default=True,
         description="Use spectral initialization (power iteration) for all algorithms",
     )
+
+    # ── PINN (neural field solver) — only used when name == "pinn" ────
     pinn_hidden_features: int = Field(
-        default=128,
-        ge=8,
-        le=512,
-        description="Width of the hidden layers for the PINN neural field",
+        default=128, ge=8, le=512,
+        description="Width of PINN hidden layers",
     )
     pinn_hidden_layers: int = Field(
-        default=4,
-        ge=1,
-        le=8,
-        description="Number of hidden layers for the PINN neural field",
+        default=4, ge=1, le=8,
+        description="Number of PINN hidden layers",
     )
     pinn_learning_rate: float = Field(
-        default=2e-3,
-        gt=0,
-        le=1.0,
-        description="Optimizer learning rate for the PINN solver (Adam phase)",
+        default=2e-3, gt=0, le=1.0,
+        description="Adam learning rate for PINN solver",
     )
     pinn_smoothness_weight: float = Field(
-        default=5e-5,
-        ge=0,
-        description="Smoothness regularization weight for the PINN phase field",
+        default=5e-5, ge=0,
+        description="Smoothness regularization weight for PINN",
     )
     pinn_sqrt_weight: float = Field(
-        default=0.2,
-        ge=0,
-        description="Weight of the square-root intensity loss term for the PINN solver",
+        default=0.2, ge=0,
+        description="Weight of square-root intensity loss term",
     )
     pinn_log_weight: float = Field(
-        default=0.05,
-        ge=0,
-        description="Weight of the log1p-intensity loss term for the PINN solver",
+        default=0.05, ge=0,
+        description="Weight of log1p-intensity loss term",
     )
     pinn_grad_clip: float = Field(
-        default=1.0,
-        ge=0,
-        description="Gradient clipping threshold for the PINN solver (0 disables clipping)",
+        default=1.0, ge=0,
+        description="Gradient clipping threshold (0 = disabled)",
     )
     pinn_fourier_features: int = Field(
-        default=64,
-        ge=8,
-        le=512,
+        default=64, ge=8, le=512,
         description="Random Fourier features for coordinate encoding",
     )
     pinn_fourier_sigma: float = Field(
-        default=4.0,
-        gt=0,
-        le=20.0,
-        description="Bandwidth of the random Fourier feature encoding",
+        default=4.0, gt=0, le=20.0,
+        description="Bandwidth of random Fourier feature encoding",
     )
     pinn_lbfgs_lr: float = Field(
-        default=0.5,
-        gt=0,
-        le=5.0,
-        description="Learning rate for the L-BFGS refinement phase",
+        default=0.5, gt=0, le=5.0,
+        description="L-BFGS refinement phase learning rate",
     )
     pinn_warm_start: bool = Field(
         default=True,
-        description="Initialize PINN from a short classical RAAR reconstruction",
+        description="Warm-start PINN from a short RAAR reconstruction",
     )
     pinn_warm_start_iterations: int = Field(
-        default=200,
-        ge=1,
-        le=10_000,
-        description="Number of RAAR iterations used for PINN warm start",
+        default=200, ge=1, le=10_000,
+        description="RAAR iterations for PINN warm start",
     )
     pinn_residual_scale: float = Field(
-        default=0.5,
-        ge=0,
-        le=2.0,
+        default=0.5, ge=0, le=2.0,
         description="Scale of neural residual phase (units of π)",
     )
     pinn_device: Literal["auto", "cpu", "mps", "cuda"] = Field(
         default="auto",
-        description="Preferred device for the PINN solver",
+        description="Preferred device for PINN solver",
+    )
+    pinn_lr_step: int = Field(
+        default=50, ge=1,
+        description="LR scheduler step size (epochs) for PINN",
+    )
+    pinn_lr_gamma: float = Field(
+        default=0.7, gt=0, le=1.0,
+        description="LR scheduler multiplicative decay γ for PINN",
     )
 
 

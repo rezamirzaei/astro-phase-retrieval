@@ -1,12 +1,12 @@
 [project]
 name = "phase-retrieval"
-version = "2.0.2"
-description = "Production-ready phase retrieval with state-of-the-art algorithms for real-world HST/JWST astronomical wavefront sensing"
+version = "2.1.0"
+description = "Production-ready phase retrieval with state-of-the-art algorithms for real-world HST/JWST astronomical wavefront sensing and X-ray crystallography"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 authors = [{name = "Reza Mirzaeifard"}]
 readme = "README.md"
-keywords = ["phase-retrieval", "wavefront-sensing", "astronomy", "HST", "JWST", "optics", "PSF", "wirtinger-flow", "ADMM", "douglas-rachford", "crystallography", "X-ray-diffraction"]
+keywords = ["phase-retrieval", "wavefront-sensing", "astronomy", "HST", "JWST", "optics", "PSF", "wirtinger-flow", "ADMM", "douglas-rachford", "shrink-wrap", "crystallography", "X-ray-diffraction", "COD"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
@@ -29,6 +29,7 @@ dependencies = [
     "pydantic>=2.5",
     "rich>=13.7",
     "scikit-image>=0.22",
+    "httpx>=0.27",      # COD CIF download with timeout + streaming
 ]
 
 [project.optional-dependencies]

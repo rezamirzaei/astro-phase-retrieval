@@ -1,6 +1,9 @@
 """Crystallography data: download CIF files from COD, parse structures, simulate diffraction.
 
 Uses the Crystallography Open Database (COD) REST API for real-world data.
+CIF downloads use ``httpx`` with a timeout and streaming to handle large files
+robustly.  The legacy ``urllib.request`` path is intentionally removed to
+avoid the lack of timeout control and the deprecation of ``urlretrieve``.
 """
 
 from __future__ import annotations
@@ -99,11 +102,44 @@ def available_cod_presets() -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# CIF download
+# CIF download — uses httpx for timeout / streaming safety
 # ---------------------------------------------------------------------------
 
 
-def download_cif(cod_id: str, data_dir: Path) -> Path:
+def _download_url_to_file(url: str, dest: Path, timeout: float = 30.0) -> None:
+    """Download *url* to *dest* using ``httpx`` with a timeout.
+
+    Falls back to ``urllib.request`` when ``httpx`` is not installed so that
+    the library still works in minimal environments.
+
+    Parameters
+    ----------
+    url : str
+        Remote URL.
+    dest : Path
+        Local destination path.
+    timeout : float
+        Request timeout in seconds.
+    """
+    try:
+        import httpx  # optional but strongly preferred
+
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client, \
+                client.stream("GET", url) as response:
+                response.raise_for_status()
+                with dest.open("wb") as fh:
+                    for chunk in response.iter_bytes(chunk_size=65536):
+                        fh.write(chunk)
+    except ImportError:
+        # httpx not available — fall back to urllib (no timeout)
+        logger.warning(
+            "httpx not installed; falling back to urllib.request (no timeout). "
+            "Install httpx for production use: pip install httpx"
+        )
+        urllib.request.urlretrieve(url, str(dest))  # noqa: S310
+
+
+def download_cif(cod_id: str, data_dir: Path, timeout: float = 30.0) -> Path:
     """Download a CIF file from the Crystallography Open Database.
 
     Parameters
@@ -112,11 +148,18 @@ def download_cif(cod_id: str, data_dir: Path) -> Path:
         COD entry ID (numeric string, e.g. ``"1000041"``).
     data_dir : Path
         Directory where the CIF will be saved.
+    timeout : float
+        HTTP request timeout in seconds (default 30).
 
     Returns
     -------
     Path
         Path to the downloaded ``.cif`` file.
+
+    Raises
+    ------
+    RuntimeError
+        If the download fails for any reason (network error, 4xx/5xx).
     """
     data_dir = Path(data_dir)
     cif_dir = data_dir / "crystallography"
@@ -130,18 +173,18 @@ def download_cif(cod_id: str, data_dir: Path) -> Path:
     url = f"https://www.crystallography.net/cod/{cod_id}.cif"
     logger.info("Downloading CIF %s from %s", cod_id, url)
     try:
-        urllib.request.urlretrieve(url, str(out_path))  # noqa: S310
+        _download_url_to_file(url, out_path, timeout=timeout)
     except Exception as exc:
         # Clean up partial download
         if out_path.exists():
             out_path.unlink()
         raise RuntimeError(f"Failed to download CIF {cod_id}: {exc}") from exc
 
-    logger.info("Saved CIF → %s", out_path)
+    logger.info("Saved CIF → %s  (%d bytes)", out_path, out_path.stat().st_size)
     return out_path
 
 
-def download_cod_preset(key: str, data_dir: Path) -> Path:
+def download_cod_preset(key: str, data_dir: Path, timeout: float = 30.0) -> Path:
     """Download a curated COD preset by key.
 
     Parameters
@@ -150,6 +193,8 @@ def download_cod_preset(key: str, data_dir: Path) -> Path:
         One of the keys from :func:`available_cod_presets`.
     data_dir : Path
         Root download directory.
+    timeout : float
+        HTTP request timeout in seconds.
 
     Returns
     -------
@@ -159,7 +204,7 @@ def download_cod_preset(key: str, data_dir: Path) -> Path:
     preset = _CURATED_COD.get(key)
     if preset is None:
         raise KeyError(f"Unknown COD preset '{key}'. Available: {list(_CURATED_COD)}")
-    return download_cif(preset["cod_id"], data_dir)
+    return download_cif(preset["cod_id"], data_dir, timeout=timeout)
 
 
 def list_cached_cif(data_dir: Path) -> list[Path]:
@@ -508,6 +553,8 @@ def run_crystallography_retrieval(
             "rms_phase_rad": result.rms_phase_rad,
         },
     )
+
+
 
 
 

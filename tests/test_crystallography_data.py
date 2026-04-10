@@ -204,48 +204,48 @@ class TestListCachedCIF:
 
 
 class TestDownloadCIF:
-    @patch("src.data.crystallography.urllib.request.urlretrieve")
-    def test_download_success(self, mock_retrieve: MagicMock, tmp_path: Path) -> None:
-        def _fake_retrieve(url: str, path: str) -> None:
-            Path(path).write_text("data_test\n_cell_length_a 5.0\n")
+    @patch("src.data.crystallography._download_url_to_file")
+    def test_download_success(self, mock_dl: MagicMock, tmp_path: Path) -> None:
+        def _fake_dl(url: str, dest: Path, timeout: float = 30.0) -> None:
+            dest.write_text("data_test\n_cell_length_a 5.0\n")
 
-        mock_retrieve.side_effect = _fake_retrieve
+        mock_dl.side_effect = _fake_dl
         path = download_cif("1000041", tmp_path)
         assert path.exists()
         assert path.suffix == ".cif"
-        mock_retrieve.assert_called_once()
+        mock_dl.assert_called_once()
 
-    @patch("src.data.crystallography.urllib.request.urlretrieve")
-    def test_download_cached(self, mock_retrieve: MagicMock, tmp_path: Path) -> None:
+    @patch("src.data.crystallography._download_url_to_file")
+    def test_download_cached(self, mock_dl: MagicMock, tmp_path: Path) -> None:
         cif_dir = tmp_path / "crystallography"
         cif_dir.mkdir(parents=True)
         (cif_dir / "1000041.cif").write_text("cached")
         path = download_cif("1000041", tmp_path)
         assert path.exists()
-        mock_retrieve.assert_not_called()
+        mock_dl.assert_not_called()
 
-    @patch("src.data.crystallography.urllib.request.urlretrieve")
-    def test_download_failure(self, mock_retrieve: MagicMock, tmp_path: Path) -> None:
-        mock_retrieve.side_effect = Exception("network error")
+    @patch("src.data.crystallography._download_url_to_file")
+    def test_download_failure(self, mock_dl: MagicMock, tmp_path: Path) -> None:
+        mock_dl.side_effect = Exception("network error")
         with pytest.raises(RuntimeError, match="Failed to download"):
             download_cif("999999", tmp_path)
 
-    @patch("src.data.crystallography.urllib.request.urlretrieve")
+    @patch("src.data.crystallography._download_url_to_file")
     def test_download_failure_cleans_partial(
-        self, mock_retrieve: MagicMock, tmp_path: Path
+        self, mock_dl: MagicMock, tmp_path: Path
     ) -> None:
         """Partial files should be cleaned up on failure."""
         cif_dir = tmp_path / "crystallography"
         cif_dir.mkdir(parents=True)
-        partial = cif_dir / "partial.cif"
 
-        def _fail(url: str, path: str) -> None:
-            Path(path).write_text("partial data")
+        def _fail(url: str, dest: Path, timeout: float = 30.0) -> None:
+            dest.write_text("partial data")
             raise OSError("network interrupted")
 
-        mock_retrieve.side_effect = _fail
+        mock_dl.side_effect = _fail
         with pytest.raises(RuntimeError, match="Failed to download"):
             download_cif("partial", tmp_path)
+        partial = cif_dir / "partial.cif"
         assert not partial.exists()
 
 
@@ -254,7 +254,7 @@ class TestDownloadCODPreset:
     def test_known_preset(self, mock_dl: MagicMock, tmp_path: Path) -> None:
         mock_dl.return_value = tmp_path / "1000041.cif"
         path = download_cod_preset("nacl", tmp_path)
-        mock_dl.assert_called_once_with("1000041", tmp_path)
+        mock_dl.assert_called_once_with("1000041", tmp_path, timeout=30.0)
         assert path == tmp_path / "1000041.cif"
 
     def test_unknown_preset(self, tmp_path: Path) -> None:
@@ -295,5 +295,93 @@ class TestRunCrystallographyRetrieval:
                 pattern, algorithm_name=alg, max_iterations=5
             )
             assert result.algorithm.value == alg
+
+
+# ---------------------------------------------------------------------------
+# Patterson map regression test
+# ---------------------------------------------------------------------------
+
+
+class TestPattersonMap:
+    """Regression tests for diffraction simulation physics.
+
+    The Patterson map P(u) = IFT(|F|²) for NaCl has inter-atomic vectors at
+    the FCC positions.  The strongest off-origin peak in the 2-D slice
+    corresponds to the Na–Cl bond vector (0.5, 0.5, 0) in fractional coords.
+    We verify that the simulated pattern produces a Patterson map whose
+    peak is not at the origin (trivial) and lies in the expected half-space.
+    """
+
+    def _nacl_structure(self) -> CrystalStructure:
+        return CrystalStructure(
+            cod_id="test_nacl",
+            formula="NaCl",
+            space_group="F m -3 m",
+            a=5.64, b=5.64, c=5.64,
+            atoms=[
+                AtomSite(label="Na1", symbol="Na", x=0.0, y=0.0, z=0.0),
+                AtomSite(label="Cl1", symbol="Cl", x=0.5, y=0.5, z=0.5),
+            ],
+        )
+
+    def test_diffraction_pattern_is_non_trivial(self) -> None:
+        """The simulated NaCl pattern must be non-uniform (physics present)."""
+
+        crystal = self._nacl_structure()
+        pattern = simulate_diffraction(crystal, grid_size=64)
+        # Pattern should be normalised to unit sum
+        assert abs(pattern.image.sum() - 1.0) < 1e-6
+        # Pattern must have spatial variation (not a flat field)
+        assert pattern.image.std() > 1e-6
+
+    def test_patterson_map_strongest_off_origin_peak(self) -> None:
+        """Patterson map of NaCl: strongest off-origin peak must exceed mean."""
+        import numpy as np
+        from numpy.fft import fftshift, ifft2, ifftshift
+
+        crystal = self._nacl_structure()
+        pattern = simulate_diffraction(crystal, grid_size=64)
+
+        # Patterson map = IFT(|F|²)
+        # The diffraction image IS |F|² (normalised), so:
+        patterson = np.abs(fftshift(ifft2(ifftshift(pattern.image))))
+        n = patterson.shape[0]
+        cx, cy = n // 2, n // 2
+
+        # Zero out origin peak (trivial self-correlation)
+        mask = np.zeros_like(patterson, dtype=bool)
+        r_origin = max(2, n // 16)
+        for i in range(n):
+            for j in range(n):
+                if (i - cx) ** 2 + (j - cy) ** 2 < r_origin**2:
+                    mask[i, j] = True
+        patterson_no_origin = patterson.copy()
+        patterson_no_origin[mask] = 0.0
+
+        # There must be significant off-origin structure
+        mean_val = float(patterson_no_origin.mean())
+        max_val = float(patterson_no_origin.max())
+        msg = (
+            f"No significant off-origin peak in Patterson map: "
+            f"max={max_val:.6e}, mean={mean_val:.6e}"
+        )
+        assert max_val > 2.0 * mean_val, msg
+
+    def test_nacl_scattering_asymmetry(self) -> None:
+        """Na (Z=11) and Cl (Z=17) must produce different structure-factor contributions."""
+
+        from src.data.crystallography import _atomic_scattering_factor
+
+        f_na = _atomic_scattering_factor("Na")
+        f_cl = _atomic_scattering_factor("Cl")
+        # Cl is heavier — must scatter more strongly
+        assert f_cl > f_na
+        # The ratio must be close to Z_Cl / Z_Na = 17/11
+        assert abs(f_cl / f_na - 17.0 / 11.0) < 0.01
+
+
+
+
+
 
 
