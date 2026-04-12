@@ -8,11 +8,12 @@ per-line source arrays, nbformat 4.5) for correct display in PyCharm.
 """
 import json
 from pathlib import Path
+from typing import Any
 
-cells = []
+cells: list[dict[str, Any]] = []
 
 
-def md(cell_id, lines):
+def md(cell_id: str, lines: list[str]) -> None:
     """Add a markdown cell."""
     cells.append({
         "cell_type": "markdown",
@@ -22,7 +23,7 @@ def md(cell_id, lines):
     })
 
 
-def code(cell_id, lines):
+def code(cell_id: str, lines: list[str]) -> None:
     """Add a code cell."""
     cells.append({
         "cell_type": "code",

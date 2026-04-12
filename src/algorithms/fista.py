@@ -42,6 +42,7 @@ from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 from src.algorithms.base import _EPS, PhaseRetriever
 from src.models.config import Regulariser
+from src.models.optics import PhaseRetrievalResult, PSFData
 
 
 class FISTA(PhaseRetriever):
@@ -58,12 +59,12 @@ class FISTA(PhaseRetriever):
     _t: float
     _g_prev: np.ndarray | None
 
-    def run(self, psf_data: object) -> object:
+    def run(self, psf_data: PSFData) -> PhaseRetrievalResult:
         """Initialise FISTA state before delegating to the base loop."""
         self._t = 1.0
         self._g_prev = None
 
-        return super().run(psf_data)  # type: ignore[arg-type]
+        return super().run(psf_data)
 
     def _iterate(
         self,
@@ -142,14 +143,14 @@ class FISTA(PhaseRetriever):
             phase = np.angle(g)
             phase = self._tv_prox(phase, weight, support)
             amp = np.abs(g)
-            return amp * np.exp(1j * phase)  # type: ignore[return-value]
+            return amp * np.exp(1j * phase)  # type: ignore[return-value,no-any-return]
 
         if reg == Regulariser.L1_WAVELET:
             # L1 soft-thresholding on the phase (wavelet-domain sparsity)
             phase = np.angle(g)
             phase = self._l1_soft_threshold(phase, weight, support)
             amp = np.abs(g)
-            return amp * np.exp(1j * phase)  # type: ignore[return-value]
+            return amp * np.exp(1j * phase)  # type: ignore[return-value,no-any-return]
 
         return g
 

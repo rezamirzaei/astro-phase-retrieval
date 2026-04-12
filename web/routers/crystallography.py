@@ -131,7 +131,7 @@ def compare_crystallography(
         cif_path=cif_path,
         grid_size=body.grid_size,
         max_iterations=body.max_iterations,
-        algorithm_keys=body.algorithms,
+        algorithm_keys=[a.value for a in body.algorithms] if body.algorithms else None,
     )
 
     results: list[CrystallographyJobResponse] = []

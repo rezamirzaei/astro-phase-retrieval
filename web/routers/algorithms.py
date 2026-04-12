@@ -83,7 +83,7 @@ def compare(body: CompareRequest, user: CurrentUser, db: DbSession) -> CompareRe
         fits_path=fits_path,
         grid_size=body.grid_size,
         max_iterations=body.max_iterations,
-        algorithm_keys=body.algorithms,
+        algorithm_keys=[a.value for a in body.algorithms] if body.algorithms else None,
     )
 
     results: list[JobResponse] = []
