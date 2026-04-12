@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -40,7 +41,7 @@ def get_cod_presets(_user: CurrentUser) -> list[CodPresetInfo]:
 
 
 @router.post("/download/{key}", status_code=status.HTTP_202_ACCEPTED)
-def download_cod_preset(key: str, _user: CurrentUser) -> dict[str, str]:
+async def download_cod_preset(key: str, _user: CurrentUser) -> dict[str, str]:
     """Download a CIF file from COD by preset key."""
     from src.data.crystallography import available_cod_presets
     from src.data.crystallography import download_cod_preset as _dl
@@ -49,7 +50,7 @@ def download_cod_preset(key: str, _user: CurrentUser) -> dict[str, str]:
     if key not in presets:
         raise HTTPException(status_code=404, detail=f"Unknown COD preset '{key}'")
     try:
-        path = _dl(key, settings.data_dir)
+        path = await asyncio.to_thread(_dl, key, settings.data_dir)
         return {"status": "ok", "file": str(path)}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -62,7 +63,7 @@ def get_cif_files(_user: CurrentUser) -> list[dict[str, object]]:
 
 
 @router.post("/simulate")
-def simulate_diffraction_endpoint(
+async def simulate_diffraction_endpoint(
     body: SimulateDiffractionRequest, _user: CurrentUser
 ) -> dict[str, object]:
     """Simulate a 2-D diffraction pattern from a CIF file."""
@@ -70,7 +71,9 @@ def simulate_diffraction_endpoint(
         cif_path = resolve_cif_path(body.cif_filename)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    pattern, formula = simulate_from_cif(cif_path, grid_size=body.grid_size)
+    pattern, formula = await asyncio.to_thread(
+        simulate_from_cif, cif_path, grid_size=body.grid_size
+    )
     return {
         "formula": formula,
         "space_group": pattern.space_group,
@@ -80,7 +83,7 @@ def simulate_diffraction_endpoint(
 
 
 @router.post("/run", response_model=CrystallographyJobResponse)
-def run_crystallography(
+async def run_crystallography(
     body: CrystallographyRunRequest,
     user: CurrentUser,
     db: DbSession,
@@ -95,15 +98,19 @@ def run_crystallography(
         user_id=user.id,
         algorithm=body.algorithm,
         cif_filename=body.cif_filename,
-        config_json=json.dumps({
-            "max_iterations": body.max_iterations,
-            "beta": body.beta,
-        }),
+        config_json=json.dumps(
+            {
+                "max_iterations": body.max_iterations,
+                "beta": body.beta,
+            }
+        ),
     )
     db.add(job)
     db.flush()
 
-    job = run_crystallography_job(db, job, cif_path, grid_size=body.grid_size)
+    job = await asyncio.to_thread(
+        run_crystallography_job, db, job, cif_path, grid_size=body.grid_size
+    )
     if job.status == "failed":
         raise HTTPException(status_code=500, detail=job.error_message or "Unknown error")
 
@@ -114,7 +121,7 @@ def run_crystallography(
 
 
 @router.post("/compare", response_model=CrystallographyCompareResponse)
-def compare_crystallography(
+async def compare_crystallography(
     body: CrystallographyCompareRequest,
     user: CurrentUser,
     db: DbSession,
@@ -125,7 +132,8 @@ def compare_crystallography(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    jobs = compare_crystallography_algorithms(
+    jobs = await asyncio.to_thread(
+        compare_crystallography_algorithms,
         db,
         user_id=user.id,
         cif_path=cif_path,
@@ -173,9 +181,7 @@ def get_crystallography_plot(
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_crystallography_result(
-    job_id: int, user: CurrentUser, db: DbSession
-) -> None:
+def delete_crystallography_result(job_id: int, user: CurrentUser, db: DbSession) -> None:
     """Delete a crystallography result and its plots."""
     import shutil
 
@@ -186,4 +192,3 @@ def delete_crystallography_result(
         shutil.rmtree(job.output_dir, ignore_errors=True)
     db.delete(job)
     db.commit()
-

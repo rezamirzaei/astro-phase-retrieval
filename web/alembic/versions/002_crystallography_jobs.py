@@ -47,4 +47,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_crystallography_jobs_user_id", "crystallography_jobs")
     op.drop_table("crystallography_jobs")
-

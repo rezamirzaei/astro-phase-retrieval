@@ -39,10 +39,7 @@ logger = logging.getLogger(__name__)
 
 def list_cod_presets() -> list[CodPresetInfo]:
     """Return available COD presets."""
-    return [
-        CodPresetInfo(key=k, description=v)
-        for k, v in available_cod_presets().items()
-    ]
+    return [CodPresetInfo(key=k, description=v) for k, v in available_cod_presets().items()]
 
 
 def list_cif_files() -> list[dict[str, object]]:
@@ -275,6 +272,3 @@ def list_crystallography_job_plots(job: CrystallographyJob) -> list[str]:
     if not out.exists():
         return []
     return sorted(p.name for p in out.glob("*.png"))
-
-
-

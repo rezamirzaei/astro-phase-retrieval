@@ -42,6 +42,7 @@ def get_job_semaphore() -> asyncio.Semaphore:
         _job_semaphore = asyncio.Semaphore(limit)
     return _job_semaphore
 
+
 # ---------------------------------------------------------------------------
 # Structured JSON logging (machine-readable for log aggregators)
 # ---------------------------------------------------------------------------
@@ -158,6 +159,3 @@ def version() -> dict[str, str]:
         "api_version": app.version,
         "python": sys.version.split()[0],
     }
-
-
-

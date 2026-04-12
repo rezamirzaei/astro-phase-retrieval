@@ -65,8 +65,15 @@ class Settings(BaseSettings):
         if v == "dev-only-change-me-in-production" and os.getenv("PR_ENV", "dev") == "prod":
             raise ValueError(
                 "PR_SECRET_KEY must be set to a strong random value in production. "
-                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+                'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
             )
+        return v
+
+    @field_validator("admin_password")
+    @classmethod
+    def _warn_insecure_admin(cls, v: str) -> str:
+        if v == "admin123" and os.getenv("PR_ENV", "dev") == "prod":
+            raise ValueError("PR_ADMIN_PASSWORD must be set to a strong value in production.")
         return v
 
 

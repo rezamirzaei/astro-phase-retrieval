@@ -284,6 +284,3 @@ class SimulateDiffractionRequest(BaseModel):
 
     cif_filename: str
     grid_size: int = Field(default=128, ge=64, le=512)
-
-
-

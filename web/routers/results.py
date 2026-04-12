@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 
@@ -20,10 +21,21 @@ router = APIRouter(prefix="/api/results", tags=["results"])
 
 
 @router.get("/", response_model=list[JobResponse])
-def list_results(user: CurrentUser, db: DbSession) -> list[JobResponse]:
+def list_results(
+    user: CurrentUser,
+    db: DbSession,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> list[JobResponse]:
     """Return all jobs belonging to the current user, newest first."""
     rows = (
-        db.execute(select(Job).where(Job.user_id == user.id).order_by(Job.created_at.desc()))
+        db.execute(
+            select(Job)
+            .where(Job.user_id == user.id)
+            .order_by(Job.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         .scalars()
         .all()
     )
@@ -96,7 +108,7 @@ def get_plot(job_id: int, plot_name: str, user: CurrentUser, db: DbSession) -> F
 
 
 @router.get("/{job_id}/export")
-def export_result(job_id: int, user: CurrentUser, db: DbSession) -> StreamingResponse:
+async def export_result(job_id: int, user: CurrentUser, db: DbSession) -> StreamingResponse:
     """Download a ZIP archive of all plots + config.json for a completed job.
 
     Returns a ``application/zip`` stream containing:
@@ -120,34 +132,32 @@ def export_result(job_id: int, user: CurrentUser, db: DbSession) -> StreamingRes
 
     out_dir = Path(job.output_dir)
 
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        # Plots
-        for png in sorted(out_dir.glob("*.png")):
-            zf.write(png, arcname=png.name)
+    def _build_zip() -> io.BytesIO:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for png in sorted(out_dir.glob("*.png")):
+                zf.write(png, arcname=png.name)
+            config_file = out_dir / "config.json"
+            if config_file.exists():
+                zf.write(config_file, arcname="config.json")
+            metadata = {
+                "job_id": job.id,
+                "algorithm": job.algorithm,
+                "status": job.status,
+                "fits_filename": job.fits_filename,
+                "strehl_ratio": job.strehl_ratio,
+                "rms_phase_rad": job.rms_phase_rad,
+                "n_iterations": job.n_iterations,
+                "elapsed_seconds": job.elapsed_seconds,
+                "converged": job.converged,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            }
+            zf.writestr("metadata.json", json.dumps(metadata, indent=2))
+        buf.seek(0)
+        return buf
 
-        # Config snapshot (if present)
-        config_file = out_dir / "config.json"
-        if config_file.exists():
-            zf.write(config_file, arcname="config.json")
-
-        # Metadata summary
-        metadata = {
-            "job_id": job.id,
-            "algorithm": job.algorithm,
-            "status": job.status,
-            "fits_filename": job.fits_filename,
-            "strehl_ratio": job.strehl_ratio,
-            "rms_phase_rad": job.rms_phase_rad,
-            "n_iterations": job.n_iterations,
-            "elapsed_seconds": job.elapsed_seconds,
-            "converged": job.converged,
-            "created_at": job.created_at.isoformat() if job.created_at else None,
-            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-        }
-        zf.writestr("metadata.json", json.dumps(metadata, indent=2))
-
-    buf.seek(0)
+    buf = await asyncio.to_thread(_build_zip)
     filename = f"phase_retrieval_job_{job_id}.zip"
     return StreamingResponse(
         buf,

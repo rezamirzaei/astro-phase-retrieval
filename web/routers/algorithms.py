@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from fastapi import APIRouter, HTTPException
@@ -34,7 +35,7 @@ def list_algorithms(_user: CurrentUser) -> list[AlgorithmInfo]:
 
 
 @router.post("/run", response_model=JobResponse)
-def run_single(body: AlgorithmRunRequest, user: CurrentUser, db: DbSession) -> JobResponse:
+async def run_single(body: AlgorithmRunRequest, user: CurrentUser, db: DbSession) -> JobResponse:
     """Run a single algorithm on a data file."""
     try:
         fits_path = resolve_fits_path(body.fits_filename)
@@ -59,7 +60,7 @@ def run_single(body: AlgorithmRunRequest, user: CurrentUser, db: DbSession) -> J
     db.add(job)
     db.flush()
 
-    job = run_algorithm(db, job, fits_path, grid_size=body.grid_size)
+    job = await asyncio.to_thread(run_algorithm, db, job, fits_path, grid_size=body.grid_size)
     if job.status == "failed":
         raise HTTPException(status_code=500, detail=job.error_message or "Unknown error")
 
@@ -70,14 +71,15 @@ def run_single(body: AlgorithmRunRequest, user: CurrentUser, db: DbSession) -> J
 
 
 @router.post("/compare", response_model=CompareResponse)
-def compare(body: CompareRequest, user: CurrentUser, db: DbSession) -> CompareResponse:
+async def compare(body: CompareRequest, user: CurrentUser, db: DbSession) -> CompareResponse:
     """Run all (or selected) algorithms on the same data."""
     try:
         fits_path = resolve_fits_path(body.fits_filename)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    jobs = compare_algorithms(
+    jobs = await asyncio.to_thread(
+        compare_algorithms,
         db,
         user_id=user.id,
         fits_path=fits_path,

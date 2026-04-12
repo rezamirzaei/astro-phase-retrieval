@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, status
 
 from web.dependencies import CurrentUser
@@ -20,7 +22,7 @@ def get_presets(_user: CurrentUser) -> list[dict[str, str]]:
 
 
 @router.post("/download/{key}", status_code=status.HTTP_202_ACCEPTED)
-def download_preset(key: str, _user: CurrentUser) -> dict[str, str]:
+async def download_preset(key: str, _user: CurrentUser) -> dict[str, str]:
     """Trigger download of a preset from MAST (requires network)."""
     from src.data.downloader import available_presets
     from src.data.downloader import download_preset as _dl
@@ -31,7 +33,7 @@ def download_preset(key: str, _user: CurrentUser) -> dict[str, str]:
     try:
         from web.config import settings
 
-        paths = _dl(key, settings.data_dir)
+        paths = await asyncio.to_thread(_dl, key, settings.data_dir)
         return {"status": "ok", "files": str([str(p) for p in paths])}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -44,9 +46,10 @@ def get_fits_files(_user: CurrentUser) -> list[dict[str, object]]:
 
 
 @router.post("/synthetic", response_model=FitsFileInfo)
-def create_synthetic(body: SyntheticRequest, _user: CurrentUser) -> dict[str, object]:
+async def create_synthetic(body: SyntheticRequest, _user: CurrentUser) -> dict[str, object]:
     """Generate a synthetic PSF for demo / testing."""
-    path = generate_synthetic_psf(
+    path = await asyncio.to_thread(
+        generate_synthetic_psf,
         name=body.name,
         grid_size=body.grid_size,
         aberration_rms=body.aberration_rms,

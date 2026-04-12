@@ -87,4 +87,3 @@ class CrystallographyJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="crystallography_jobs")
-
