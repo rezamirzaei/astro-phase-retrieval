@@ -58,7 +58,7 @@ class SparsePhaseRetrieval(PhaseRetriever):
         G = fftshift(fft2(ifftshift(g)))
 
         # ── Wirtinger gradient ────────────────────────────────────────
-        Y = target_amplitude ** 2
+        Y = target_amplitude**2
         I_model = np.abs(G) ** 2
         residual = I_model - Y
         grad_G = residual * G
@@ -66,7 +66,7 @@ class SparsePhaseRetrieval(PhaseRetriever):
 
         # Normalised step size
         mean_intensity = np.mean(Y) + _EPS
-        step = mu / (mean_intensity * n ** 2)
+        step = mu / (mean_intensity * n**2)
 
         # ── Gradient descent ──────────────────────────────────────────
         g_new = g - step * grad_g
@@ -80,9 +80,7 @@ class SparsePhaseRetrieval(PhaseRetriever):
 
         if self.config.regulariser == Regulariser.L1_WAVELET:
             # Soft thresholding
-            phase_thresholded = np.sign(phase) * np.maximum(
-                np.abs(phase) - threshold, 0.0
-            )
+            phase_thresholded = np.sign(phase) * np.maximum(np.abs(phase) - threshold, 0.0)
         else:
             # Hard thresholding (default for sparse PR)
             phase_thresholded = phase.copy()
@@ -90,12 +88,9 @@ class SparsePhaseRetrieval(PhaseRetriever):
 
         # ── Project onto pupil support ────────────────────────────────
         g_out = np.zeros_like(g_new)
-        g_out[support] = pupil_amplitude[support] * np.exp(
-            1j * phase_thresholded[support]
-        )
+        g_out[support] = pupil_amplitude[support] * np.exp(1j * phase_thresholded[support])
 
         # ── Cost ──────────────────────────────────────────────────────
         cost = self._focal_cost(target_amplitude, G)
 
         return g_out, cost
-

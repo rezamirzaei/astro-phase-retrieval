@@ -109,8 +109,7 @@ class RetrievalPipeline:
         ssim = compute_ssim(psf_data.image, result.reconstructed_psf)
 
         logger.info(
-            "Pipeline completed: alg=%s strehl=%.4f rms=%.4f ssim=%.4f "
-            "iter=%d time=%.2fs",
+            "Pipeline completed: alg=%s strehl=%.4f rms=%.4f ssim=%.4f iter=%d time=%.2fs",
             alg_cfg.name.value,
             result.strehl_ratio,
             result.rms_phase_rad,
@@ -195,7 +194,9 @@ class RetrievalPipeline:
         if actual_grid != pupil_cfg.grid_size:
             logger.warning(
                 "PSF grid %dx%d != pupil grid %d; rebuilding pupil.",
-                actual_grid, actual_grid, pupil_cfg.grid_size,
+                actual_grid,
+                actual_grid,
+                pupil_cfg.grid_size,
             )
             pupil_cfg = pupil_cfg.model_copy(update={"grid_size": actual_grid})
         pupil = build_pupil(pupil_cfg)

@@ -331,6 +331,7 @@ class TestNumpyModelBase:
 
     def test_import(self) -> None:
         from src.models._base import NumpyModel
+
         assert NumpyModel.model_config["arbitrary_types_allowed"] is True
 
     def test_psf_data_still_works(self) -> None:
@@ -342,5 +343,3 @@ class TestNumpyModelBase:
             telescope="test",
         )
         assert psf.image.shape == (32, 32)
-
-

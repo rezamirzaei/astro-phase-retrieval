@@ -27,6 +27,7 @@ class Regulariser(StrEnum):
     TV = "tv"
     L1_WAVELET = "l1_wavelet"
 
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ class NoiseModel(StrEnum):
     """Noise model for focal-plane projection.
 
     ``GAUSSIAN``
-        Standard amplitude replacement: G' = |y| · exp(iφ).  Fast and
+        Standard amplitude replacement: G' = \|y\| · exp(iφ).  Fast and
         works well for high-SNR data.
     ``POISSON``
         Maximum-likelihood (ML) projection appropriate for photon-counting
@@ -204,8 +205,7 @@ class AlgorithmConfig(BaseModel):
     use_sw_constraint: bool = Field(
         default=True,
         description=(
-            "Apply Shrink-Wrap dynamic support refinement "
-            "(Marchesini et al., PRB 68, 140101, 2003)"
+            "Apply Shrink-Wrap dynamic support refinement (Marchesini et al., PRB 68, 140101, 2003)"
         ),
     )
     support_threshold: float = Field(
@@ -266,43 +266,59 @@ class AlgorithmConfig(BaseModel):
 
     # ── PINN (neural field solver) — only used when name == "pinn" ────
     pinn_hidden_features: int = Field(
-        default=128, ge=8, le=512,
+        default=128,
+        ge=8,
+        le=512,
         description="Width of PINN hidden layers",
     )
     pinn_hidden_layers: int = Field(
-        default=4, ge=1, le=8,
+        default=4,
+        ge=1,
+        le=8,
         description="Number of PINN hidden layers",
     )
     pinn_learning_rate: float = Field(
-        default=2e-3, gt=0, le=1.0,
+        default=2e-3,
+        gt=0,
+        le=1.0,
         description="Adam learning rate for PINN solver",
     )
     pinn_smoothness_weight: float = Field(
-        default=5e-5, ge=0,
+        default=5e-5,
+        ge=0,
         description="Smoothness regularization weight for PINN",
     )
     pinn_sqrt_weight: float = Field(
-        default=0.2, ge=0,
+        default=0.2,
+        ge=0,
         description="Weight of square-root intensity loss term",
     )
     pinn_log_weight: float = Field(
-        default=0.05, ge=0,
+        default=0.05,
+        ge=0,
         description="Weight of log1p-intensity loss term",
     )
     pinn_grad_clip: float = Field(
-        default=1.0, ge=0,
+        default=1.0,
+        ge=0,
         description="Gradient clipping threshold (0 = disabled)",
     )
     pinn_fourier_features: int = Field(
-        default=64, ge=8, le=512,
+        default=64,
+        ge=8,
+        le=512,
         description="Random Fourier features for coordinate encoding",
     )
     pinn_fourier_sigma: float = Field(
-        default=4.0, gt=0, le=20.0,
+        default=4.0,
+        gt=0,
+        le=20.0,
         description="Bandwidth of random Fourier feature encoding",
     )
     pinn_lbfgs_lr: float = Field(
-        default=0.5, gt=0, le=5.0,
+        default=0.5,
+        gt=0,
+        le=5.0,
         description="L-BFGS refinement phase learning rate",
     )
     pinn_warm_start: bool = Field(
@@ -310,11 +326,15 @@ class AlgorithmConfig(BaseModel):
         description="Warm-start PINN from a short RAAR reconstruction",
     )
     pinn_warm_start_iterations: int = Field(
-        default=200, ge=1, le=10_000,
+        default=200,
+        ge=1,
+        le=10_000,
         description="RAAR iterations for PINN warm start",
     )
     pinn_residual_scale: float = Field(
-        default=0.5, ge=0, le=2.0,
+        default=0.5,
+        ge=0,
+        le=2.0,
         description="Scale of neural residual phase (units of π)",
     )
     pinn_device: Literal["auto", "cpu", "mps", "cuda"] = Field(
@@ -322,17 +342,22 @@ class AlgorithmConfig(BaseModel):
         description="Preferred device for PINN solver",
     )
     pinn_lr_step: int = Field(
-        default=50, ge=1,
+        default=50,
+        ge=1,
         description="LR scheduler step size (epochs) for PINN",
     )
     pinn_lr_gamma: float = Field(
-        default=0.7, gt=0, le=1.0,
+        default=0.7,
+        gt=0,
+        le=1.0,
         description="LR scheduler multiplicative decay γ for PINN",
     )
 
     # ── ER-finish (shared across HIO, RAAR, DR) ──────────────────────
     er_finish_fraction: float = Field(
-        default=0.1, ge=0.0, le=0.5,
+        default=0.1,
+        ge=0.0,
+        le=0.5,
         description="Fraction of total iterations used for ER polish at the end",
     )
 
@@ -342,27 +367,35 @@ class AlgorithmConfig(BaseModel):
         description="Regulariser for FISTA/proximal gradient: none, tv, l1_wavelet",
     )
     proximal_weight: float = Field(
-        default=1e-3, ge=0,
+        default=1e-3,
+        ge=0,
         description="Regularisation weight λ for FISTA proximal step",
     )
     fista_lipschitz: float = Field(
-        default=1.0, gt=0,
+        default=1.0,
+        gt=0,
         description="Lipschitz constant estimate for FISTA step-size (auto-estimated if 0)",
     )
 
     # ── Sparse phase retrieval ────────────────────────────────────────
     sparsity_threshold: float = Field(
-        default=0.1, ge=0, le=1.0,
+        default=0.1,
+        ge=0,
+        le=1.0,
         description="Thresholding level for sparse PR (fraction of max)",
     )
 
     # ── Shrink-Wrap annealing ─────────────────────────────────────────
     sw_sigma_start: float = Field(
-        default=3.0, ge=1.0, le=20.0,
+        default=3.0,
+        ge=1.0,
+        le=20.0,
         description="Initial Gaussian σ for Shrink-Wrap smoothing",
     )
     sw_sigma_end: float = Field(
-        default=1.0, ge=0.5, le=10.0,
+        default=1.0,
+        ge=0.5,
+        le=10.0,
         description="Final Gaussian σ for Shrink-Wrap smoothing",
     )
 
@@ -383,7 +416,8 @@ class AlgorithmConfig(BaseModel):
 
         # Regulariser only meaningful for FISTA
         if self.regulariser != Regulariser.NONE and self.name not in (
-            AlgorithmName.FISTA, AlgorithmName.SPARSE_PR
+            AlgorithmName.FISTA,
+            AlgorithmName.SPARSE_PR,
         ):
             warnings.warn(
                 f"regulariser='{self.regulariser.value}' is set but algorithm is "

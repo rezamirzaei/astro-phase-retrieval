@@ -145,7 +145,9 @@ class TestParseCIF:
 class TestSimulateDiffraction:
     def test_basic_simulation(self) -> None:
         crystal = CrystalStructure(
-            a=5.64, b=5.64, c=5.64,
+            a=5.64,
+            b=5.64,
+            c=5.64,
             atoms=[
                 AtomSite(label="Na1", symbol="Na", x=0.0, y=0.0, z=0.0),
                 AtomSite(label="Cl1", symbol="Cl", x=0.5, y=0.5, z=0.5),
@@ -164,7 +166,9 @@ class TestSimulateDiffraction:
 
     def test_different_grid_sizes(self) -> None:
         crystal = CrystalStructure(
-            a=5.0, b=5.0, c=5.0,
+            a=5.0,
+            b=5.0,
+            c=5.0,
             atoms=[AtomSite(label="C1", symbol="C", x=0.25, y=0.25, z=0.0)],
         )
         for size in [64, 128]:
@@ -231,9 +235,7 @@ class TestDownloadCIF:
             download_cif("999999", tmp_path)
 
     @patch("src.data.crystallography._download_url_to_file")
-    def test_download_failure_cleans_partial(
-        self, mock_dl: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_download_failure_cleans_partial(self, mock_dl: MagicMock, tmp_path: Path) -> None:
         """Partial files should be cleaned up on failure."""
         cif_dir = tmp_path / "crystallography"
         cif_dir.mkdir(parents=True)
@@ -265,7 +267,9 @@ class TestDownloadCODPreset:
 class TestRunCrystallographyRetrieval:
     def test_runs_successfully(self) -> None:
         crystal = CrystalStructure(
-            a=5.64, b=5.64, c=5.64,
+            a=5.64,
+            b=5.64,
+            c=5.64,
             atoms=[
                 AtomSite(label="Na1", symbol="Na", x=0.0, y=0.0, z=0.0),
                 AtomSite(label="Cl1", symbol="Cl", x=0.5, y=0.5, z=0.5),
@@ -286,14 +290,14 @@ class TestRunCrystallographyRetrieval:
 
     def test_different_algorithms(self) -> None:
         crystal = CrystalStructure(
-            a=5.0, b=5.0, c=5.0,
+            a=5.0,
+            b=5.0,
+            c=5.0,
             atoms=[AtomSite(label="C1", symbol="C", x=0.0, y=0.0, z=0.0)],
         )
         pattern = simulate_diffraction(crystal, grid_size=64)
         for alg in ["er", "hio", "raar"]:
-            result = run_crystallography_retrieval(
-                pattern, algorithm_name=alg, max_iterations=5
-            )
+            result = run_crystallography_retrieval(pattern, algorithm_name=alg, max_iterations=5)
             assert result.algorithm.value == alg
 
 
@@ -317,7 +321,9 @@ class TestPattersonMap:
             cod_id="test_nacl",
             formula="NaCl",
             space_group="F m -3 m",
-            a=5.64, b=5.64, c=5.64,
+            a=5.64,
+            b=5.64,
+            c=5.64,
             atoms=[
                 AtomSite(label="Na1", symbol="Na", x=0.0, y=0.0, z=0.0),
                 AtomSite(label="Cl1", symbol="Cl", x=0.5, y=0.5, z=0.5),
@@ -378,10 +384,3 @@ class TestPattersonMap:
         assert f_cl > f_na
         # The ratio must be close to Z_Cl / Z_Na = 17/11
         assert abs(f_cl / f_na - 17.0 / 11.0) < 0.01
-
-
-
-
-
-
-

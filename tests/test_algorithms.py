@@ -427,5 +427,3 @@ class TestShrinkWrap:
         result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
         assert len(result.cost_history) == result.n_iterations
         assert result.strehl_ratio >= 0.0
-
-

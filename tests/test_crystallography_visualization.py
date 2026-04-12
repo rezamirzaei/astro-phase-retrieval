@@ -153,5 +153,3 @@ class TestPlotCrystallographyComparison:
         fig = plot_crystallography_comparison(diffraction_pattern, results)
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
-
-

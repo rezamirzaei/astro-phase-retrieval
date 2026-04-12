@@ -496,7 +496,9 @@ def main(argv: list[str] | None = None) -> None:
         help="Path to CIF file or COD preset key (nacl, quartz, diamond, ...)",
     )
     p_cryst.add_argument(
-        "-a", "--algorithm", default="hio",
+        "-a",
+        "--algorithm",
+        default="hio",
         choices=_algorithm_choices(),
         help="Algorithm key",
     )
@@ -505,9 +507,7 @@ def main(argv: list[str] | None = None) -> None:
     p_cryst.add_argument("--grid-size", type=int, default=128, help="Grid size")
     p_cryst.add_argument("--seed", type=int, default=42, help="Random seed")
     p_cryst.add_argument("-o", "--output-dir", default="outputs", help="Output directory")
-    p_cryst.add_argument(
-        "--quiet", "-q", action="store_true", help="Suppress progress output"
-    )
+    p_cryst.add_argument("--quiet", "-q", action="store_true", help="Suppress progress output")
     p_cryst.set_defaults(func=_cmd_cryst)
 
     args = parser.parse_args(argv)

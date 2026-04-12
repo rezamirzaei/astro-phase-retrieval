@@ -60,3 +60,4 @@ data/synthetic/
 
 # --- Web outputs ---
 web_outputs/
+docs/_build/

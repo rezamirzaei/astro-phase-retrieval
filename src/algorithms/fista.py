@@ -82,7 +82,7 @@ class FISTA(PhaseRetriever):
 
         # ── Wirtinger gradient of the data-fidelity term ──────────────
         G = fftshift(fft2(ifftshift(g)))
-        Y = target_amplitude ** 2
+        Y = target_amplitude**2
         I_model = np.abs(G) ** 2
         residual = I_model - Y
         grad_G = residual * G
@@ -90,7 +90,7 @@ class FISTA(PhaseRetriever):
 
         # Step-size normalised by Lipschitz constant and grid
         mean_intensity = np.mean(Y) + _EPS
-        step = 1.0 / (L * mean_intensity * n ** 2)
+        step = 1.0 / (L * mean_intensity * n**2)
 
         # ── Gradient descent step ─────────────────────────────────────
         z = g - step * grad_g
@@ -100,12 +100,10 @@ class FISTA(PhaseRetriever):
 
         # ── Project onto pupil support ────────────────────────────────
         g_new = np.zeros_like(z)
-        g_new[support] = pupil_amplitude[support] * np.exp(
-            1j * np.angle(z[support] + _EPS)
-        )
+        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(z[support] + _EPS))
 
         # ── Nesterov acceleration ─────────────────────────────────────
-        t_new = (1.0 + np.sqrt(1.0 + 4.0 * self._t ** 2)) / 2.0
+        t_new = (1.0 + np.sqrt(1.0 + 4.0 * self._t**2)) / 2.0
         if self._g_prev is not None:
             momentum = (self._t - 1.0) / t_new
             g_accel = g_new + momentum * (g_new - self._g_prev)
@@ -167,8 +165,6 @@ class FISTA(PhaseRetriever):
         """
         result = phase.copy()
         # Soft threshold
-        result[support] = np.sign(phase[support]) * np.maximum(
-            np.abs(phase[support]) - weight, 0.0
-        )
+        result[support] = np.sign(phase[support]) * np.maximum(np.abs(phase[support]) - weight, 0.0)
         result[~support] = 0.0
         return result

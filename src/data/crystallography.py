@@ -31,14 +31,52 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _SCATTERING_FACTORS: dict[str, float] = {
-    "H": 1.0, "He": 2.0, "Li": 3.0, "Be": 4.0, "B": 5.0, "C": 6.0,
-    "N": 7.0, "O": 8.0, "F": 9.0, "Ne": 10.0, "Na": 11.0, "Mg": 12.0,
-    "Al": 13.0, "Si": 14.0, "P": 15.0, "S": 16.0, "Cl": 17.0, "Ar": 18.0,
-    "K": 19.0, "Ca": 20.0, "Ti": 22.0, "V": 23.0, "Cr": 24.0, "Mn": 25.0,
-    "Fe": 26.0, "Co": 27.0, "Ni": 28.0, "Cu": 29.0, "Zn": 30.0, "Ga": 31.0,
-    "Ge": 32.0, "As": 33.0, "Se": 34.0, "Br": 35.0, "Sr": 38.0, "Y": 39.0,
-    "Zr": 40.0, "Mo": 42.0, "Ag": 47.0, "Sn": 50.0, "I": 53.0, "Ba": 56.0,
-    "La": 57.0, "Pb": 82.0, "Bi": 83.0, "U": 92.0,
+    "H": 1.0,
+    "He": 2.0,
+    "Li": 3.0,
+    "Be": 4.0,
+    "B": 5.0,
+    "C": 6.0,
+    "N": 7.0,
+    "O": 8.0,
+    "F": 9.0,
+    "Ne": 10.0,
+    "Na": 11.0,
+    "Mg": 12.0,
+    "Al": 13.0,
+    "Si": 14.0,
+    "P": 15.0,
+    "S": 16.0,
+    "Cl": 17.0,
+    "Ar": 18.0,
+    "K": 19.0,
+    "Ca": 20.0,
+    "Ti": 22.0,
+    "V": 23.0,
+    "Cr": 24.0,
+    "Mn": 25.0,
+    "Fe": 26.0,
+    "Co": 27.0,
+    "Ni": 28.0,
+    "Cu": 29.0,
+    "Zn": 30.0,
+    "Ga": 31.0,
+    "Ge": 32.0,
+    "As": 33.0,
+    "Se": 34.0,
+    "Br": 35.0,
+    "Sr": 38.0,
+    "Y": 39.0,
+    "Zr": 40.0,
+    "Mo": 42.0,
+    "Ag": 47.0,
+    "Sn": 50.0,
+    "I": 53.0,
+    "Ba": 56.0,
+    "La": 57.0,
+    "Pb": 82.0,
+    "Bi": 83.0,
+    "U": 92.0,
 }
 
 
@@ -124,12 +162,14 @@ def _download_url_to_file(url: str, dest: Path, timeout: float = 30.0) -> None:
     try:
         import httpx  # optional but strongly preferred
 
-        with httpx.Client(timeout=timeout, follow_redirects=True) as client, \
-                client.stream("GET", url) as response:
-                response.raise_for_status()
-                with dest.open("wb") as fh:
-                    for chunk in response.iter_bytes(chunk_size=65536):
-                        fh.write(chunk)
+        with (
+            httpx.Client(timeout=timeout, follow_redirects=True) as client,
+            client.stream("GET", url) as response,
+        ):
+            response.raise_for_status()
+            with dest.open("wb") as fh:
+                for chunk in response.iter_bytes(chunk_size=65536):
+                    fh.write(chunk)
     except ImportError:
         # httpx not available — fall back to urllib (no timeout)
         logger.warning(
@@ -362,14 +402,16 @@ def _parse_atom_sites(text: str) -> list[AtomSite]:
                 y = float(parts[y_col].split("(")[0])
                 z = float(parts[z_col].split("(")[0])
                 occ = float(parts[occ_col].split("(")[0]) if occ_col is not None else 1.0
-                atoms.append(AtomSite(
-                    label=label,
-                    symbol=symbol if symbol else "C",
-                    x=x,
-                    y=y,
-                    z=z,
-                    occupancy=min(max(occ, 0.0), 1.0),
-                ))
+                atoms.append(
+                    AtomSite(
+                        label=label,
+                        symbol=symbol if symbol else "C",
+                        x=x,
+                        y=y,
+                        z=z,
+                        occupancy=min(max(occ, 0.0), 1.0),
+                    )
+                )
             except (ValueError, IndexError):
                 continue
 
@@ -389,7 +431,7 @@ def simulate_diffraction(
     """Simulate a 2-D diffraction pattern from a crystal structure.
 
     Computes structure factors F(h,k) for a 2-D slice (l=0) of reciprocal
-    space, then returns |F|² as the diffraction intensity.
+    space, then returns ``|F|²`` as the diffraction intensity.
 
     Parameters
     ----------
@@ -496,7 +538,7 @@ def run_crystallography_retrieval(
     grid_size = diffraction.image.shape[0]
 
     # Create a circular support mask (pupil) for the algorithms
-    y, x = np.mgrid[-1:1:complex(0, grid_size), -1:1:complex(0, grid_size)]  # type: ignore[misc]
+    y, x = np.mgrid[-1 : 1 : complex(0, grid_size), -1 : 1 : complex(0, grid_size)]  # type: ignore[misc]
     rho = np.sqrt(x**2 + y**2)
     amplitude = np.ones((grid_size, grid_size), dtype=np.float64)
     amplitude[rho > 1.0] = 0.0
@@ -553,8 +595,3 @@ def run_crystallography_retrieval(
             "rms_phase_rad": result.rms_phase_rad,
         },
     )
-
-
-
-
-

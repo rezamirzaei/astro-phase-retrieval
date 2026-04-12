@@ -107,9 +107,3 @@ class TestCrystallographyConfig:
     def test_valid_grid(self) -> None:
         cfg = CrystallographyConfig(grid_size=256)
         assert cfg.grid_size == 256
-
-
-
-
-
-

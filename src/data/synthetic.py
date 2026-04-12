@@ -88,7 +88,11 @@ def generate_synthetic_psf(
 
     # Generate Zernike-composed aberration
     true_phase = _generate_zernike_phase(
-        grid_size, n_zernike, rms_aberration, support, rng,
+        grid_size,
+        n_zernike,
+        rms_aberration,
+        support,
+        rng,
     )
 
     # Generate noiseless PSF
@@ -174,4 +178,3 @@ def _generate_zernike_phase(
             phase *= rms_target / current_rms
 
     return phase
-

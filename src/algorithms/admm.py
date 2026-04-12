@@ -109,9 +109,7 @@ class ADMM(PhaseRetriever):
         # z = F⁻¹{G − u}  then project onto support
         z = fftshift(ifft2(ifftshift(G - self._u)))
         g_new = np.zeros_like(z)
-        g_new[support] = pupil_amplitude[support] * np.exp(
-            1j * np.angle(z[support] + _EPS)
-        )
+        g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(z[support] + _EPS))
 
         # ── Dual variable update (scaled form) ────────────────────────
         # u ← u + ρ · (F{g_new} − G)
@@ -122,5 +120,3 @@ class ADMM(PhaseRetriever):
         cost = self._focal_cost(target_amplitude, Fg)
 
         return g_new, cost
-
-

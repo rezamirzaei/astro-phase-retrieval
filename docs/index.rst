@@ -17,6 +17,7 @@ real-world HST/JWST astronomical wavefront sensing.
    api/algorithms
    api/optics
    api/data
+   api/crystallography
    api/metrics
    api/models
    api/visualization

@@ -107,6 +107,7 @@ class TestCrystallographyCIFFiles:
         headers = _register_and_login(client)
         # Create a CIF file
         from web.config import settings
+
         _create_cif_file(settings.data_dir)
 
         resp = client.get("/api/crystallography/cif-files", headers=headers)
@@ -119,6 +120,7 @@ class TestCrystallographySimulate:
     def test_simulate(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         from web.config import settings
+
         fname = _create_cif_file(settings.data_dir)
 
         resp = client.post(
@@ -145,6 +147,7 @@ class TestCrystallographyRun:
     def test_run_algorithm(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         from web.config import settings
+
         fname = _create_cif_file(settings.data_dir)
 
         resp = client.post(
@@ -181,6 +184,7 @@ class TestCrystallographyResults:
     def test_get_result_and_delete(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         from web.config import settings
+
         fname = _create_cif_file(settings.data_dir)
 
         # Run
@@ -215,9 +219,7 @@ class TestCrystallographyResults:
         assert del_resp.status_code == 204
 
         # Verify gone
-        assert client.get(
-            f"/api/crystallography/{job_id}", headers=headers
-        ).status_code == 404
+        assert client.get(f"/api/crystallography/{job_id}", headers=headers).status_code == 404
 
     def test_get_nonexistent(self, client: TestClient) -> None:
         headers = _register_and_login(client)
@@ -239,6 +241,7 @@ class TestCrystallographyCompare:
     def test_compare(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         from web.config import settings
+
         fname = _create_cif_file(settings.data_dir)
 
         resp = client.post(
@@ -277,5 +280,3 @@ class TestCrystallographyDownload:
             headers=headers,
         )
         assert resp.status_code == 404
-
-

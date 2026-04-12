@@ -240,16 +240,22 @@ def plot_r_factor_comparison(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.005,
             f"{bar.get_height():.4f}",
-            ha="center", va="bottom", fontsize=9,
-            color="#4575b4", fontweight="bold",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color="#4575b4",
+            fontweight="bold",
         )
     for bar in bars2:
         ax2.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.01,
             f"{bar.get_height():.2f}s",
-            ha="center", va="bottom", fontsize=9,
-            color="#d73027", fontweight="bold",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color="#d73027",
+            fontweight="bold",
         )
 
     fig.legend(
@@ -311,9 +317,9 @@ def plot_crystallography_comparison(
 
     fig.suptitle(
         "Crystallography Algorithm Comparison",
-        fontsize=14, fontweight="bold", color="black",
+        fontsize=14,
+        fontweight="bold",
+        color="black",
     )
     fig.tight_layout(rect=(0, 0, 1, 0.95))
     return fig
-
-
