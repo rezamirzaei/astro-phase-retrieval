@@ -175,4 +175,3 @@ def _generate_zernike_phase(
 
     return phase
 
-

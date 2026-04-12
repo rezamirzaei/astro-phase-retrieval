@@ -344,4 +344,3 @@ class TestNumpyModelBase:
         assert psf.image.shape == (32, 32)
 
 
-

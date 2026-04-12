@@ -171,4 +171,3 @@ class FISTA(PhaseRetriever):
         )
         result[~support] = 0.0
         return result
-

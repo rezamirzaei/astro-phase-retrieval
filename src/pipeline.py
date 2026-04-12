@@ -238,4 +238,3 @@ class RetrievalPipeline:
         (out_dir / "result.json").write_text(json.dumps(summary, indent=2))
 
         logger.info("Saved outputs to %s", out_dir)
-

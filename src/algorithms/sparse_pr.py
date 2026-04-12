@@ -99,4 +99,3 @@ class SparsePhaseRetrieval(PhaseRetriever):
 
         return g_out, cost
 
-
