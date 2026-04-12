@@ -8,12 +8,11 @@ per-line source arrays, nbformat 4.5) for correct display in PyCharm.
 """
 import json
 from pathlib import Path
-from typing import Any
 
-cells: list[dict[str, Any]] = []
+cells = []
 
 
-def md(cell_id: str, lines: list[str]) -> None:
+def md(cell_id, lines):
     """Add a markdown cell."""
     cells.append({
         "cell_type": "markdown",
@@ -23,7 +22,7 @@ def md(cell_id: str, lines: list[str]) -> None:
     })
 
 
-def code(cell_id: str, lines: list[str]) -> None:
+def code(cell_id, lines):
     """Add a code cell."""
     cells.append({
         "cell_type": "code",
@@ -79,43 +78,21 @@ md("0", [
 md("1", [
     "## 1 — Theory: The Crystallographic Phase Problem",
     "",
-    "In X-ray crystallography, the scattered amplitude"
-    " (structure factor) for Miller index"
-    " $\\mathbf{h} = (h, k, l)$ is:",
+    "In X-ray crystallography, the scattered amplitude (structure factor) for Miller index $\\mathbf{h} = (h, k, l)$ is:",
     "",
-    "$$ F(\\mathbf{h}) = \\sum_{j} f_j \\,"
-    " \\exp\\bigl(2\\pi i\\,"
-    " \\mathbf{h} \\cdot \\mathbf{r}_j\\bigr) $$",
+    "$$ F(\\mathbf{h}) = \\sum_{j} f_j \\, \\exp\\bigl(2\\pi i\\, \\mathbf{h} \\cdot \\mathbf{r}_j\\bigr) $$",
     "",
-    "where $f_j$ is the atomic scattering factor and"
-    " $\\mathbf{r}_j$ is the fractional coordinate"
-    " of atom $j$.",
+    "where $f_j$ is the atomic scattering factor and $\\mathbf{r}_j$ is the fractional coordinate of atom $j$.",
     "",
-    "The detector records the **intensity**"
-    " $I(\\mathbf{h}) = |F(\\mathbf{h})|^2$ —"
-    " the phase"
-    " $\\varphi(\\mathbf{h}) = \\arg F(\\mathbf{h})$"
-    " is lost.",
+    "The detector records the **intensity** $I(\\mathbf{h}) = |F(\\mathbf{h})|^2$ — the phase $\\varphi(\\mathbf{h}) = \\arg F(\\mathbf{h})$ is lost.",
     "",
-    "To reconstruct the electron density via"
-    " inverse Fourier transform:",
+    "To reconstruct the electron density via inverse Fourier transform:",
     "",
-    "$$ \\rho(\\mathbf{r}) = \\sum_{\\mathbf{h}}"
-    " |F(\\mathbf{h})| \\,"
-    " e^{i\\varphi(\\mathbf{h})} \\,"
-    " e^{-2\\pi i\\,"
-    " \\mathbf{h} \\cdot \\mathbf{r}} $$",
+    "$$ \\rho(\\mathbf{r}) = \\sum_{\\mathbf{h}} |F(\\mathbf{h})| \\, e^{i\\varphi(\\mathbf{h})} \\, e^{-2\\pi i\\, \\mathbf{h} \\cdot \\mathbf{r}} $$",
     "",
-    "we **must** know $\\varphi$ — the same iterative"
-    " algorithms used for astronomical wavefront"
-    " sensing can recover it.",
+    "we **must** know $\\varphi$ — the same iterative algorithms used for astronomical wavefront sensing can recover it.",
     "",
-    "**Quality metric:** the crystallographic R-factor"
-    " $R = \\sum |\\sqrt{I_{\\text{obs}}}"
-    " - \\sqrt{I_{\\text{calc}}}|"
-    " \\, / \\, \\sum |\\sqrt{I_{\\text{obs}}}|$."
-    " Lower is better"
-    " (R < 0.20 is acceptable, R < 0.05 is excellent).",
+    "**Quality metric:** the crystallographic R-factor $R = \\sum |\\sqrt{I_{\\text{obs}}} - \\sqrt{I_{\\text{calc}}}| \\, / \\, \\sum |\\sqrt{I_{\\text{obs}}}|$. Lower is better (R < 0.20 is acceptable, R < 0.05 is excellent).",
 ])
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -139,32 +116,31 @@ code("3", [
     "from pathlib import Path",
     "",
     "import matplotlib",
+    "",
     "matplotlib.use('Agg')",
-    "import matplotlib.pyplot as plt",
-    "import numpy as np",
+    "import matplotlib.pyplot as plt  # noqa: E402",
     "",
     "# Ensure project root is on sys.path",
     "PROJECT_ROOT = Path.cwd().parent if Path.cwd().name == \"notebooks\" else Path.cwd()",
     "if str(PROJECT_ROOT) not in sys.path:",
     "    sys.path.insert(0, str(PROJECT_ROOT))",
     "",
-    "from src.data.crystallography import (",
+    "from src.data.crystallography import (  # noqa: E402",
     "    available_cod_presets,",
     "    download_cod_preset,",
     "    parse_cif,",
-    "    simulate_diffraction,",
     "    run_crystallography_retrieval,",
+    "    simulate_diffraction,",
     ")",
-    "from src.models.crystallography import AtomSite, CrystalStructure",
-    "from src.visualization.crystallography_plots import (",
-    "    plot_diffraction_pattern,",
-    "    plot_crystallography_result,",
+    "from src.visualization.crystallography_plots import (  # noqa: E402",
     "    plot_crystal_summary,",
+    "    plot_crystallography_comparison,",
+    "    plot_crystallography_result,",
+    "    plot_diffraction_pattern,",
     "    plot_electron_density,",
     "    plot_r_factor_comparison,",
-    "    plot_crystallography_comparison,",
     ")",
-    "from src.visualization.plots import save_figure",
+    "from src.visualization.plots import save_figure  # noqa: E402",
     "",
     "DATA_DIR = PROJECT_ROOT / 'data'",
     "OUTPUT_DIR = PROJECT_ROOT / 'notebooks' / 'outputs'",
@@ -408,10 +384,7 @@ md("15", [
     "The recovered phases combined with the measured amplitudes allow us to compute",
     "the **electron density** via inverse Fourier transform:",
     "",
-    "$$\\rho(\\mathbf{r}) = \\sum_{\\mathbf{h}}"
-    " |F(\\mathbf{h})| \\exp[i\\varphi(\\mathbf{h})]"
-    " \\exp(-2\\pi i\\,"
-    " \\mathbf{h}\\cdot\\mathbf{r})$$",
+    "$$\\rho(\\mathbf{r}) = \\sum_{\\mathbf{h}} |F(\\mathbf{h})| \\exp[i\\varphi(\\mathbf{h})] \\exp(-2\\pi i\\, \\mathbf{h}\\cdot\\mathbf{r})$$",
     "",
     "Peaks in $\\rho$ reveal atom positions in the unit cell. We show the",
     "electron density recovered by the best-performing algorithm.",
