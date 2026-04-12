@@ -83,6 +83,9 @@ export class ApiService {
   crystPlotUrl(jobId: number, name: string): string {
     return `/api/crystallography/${jobId}/plots/${name}`;
   }
+  getCrystPlot(jobId: number, name: string): Observable<Blob> {
+    return this.http.get(`/api/crystallography/${jobId}/plots/${name}`, { responseType: 'blob' });
+  }
   deleteCrystResult(id: number): Observable<void> {
     return this.http.delete<void>(`/api/crystallography/${id}`);
   }
