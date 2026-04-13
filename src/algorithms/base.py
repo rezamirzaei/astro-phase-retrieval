@@ -519,7 +519,7 @@ class PhaseRetriever(ABC):
         if float(new_support.sum()) < 0.05 * n_pupil_px:
             return current_support  # refuse the update to prevent degeneracy
 
-        return new_support  # type: ignore[return-value,no-any-return]
+        return new_support  # type: ignore[return-value]
 
     # ------------------------------------------------------------------
     # Standard Error-Reduction step (used by several algorithms)

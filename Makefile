@@ -28,7 +28,7 @@ install:
 	pip install -e ".[dev,notebook,web]"
 
 test:
-	pytest --cov=src --cov=web --cov-report=term-missing --cov-fail-under=90 -ra
+	pytest --cov=src --cov-report=term-missing --cov-fail-under=95 -ra
 
 test-fast:
 	pytest -m "not slow" -q
@@ -44,7 +44,7 @@ typecheck:
 	mypy src/ --ignore-missing-imports
 
 coverage:
-	pytest --cov=src --cov=web --cov-report=html --cov-fail-under=90 -q
+	pytest --cov=src --cov-report=html --cov-fail-under=95 -q
 	@echo ""
 	@echo "Coverage report: htmlcov/index.html"
 	@python -c "import webbrowser; webbrowser.open('htmlcov/index.html')" 2>/dev/null || true

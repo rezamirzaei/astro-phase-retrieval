@@ -151,14 +151,9 @@ def compare_crystallography_algorithms(
     if algorithm_keys is None:
         algorithm_keys = [
             AlgorithmName.ERROR_REDUCTION.value,
-            AlgorithmName.GERCHBERG_SAXTON.value,
             AlgorithmName.HYBRID_INPUT_OUTPUT.value,
             AlgorithmName.RAAR.value,
             AlgorithmName.WIRTINGER_FLOW.value,
-            AlgorithmName.DOUGLAS_RACHFORD.value,
-            AlgorithmName.ADMM.value,
-            AlgorithmName.FISTA.value,
-            AlgorithmName.SPARSE_PR.value,
         ]
 
     crystal = parse_cif(cif_path)

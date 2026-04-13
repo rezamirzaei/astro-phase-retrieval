@@ -54,7 +54,6 @@ web/frontend/package-lock.json
 
 # --- Database (local SQLite) ---
 *.db
-web/phase_retrieval.db
 
 # --- Synthetic data ---
 data/synthetic/
