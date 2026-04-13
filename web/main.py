@@ -27,7 +27,6 @@ from web.models import User
 from web.routers import algorithms, auth, crystallography, data, explain, results
 from web.security import hash_password
 
-
 # ---------------------------------------------------------------------------
 # Structured JSON logging (machine-readable for log aggregators)
 # ---------------------------------------------------------------------------
