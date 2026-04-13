@@ -118,6 +118,8 @@ uncertainty summaries for supported workflows.
 | **Wirtinger Flow (WF)** | `wf` | Gradient descent with spectral initialization (Candès et al. 2015) |
 | **Douglas-Rachford (DR)** | `dr` | Proximal splitting with provable convergence (Bauschke et al. 2002) |
 | **ADMM** | `admm` | Alternating Direction Method of Multipliers (Chang & Marchesini 2018) |
+| **FISTA** | `fista` | Proximal-gradient with adaptive √t Lipschitz scheduling (Beck & Teboulle 2009) |
+| **Sparse Phase Retrieval (ThWF)** | `sparse_pr` | Thresholded Wirtinger Flow for sparsity-promoting recovery (Cai et al. 2016) |
 | **Physics-Informed Neural Field** | `pinn` | Coordinate MLP optimized through differentiable Fourier optics |
 
 ### Practical Enhancements
@@ -213,12 +215,40 @@ If you are running directly from a source checkout, `python -m src ...` remains 
 ## Testing
 
 ```bash
-# Run the full test suite
+# Run the full test suite (471 tests)
 pytest
 
 # With coverage
-pytest --cov=src --cov-report=term-missing
+pytest --cov=src --cov=web --cov-report=term-missing
+
+# Web API tests only
+pytest tests/test_web.py tests/test_crystallography_web.py -v
 ```
+
+## Web Application
+
+A full-stack **REST + WebSocket API** built with FastAPI, with JWT authentication,
+background job queue, real-time progress streaming, and an Angular 18 frontend.
+
+```bash
+# Quick start with Docker
+docker compose up --build
+
+# Or local dev
+pip install -e ".[web,dev]"
+uvicorn web.main:app --reload --port 8000
+```
+
+**Key web features:**
+- 10 phase-retrieval algorithms with background job execution
+- Real-time WebSocket progress streaming
+- JWT auth with refresh tokens, bcrypt, rate limiting, security headers
+- File upload (FITS/NPY/CIF), batch ZIP export, paginated results
+- X-ray crystallography workflow (COD → diffraction → phase retrieval)
+- Health/readiness probes, structured logging, request-ID tracing
+- Interactive API docs at `/docs` (Swagger UI) and `/redoc` (ReDoc)
+
+See [`web/README.md`](web/README.md) for full endpoint documentation.
 
 ## Validation Scope
 

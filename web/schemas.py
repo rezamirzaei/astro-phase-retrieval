@@ -257,7 +257,9 @@ class SyntheticRequest(BaseModel):
     n_zernike: int = Field(default=15, ge=3, le=50)
     telescope: TelescopeType = Field(default=TelescopeType.HST, examples=["hst", "jwst"])
     filter_name: str = Field(default="F606W", examples=["F606W", "F814W"])
-    photon_count: float = Field(default=0.0, ge=0.0, description="Total photon count (0 = noiseless)")
+    photon_count: float = Field(
+        default=0.0, ge=0.0, description="Total photon count (0 = noiseless)"
+    )
     read_noise_std: float = Field(default=0.0, ge=0.0, description="Gaussian read noise σ")
     center_offset_row_pixels: float = Field(default=0.0, ge=-8.0, le=8.0)
     center_offset_col_pixels: float = Field(default=0.0, ge=-8.0, le=8.0)

@@ -2,7 +2,7 @@
 # phase-retrieval — developer task runner
 # ─────────────────────────────────────────────────────────────────────────────
 .PHONY: help install test test-fast lint format typecheck coverage docs clean \
-        pre-commit security web-dev docker-up audit benchmark
+        pre-commit security web-dev docker-up audit benchmark test-web
 
 # Default target
 help:
@@ -22,6 +22,7 @@ help:
 	@echo "  make docker-up      Build and start all services via Docker Compose"
 	@echo "  make audit          Full security audit (pip-audit + bandit)"
 	@echo "  make benchmark      Run a timed algorithm comparison on synthetic data"
+	@echo "  make test-web       Run only the web API test suite"
 	@echo "  make clean          Remove build artifacts and caches"
 
 install:
@@ -32,6 +33,9 @@ test:
 
 test-fast:
 	pytest -m "not slow" -q
+
+test-web:
+	pytest tests/test_web.py tests/test_crystallography_web.py -v
 
 lint:
 	ruff check src/ tests/ web/

@@ -167,7 +167,9 @@ tags_metadata = [
     },
     {
         "name": "explain",
-        "description": "Educational endpoints — algorithm theory, metric descriptions, science primer.",
+        "description": (
+            "Educational endpoints — algorithm theory, metric descriptions, science primer."
+        ),
     },
     {
         "name": "jobs",
@@ -195,7 +197,7 @@ app = FastAPI(
         "and X-ray crystallography.  Run state-of-the-art phase-retrieval algorithms, "
         "compare results in real-time, and explore the underlying science.\n\n"
         "**Key features:**\n"
-        "- 10 phase-retrieval algorithms (GS, HIO, RAAR, WF, FISTA, ADMM, DR, SparsePR, PINN, PhaseDiversity)\n"
+        "- 10 algorithms (GS, HIO, RAAR, WF, FISTA, ADMM, DR, SparsePR, PINN, PD)\n"
         "- Background job queue with WebSocket progress streaming\n"
         "- Paginated results with one-click ZIP export\n"
         "- File upload for custom FITS/NPY datasets\n"

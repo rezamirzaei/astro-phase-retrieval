@@ -9,7 +9,13 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, status
 
 from web.config import settings
 from web.dependencies import CurrentUser
-from web.schemas import FitsFileInfo, PaginatedResponse, PresetInfo, SyntheticRequest, UploadedFileResponse
+from web.schemas import (
+    FitsFileInfo,
+    PaginatedResponse,
+    PresetInfo,
+    SyntheticRequest,
+    UploadedFileResponse,
+)
 from web.services.data_service import generate_synthetic_psf, list_fits_files
 
 router = APIRouter(prefix="/api/data", tags=["data"])

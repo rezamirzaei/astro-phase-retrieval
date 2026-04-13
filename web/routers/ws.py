@@ -14,6 +14,7 @@ parameter (WebSocket does not support Authorization headers natively).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 
@@ -77,8 +78,6 @@ async def ws_job_progress(
         logger.info("WS client disconnected for job %s", job_id)
     except Exception:
         logger.exception("WS error for job %s", job_id)
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close(code=1011, reason="Internal error")
-        except Exception:
-            pass
 

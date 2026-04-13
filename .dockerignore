@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing & CI
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+coverage.xml
+.coverage
+
+# Git
+.git/
+.gitignore
+
+# Documentation build
+docs/_build/
+
+# Notebooks outputs (large files)
+notebooks/outputs/
+notebooks/data/
+
+# Data (mounted at runtime)
+data/mastDownload/
+web_outputs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dev files
+_diag.py
+_gen_notebook.py
+_gen_notebook_cryst.py
+_test_synth.py
+main.py
+outputs/
+uv.lock
+

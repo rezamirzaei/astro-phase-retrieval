@@ -48,23 +48,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Request logging middleware** — Logs method, path, status code, latency,
   request ID, and client IP for every request (except health probes).
 
+- **Global exception handler** — Unhandled exceptions return a clean JSON
+  `500 {"detail": "Internal server error", "request_id": "..."}` with full
+  stack-trace logged server-side.  Prevents information leakage to clients.
+
 - **Background job queue** (`web/services/job_queue.py`) — Thread-pool-backed
-  job executor with states `queued → running → completed | failed`.
+  job executor with states `queued → running → completed | failed | cancelled`.
   Publish/subscribe progress events for real-time streaming.
 
 - **WebSocket progress streaming** (`/api/ws/jobs/{job_id}`) — Real-time
   iteration-level progress for running jobs.  JWT-authenticated via
   `?token=` query parameter.
 
-- **Job management endpoints** (`/api/v1/jobs/`, `/api/v1/jobs/{id}`) —
-  Poll status & progress of background jobs.
+- **Job management endpoints** (`/api/jobs/`, `/api/jobs/{id}`,
+  `/api/jobs/{id}/cancel`) — Poll status & progress, list all jobs, and
+  cancel queued/running jobs.
 
 - **Readiness probe** (`GET /api/readiness`) — Checks database connectivity
   (`SELECT 1`) and disk write access.  Returns per-subsystem status for
   Kubernetes / load-balancer integration.
 
 - **File upload** (`POST /api/data/upload`) — Upload custom FITS/NPY files
-  (up to 100 MB).  Validates extension and streams to disk with size guard.
+  (configurable max via `PR_UPLOAD_MAX_BYTES`).  Validates extension and
+  streams to disk with size guard.
+
+- **CIF upload** (`POST /api/crystallography/upload`) — Upload custom CIF
+  files for crystallography analysis.
 
 - **Batch export** (`POST /api/results/export-batch`) — Download a single
   ZIP containing outputs from multiple jobs.
@@ -73,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   now return `PaginatedResponse[T]` with `{items, total, skip, limit}`.
 
 - **OpenAPI enrichment** — Tag descriptions for all 10 endpoint groups,
-  global 401/422 response documentation.
+  global 401/422 response documentation, request/response examples.
 
 #### Improvements
 
@@ -89,12 +98,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Health endpoint enriched** — Returns `{status, version, uptime_seconds}`.
 
+- **Dockerfile** — Multi-stage build, non-root user, built-in healthcheck,
+  `.dockerignore` for faster builds.
+
+- **Docker Compose** — Backend healthcheck, restart policy, `init: true`
+  for proper signal handling.
+
 - **API version bumped to 3.0.0**.
 
 ### Configuration
 
 - `PR_SHUTDOWN_TIMEOUT_SECONDS` (default: 30) — max wait for running jobs.
 - `PR_UPLOAD_MAX_BYTES` (default: 100 MB) — file upload size limit.
+
+### Tests — 471 pass, 0 fail ✅
+
+| New test class      | Tests |
+|---------------------|-------|
+| `TestMiddleware`    | Request-ID propagation, security headers, CORS expose |
+| `TestUpload`        | NPY upload, bad extension, CIF upload, CIF bad ext |
+| `TestBackgroundJobs`| Job list, poll 404, cancel 404 |
+| `TestBatchExport`   | Multi-job ZIP, empty 404 |
+| `TestVersion`       | Version endpoint, health uptime |
+| `TestPagination`    | FITS pagination, results pagination |
 
 ## [2.3.1] — 2026-04-13
 

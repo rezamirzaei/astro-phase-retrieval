@@ -19,13 +19,15 @@ The module exposes three entry-points used by routers:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, AsyncIterator, Callable
+from enum import StrEnum
+from typing import Any
 
 from web.config import settings
 
@@ -36,7 +38,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class JobState(str, Enum):
+class JobState(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -250,9 +252,7 @@ async def shutdown_pool(timeout: float = 10.0) -> None:
         _pool = None
     # Allow lingering WS subscriptions to close
     for job in _jobs.values():
-        try:
+        with contextlib.suppress(asyncio.QueueFull):
             job._queue.put_nowait(None)
-        except asyncio.QueueFull:
-            pass
 
 

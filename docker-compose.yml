@@ -5,6 +5,7 @@ services:
   # ── PostgreSQL database ────────────────────────────────────────────
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: phase
       POSTGRES_PASSWORD: phase
@@ -24,6 +25,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    init: true  # proper PID 1 signal handling
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -33,6 +36,15 @@ services:
       PR_DATA_DIR: "/app/data"
       PR_OUTPUT_DIR: "/app/web_outputs"
       PR_CORS_ORIGINS: '["http://localhost:4532","http://localhost"]'
+      PR_MAX_CONCURRENT_JOBS: "4"
+      PR_SHUTDOWN_TIMEOUT_SECONDS: "30"
+      PR_UPLOAD_MAX_BYTES: "104857600"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     volumes:
       - app_data:/app/data
       - app_outputs:/app/web_outputs
@@ -44,8 +56,10 @@ services:
     build:
       context: web/frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "4532:80"
 
