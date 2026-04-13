@@ -22,12 +22,15 @@ from src.data.downloader import (
 from src.data.loader import (
     _header_filter,
     _header_wavelength,
+    estimate_background_level,
     extract_psf_cutout,
     find_brightest_source,
     load_fits_image,
     load_psf_from_fits,
     normalise_psf,
     prepare_psf_for_retrieval,
+    recenter_psf,
+    refine_source_centroid,
     subtract_background,
 )
 from src.models.config import DataConfig, PupilConfig, TelescopeType
@@ -64,6 +67,12 @@ class TestExtractCutout:
 
 
 class TestSubtractBackground:
+    def test_edge_background_estimate_ignores_central_source(self) -> None:
+        img = np.full((64, 64), 5.0, dtype=np.float64)
+        img[28:36, 28:36] += 100.0
+        bg = estimate_background_level(img)
+        assert bg == pytest.approx(5.0)
+
     def test_non_negative_result(self) -> None:
         img = np.random.default_rng(0).random((64, 64)) + 10.0
         result = subtract_background(img)
@@ -124,6 +133,30 @@ class TestPreparePSF:
         assert result.shape == (64, 64)
         np.testing.assert_array_equal(result, img)
         assert result is not img  # must be a copy
+
+
+class TestCentroiding:
+    def test_refine_source_centroid_recovers_subpixel_location(self) -> None:
+        y, x = np.mgrid[:64, :64]
+        true_row = 30.4
+        true_col = 33.7
+        img = np.exp(-(((y - true_row) ** 2) + ((x - true_col) ** 2)) / (2 * 1.6**2))
+        rough = find_brightest_source(img, border=4)
+        row, col = refine_source_centroid(img, rough, window_radius=6)
+        assert row == pytest.approx(true_row, abs=0.25)
+        assert col == pytest.approx(true_col, abs=0.25)
+
+    def test_recenter_psf_moves_flux_centroid_to_centre(self) -> None:
+        y, x = np.mgrid[:33, :33]
+        img = np.exp(-(((y - 14.3) ** 2) + ((x - 18.1) ** 2)) / (2 * 1.5**2))
+        shifted, _ = recenter_psf(img)
+        weights = shifted / shifted.sum()
+        yy, xx = np.indices(shifted.shape, dtype=np.float64)
+        row = float((weights * yy).sum())
+        col = float((weights * xx).sum())
+        target = (shifted.shape[0] - 1) / 2.0
+        assert row == pytest.approx(target, abs=0.2)
+        assert col == pytest.approx(target, abs=0.2)
 
 
 class TestDownloaderHelpers:
@@ -547,6 +580,96 @@ class TestLoadPSFFromFits:
         assert "source_sha256" in psf.metadata
         assert psf.metadata["prepared_shape"] == [64, 64]
         assert "header" in psf.metadata
+
+    def test_metadata_records_refined_centroid_and_recentering(self, tmp_path) -> None:
+        y, x = np.mgrid[:128, :128]
+        image = np.full((128, 128), 3.0, dtype=np.float64)
+        image += 200.0 * np.exp(-(((y - 70.2) ** 2) + ((x - 61.8) ** 2)) / (2 * 2.2**2))
+
+        fpath = tmp_path / "star.fits"
+        primary = pyfits.PrimaryHDU()
+        primary.header["FILTER"] = "F606W"
+        sci = pyfits.ImageHDU(data=image, name="SCI")
+        pyfits.HDUList([primary, sci]).writeto(fpath, overwrite=True)
+
+        data_cfg = DataConfig(
+            data_dir=tmp_path,
+            cutout_size=64,
+            background_percentile=10.0,
+            centroid_window_size=16,
+            recenter_psf=True,
+        )
+        pupil_cfg = PupilConfig(telescope=TelescopeType.HST, grid_size=64)
+        psf = load_psf_from_fits(fpath, data_cfg, pupil_cfg)
+
+        assert "refined_source_centroid_rowcol" in psf.metadata
+        assert "recenter_shift_rowcol" in psf.metadata
+        assert psf.metadata["background_level"] == pytest.approx(3.0, abs=0.5)
+        assert "local_flux_centroid_refinement" in psf.metadata["preprocessing"]
+        assert "subpixel_recentering" in psf.metadata["preprocessing"]
+
+    def test_quadratic_peak_centroid_method_is_recorded(self, tmp_path) -> None:
+        y, x = np.mgrid[:96, :96]
+        image = np.exp(-(((y - 41.3) ** 2) + ((x - 53.6) ** 2)) / (2 * 1.7**2))
+        fpath = tmp_path / "quad.fits"
+        primary = pyfits.PrimaryHDU()
+        primary.header["FILTER"] = "F606W"
+        sci = pyfits.ImageHDU(data=image, name="SCI")
+        pyfits.HDUList([primary, sci]).writeto(fpath, overwrite=True)
+
+        data_cfg = DataConfig(
+            data_dir=tmp_path,
+            cutout_size=64,
+            centroid_method="quadratic_peak",
+        )
+        pupil_cfg = PupilConfig(grid_size=64)
+        psf = load_psf_from_fits(fpath, data_cfg, pupil_cfg)
+        assert psf.metadata["centroid_method"] == "quadratic_peak"
+
+    def test_quality_mask_metadata_added(self, tmp_path) -> None:
+        y, x = np.mgrid[:128, :128]
+        image = np.full((128, 128), 2.0, dtype=np.float64)
+        image += 100.0 * np.exp(-(((y - 64.0) ** 2) + ((x - 64.0) ** 2)) / (2 * 2.5**2))
+        image[66, 67] = 1e6
+
+        fpath = tmp_path / "masked.fits"
+        primary = pyfits.PrimaryHDU()
+        primary.header["FILTER"] = "F606W"
+        sci = pyfits.ImageHDU(data=image, name="SCI")
+        pyfits.HDUList([primary, sci]).writeto(fpath, overwrite=True)
+
+        data_cfg = DataConfig(
+            data_dir=tmp_path,
+            cutout_size=64,
+            saturation_percentile=99.9,
+            hot_pixel_sigma=6.0,
+        )
+        pupil_cfg = PupilConfig(grid_size=64)
+        psf = load_psf_from_fits(fpath, data_cfg, pupil_cfg)
+
+        quality_mask = psf.metadata["quality_mask"]
+        assert quality_mask["masked_pixels"] >= 1
+        assert quality_mask["hot_pixels"] >= 1 or quality_mask["saturated_pixels"] >= 1
+        assert "quality_mask_repair" in psf.metadata["preprocessing"]
+
+    def test_dq_mask_is_used_when_available(self, tmp_path) -> None:
+        image = np.zeros((128, 128), dtype=np.float64)
+        image[64, 64] = 100.0
+        dq = np.zeros_like(image, dtype=np.int16)
+        dq[64, 64] = 1
+
+        fpath = tmp_path / "dq.fits"
+        primary = pyfits.PrimaryHDU()
+        primary.header["FILTER"] = "F606W"
+        sci = pyfits.ImageHDU(data=image, name="SCI")
+        dq_hdu = pyfits.ImageHDU(data=dq, name="DQ")
+        pyfits.HDUList([primary, sci, dq_hdu]).writeto(fpath, overwrite=True)
+
+        data_cfg = DataConfig(data_dir=tmp_path, cutout_size=64, use_dq_mask=True)
+        pupil_cfg = PupilConfig(grid_size=64)
+        psf = load_psf_from_fits(fpath, data_cfg, pupil_cfg)
+        assert psf.metadata["quality_mask"]["dq_pixels"] >= 1
+        assert "dq_mask_repair" in psf.metadata["preprocessing"]
 
 
 class TestHeaderFilter:

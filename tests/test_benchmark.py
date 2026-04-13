@@ -38,6 +38,7 @@ class TestBenchmark:
         assert {row["algorithm"] for row in payload["aggregate"]} == {"er", "hio"}
         assert "leaderboard_plot" in payload["artifacts"]
         assert "heatmap_plot" in payload["artifacts"]
+        assert "center_offset_pixels" in payload["cases"][0]
 
     def test_markdown_contains_ranking(self, tmp_path) -> None:
         case = available_benchmark_cases()["clean-low"]
@@ -50,6 +51,36 @@ class TestBenchmark:
         markdown = summary.to_markdown()
         assert "# Phase Retrieval Benchmark Report" in markdown
         assert "Aggregate ranking" in markdown
+        assert "Limits" in markdown
         assert "er" in markdown
 
+    def test_available_cases_include_robustness_scenarios(self) -> None:
+        cases = available_benchmark_cases()
+        assert "miscentered-hst" in cases
+        assert "background-hst" in cases
+        assert "broadband-hst" in cases
 
+    def test_records_capture_offset_and_background(self, tmp_path) -> None:
+        case = available_benchmark_cases()["miscentered-hst"]
+        summary = run_benchmark(
+            algorithms=[AlgorithmName.ERROR_REDUCTION],
+            cases=[case],
+            max_iterations=2,
+            output_dir=tmp_path,
+        )
+        record = summary.records[0]
+        assert record["center_offset_pixels"] == [0.75, -0.45]
+        assert record["background_level"] == 0.0
+
+    def test_broadband_case_records_spectral_fields(self, tmp_path) -> None:
+        case = available_benchmark_cases()["broadband-hst"]
+        summary = run_benchmark(
+            algorithms=[AlgorithmName.ERROR_REDUCTION],
+            cases=[case],
+            max_iterations=2,
+            output_dir=tmp_path,
+        )
+        record = summary.records[0]
+        assert record["bandwidth_fraction"] > 0.0
+        assert record["spectral_samples"] == 5
+        assert record["field_defocus_waves"] == 0.15

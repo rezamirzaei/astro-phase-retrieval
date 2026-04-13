@@ -5,9 +5,9 @@
 [![CI](https://github.com/rezamirzaeifard/phase-retrieval/actions/workflows/ci.yml/badge.svg)](https://github.com/rezamirzaeifard/phase-retrieval/actions/workflows/ci.yml)
 [![Typed](https://img.shields.io/badge/typing-PEP561-brightgreen.svg)](https://peps.python.org/pep-0561/)
 
-Production-ready implementation of **classic and state-of-the-art** phase retrieval
-algorithms applied to **real Hubble Space Telescope (HST)** point-spread function
-(PSF) observations.
+Well-tested **research and engineering toolkit** for classic and modern phase
+retrieval algorithms applied to **real Hubble Space Telescope (HST)** point-spread
+function (PSF) observations and deterministic synthetic benchmarks.
 
 ---
 
@@ -94,6 +94,11 @@ This project downloads **real calibrated HST/WFC3 observations** of standard
 calibration stars from the Mikulski Archive for Space Telescopes (MAST). These are
 not synthetic — they are actual photons collected by HST.
 
+The preprocessing path records background estimation, centroid refinement,
+quality-mask repair, optional DQ-mask usage, and recentering provenance for
+each loaded cutout. The reporting layer can also include perturbation-based
+uncertainty summaries for supported workflows.
+
 ## Algorithms
 
 ### Classic Algorithms
@@ -105,7 +110,7 @@ not synthetic — they are actual photons collected by HST.
 | Hybrid Input-Output (HIO) | `hio` | Fienup's workhorse with feedback parameter β |
 | Phase Diversity (PD) | `phase_diversity` | Joint estimation from focused + defocused pair |
 
-### State-of-the-Art Algorithms
+### Modern Algorithms
 
 | Algorithm | Key | Description |
 |-----------|-----|-------------|
@@ -115,9 +120,9 @@ not synthetic — they are actual photons collected by HST.
 | **ADMM** | `admm` | Alternating Direction Method of Multipliers (Chang & Marchesini 2018) |
 | **Physics-Informed Neural Field** | `pinn` | Coordinate MLP optimized through differentiable Fourier optics |
 
-### Advanced Enhancements
+### Practical Enhancements
 
-All algorithms benefit from these state-of-the-art enhancements built into the base class:
+Many algorithms can use these built-in enhancements:
 
 | Feature | Flag | Description |
 |---------|------|-------------|
@@ -126,6 +131,7 @@ All algorithms benefit from these state-of-the-art enhancements built into the b
 | **TV Regularization** | `--tv-weight 0.01` | Chambolle proximal operator for noise-robust phase |
 | **Poisson Noise Model** | `--noise-model poisson` | Maximum-likelihood projection for photon-limited data |
 | **Multi-Start** | `--n-starts 5` | Multiple random restarts, returns best result |
+| **Uncertainty Ensemble** | `--uncertainty-samples 8` | Perturbation-based confidence intervals for saved metrics |
 
 ## Quality Metrics
 
@@ -212,6 +218,29 @@ pytest
 # With coverage
 pytest --cov=src --cov-report=term-missing
 ```
+
+## Validation Scope
+
+The repository includes deterministic synthetic benchmarks, perturbation cases
+(including mis-centering and residual background), and rich regression tests.
+Those artifacts provide **internal validation evidence** for software quality
+and comparative behavior.
+
+They do **not** by themselves prove instrument-grade scientific validity on real
+HST/JWST data. Real-data conclusions should still be treated as model-dependent
+and preprocessing-sensitive unless validated against trusted external baselines.
+
+## Supported vs Experimental
+
+**Supported by current repository evidence**
+- deterministic synthetic benchmarking with known-truth phase
+- preprocessing provenance and quality-mask diagnostics
+- perturbation-based confidence intervals for reported metrics
+
+**Still experimental / approximate**
+- simple polychromatic forward modeling
+- field-dependent defocus hooks
+- scientific interpretation of real-data reconstructions without external baselines
 
 ## Benchmarking & Reproducibility
 

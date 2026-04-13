@@ -54,7 +54,17 @@ def build_hst_pupil(cfg: PupilConfig) -> PupilModel:
     spider_frac = cfg.spider_width / cfg.primary_radius
     amp *= _spider_mask(x, y, cfg.n_spiders, spider_frac)
 
-    return PupilModel(amplitude=amp, grid_size=n)
+    return PupilModel(
+        amplitude=amp,
+        grid_size=n,
+        wavelength_m=cfg.wavelength_m,
+        bandwidth_fraction=cfg.bandwidth_fraction,
+        spectral_samples=cfg.spectral_samples,
+        field_defocus_waves=cfg.field_defocus_waves,
+        detector_sigma_pixels=cfg.detector_sigma_pixels,
+        jitter_sigma_pixels=cfg.jitter_sigma_pixels,
+        pixel_integration_width=cfg.pixel_integration_width,
+    )
 
 
 def build_jwst_pupil(cfg: PupilConfig) -> PupilModel:
@@ -94,7 +104,17 @@ def build_jwst_pupil(cfg: PupilConfig) -> PupilModel:
     ring_width = 0.005 / cfg.primary_radius
     amp[(np.abs(rho - ring_rho) < ring_width)] = 0.0
 
-    return PupilModel(amplitude=amp, grid_size=n)
+    return PupilModel(
+        amplitude=amp,
+        grid_size=n,
+        wavelength_m=cfg.wavelength_m,
+        bandwidth_fraction=cfg.bandwidth_fraction,
+        spectral_samples=cfg.spectral_samples,
+        field_defocus_waves=cfg.field_defocus_waves,
+        detector_sigma_pixels=cfg.detector_sigma_pixels,
+        jitter_sigma_pixels=cfg.jitter_sigma_pixels,
+        pixel_integration_width=cfg.pixel_integration_width,
+    )
 
 
 def build_generic_circular_pupil(cfg: PupilConfig) -> PupilModel:
@@ -104,7 +124,17 @@ def build_generic_circular_pupil(cfg: PupilConfig) -> PupilModel:
     inner = cfg.secondary_radius / cfg.primary_radius
     amp = np.zeros((n, n), dtype=np.float64)
     amp[(rho <= 1.0) & (rho >= inner)] = 1.0
-    return PupilModel(amplitude=amp, grid_size=n)
+    return PupilModel(
+        amplitude=amp,
+        grid_size=n,
+        wavelength_m=cfg.wavelength_m,
+        bandwidth_fraction=cfg.bandwidth_fraction,
+        spectral_samples=cfg.spectral_samples,
+        field_defocus_waves=cfg.field_defocus_waves,
+        detector_sigma_pixels=cfg.detector_sigma_pixels,
+        jitter_sigma_pixels=cfg.jitter_sigma_pixels,
+        pixel_integration_width=cfg.pixel_integration_width,
+    )
 
 
 def build_pupil(cfg: PupilConfig) -> PupilModel:

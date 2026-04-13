@@ -103,6 +103,48 @@ class DataConfig(BaseModel):
         default=128, ge=32, le=1024, description="PSF cutout half-width in pixels"
     )
     filter_name: str = Field(default="F606W", description="Optical filter bandpass name")
+    background_percentile: float = Field(
+        default=10.0,
+        ge=0.0,
+        le=50.0,
+        description="Percentile used for robust edge-based background estimation",
+    )
+    source_detection_border: int = Field(
+        default=50,
+        ge=0,
+        le=2048,
+        description="Border margin excluded during source detection to avoid edge artifacts",
+    )
+    centroid_window_size: int = Field(
+        default=24,
+        ge=4,
+        le=256,
+        description="Local window width used for subpixel centroid refinement",
+    )
+    recenter_psf: bool = Field(
+        default=True,
+        description="Apply subpixel recentering to extracted PSF cutouts before normalisation",
+    )
+    centroid_method: Literal["moments", "quadratic_peak"] = Field(
+        default="moments",
+        description="Subpixel centroid refinement strategy",
+    )
+    use_dq_mask: bool = Field(
+        default=True,
+        description="Use FITS data-quality (DQ) extensions when available",
+    )
+    saturation_percentile: float = Field(
+        default=99.95,
+        ge=90.0,
+        le=100.0,
+        description="Percentile threshold used to flag saturated or clipped bright pixels",
+    )
+    hot_pixel_sigma: float = Field(
+        default=8.0,
+        gt=0.0,
+        le=50.0,
+        description="MAD-based sigma threshold used to flag isolated hot pixels in PSF cutouts",
+    )
 
     @field_validator("cutout_size")
     @classmethod
@@ -133,6 +175,42 @@ class PupilConfig(BaseModel):
     wavelength_m: float = Field(default=606e-9, gt=0, description="Observation wavelength (m)")
     pixel_scale_arcsec: float = Field(
         default=0.04, gt=0, description="Detector pixel scale (arcsec/px)"
+    )
+    bandwidth_fraction: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Fractional wavelength span for simple polychromatic averaging",
+    )
+    spectral_samples: int = Field(
+        default=1,
+        ge=1,
+        le=15,
+        description="Number of wavelength samples for polychromatic averaging",
+    )
+    field_defocus_waves: float = Field(
+        default=0.0,
+        ge=-5.0,
+        le=5.0,
+        description="Field-dependent defocus term added in the forward model (waves)",
+    )
+    detector_sigma_pixels: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=10.0,
+        description="Gaussian detector blur sigma applied in the focal plane (pixels)",
+    )
+    jitter_sigma_pixels: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=10.0,
+        description="Gaussian pointing-jitter blur sigma applied in the focal plane (pixels)",
+    )
+    pixel_integration_width: float = Field(
+        default=1.0,
+        ge=0.5,
+        le=4.0,
+        description="Approximate detector pixel-response width in focal-plane pixels",
     )
 
     @field_validator("grid_size")
@@ -384,6 +462,12 @@ class AlgorithmConfig(BaseModel):
         le=1.0,
         description="Thresholding level for sparse PR (fraction of max)",
     )
+    sparsity_keep_fraction: float = Field(
+        default=1.0,
+        gt=0,
+        le=1.0,
+        description="Fraction of support pixels retained by hard-threshold sparse PR",
+    )
 
     # ── Shrink-Wrap annealing ─────────────────────────────────────────
     sw_sigma_start: float = Field(
@@ -451,6 +535,31 @@ class PipelineConfig(BaseModel):
     pupil: PupilConfig = Field(default_factory=PupilConfig)
     algorithm: AlgorithmConfig = Field(default_factory=AlgorithmConfig)
     output_dir: Path = Field(default=Path("outputs"))
+    uncertainty_samples: int = Field(
+        default=0,
+        ge=0,
+        le=100,
+        description="Number of perturbation runs for uncertainty estimation (0 = disabled)",
+    )
+    uncertainty_shift_sigma_pixels: float = Field(
+        default=0.15,
+        ge=0.0,
+        le=5.0,
+        description="Stddev of random image shifts used in uncertainty runs",
+    )
+    uncertainty_background_sigma_fraction: float = Field(
+        default=0.002,
+        ge=0.0,
+        le=1.0,
+        description="Stddev of additive background perturbations relative to image peak",
+    )
+    uncertainty_noise_sigma_fraction: float = Field(
+        default=0.001,
+        ge=0.0,
+        le=1.0,
+        description="Stddev of additive Gaussian noise perturbations relative to image peak",
+    )
+    uncertainty_seed: int = Field(default=123, description="RNG seed for uncertainty estimation")
 
     @model_validator(mode="after")
     def _sync_wavelength_with_filter(self) -> PipelineConfig:

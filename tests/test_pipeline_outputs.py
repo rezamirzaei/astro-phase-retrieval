@@ -14,6 +14,7 @@ class TestPipelineOutputs:
         config = default_hst_config()
         config.pupil = config.pupil.model_copy(update={"grid_size": pupil.grid_size})
         config.algorithm = config.algorithm.model_copy(update={"max_iterations": 5})
+        config.uncertainty_samples = 3
         config.output_dir = tmp_path / "pipeline_out"
 
         psf_with_metadata = PSFData(
@@ -38,6 +39,7 @@ class TestPipelineOutputs:
             "result.json",
             "metrics.json",
             "provenance.json",
+            "uncertainty.json",
             "evaluation_report.json",
             "evaluation_report.md",
         ):
@@ -56,7 +58,14 @@ class TestPipelineOutputs:
         evaluation = json.loads((out_dir / "evaluation_report.json").read_text())
         assert evaluation["algorithm"] == config.algorithm.name.value
         assert "metrics" in evaluation
+        assert "evidence" in evaluation
+        assert "limitations" in evaluation
+        assert "validated_claims" in evaluation
+        assert "experimental_features" in evaluation
+        assert evaluation["metrics"]["uncertainty"]["n_samples"] == 3
         markdown = (out_dir / "evaluation_report.md").read_text()
         assert "## Quantitative Results" in markdown
-
-
+        assert "## Evidence" in markdown
+        assert "## Limitations" in markdown
+        assert "## Uncertainty Summary" in markdown
+        assert "## Supported Claims" in markdown

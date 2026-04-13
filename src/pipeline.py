@@ -24,6 +24,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -40,6 +41,7 @@ from src.models.config import AlgorithmConfig, PipelineConfig
 from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 from src.optics.pupils import build_pupil
 from src.reporting import build_evaluation_payload, write_evaluation_report
+from src.uncertainty import run_uncertainty_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,7 @@ class PipelineResult:
     radial_profile_error: float = 0.0
     encircled_energy_error: float = 0.0
     convergence_summary: dict[str, float] = field(default_factory=dict)
+    uncertainty_summary: dict[str, Any] = field(default_factory=dict)
     plots_generated: list[str] = field(default_factory=list)
     output_dir: Path | None = None
 
@@ -147,6 +150,23 @@ class RetrievalPipeline:
             convergence_summary=convergence_summary,
             output_dir=out_dir,
         )
+
+        if self.config.uncertainty_samples > 0:
+            uncertainty = run_uncertainty_analysis(
+                psf_data=psf_data,
+                pupil=pupil,
+                algorithm_config=alg_cfg,
+                n_samples=self.config.uncertainty_samples,
+                shift_sigma_pixels=self.config.uncertainty_shift_sigma_pixels,
+                background_sigma_fraction=self.config.uncertainty_background_sigma_fraction,
+                noise_sigma_fraction=self.config.uncertainty_noise_sigma_fraction,
+                seed=self.config.uncertainty_seed,
+            )
+            pipeline_result.uncertainty_summary = {
+                "n_samples": uncertainty.n_samples,
+                "summary": uncertainty.summary,
+                "sample_records": uncertainty.sample_records,
+            }
 
         # ── Persist config + results ──────────────────────────────────
         if out_dir is not None:
@@ -262,6 +282,7 @@ class RetrievalPipeline:
             "noise_model": cfg.noise_model.value,
             "n_starts": cfg.n_starts,
             "random_seed": cfg.random_seed,
+            "uncertainty_samples": pipeline_result.config.uncertainty_samples,
         }
         (out_dir / "config.json").write_text(json.dumps(config_data, indent=2))
 
@@ -287,7 +308,14 @@ class RetrievalPipeline:
             "convergence": pipeline_result.convergence_summary,
             "zernike_coefficients": pipeline_result.zernike_coefficients,
         }
+        if pipeline_result.uncertainty_summary:
+            metrics["uncertainty"] = pipeline_result.uncertainty_summary
         (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+
+        if pipeline_result.uncertainty_summary:
+            (out_dir / "uncertainty.json").write_text(
+                json.dumps(pipeline_result.uncertainty_summary, indent=2)
+            )
 
         provenance = {
             "psf": pipeline_result.psf_data.metadata,
@@ -305,6 +333,14 @@ class RetrievalPipeline:
             "pupil": {
                 "grid_size": pipeline_result.pupil.grid_size,
                 "support_pixels": int(np.sum(pipeline_result.pupil.amplitude > 0)),
+                "approximate_model": True,
+                "wavelength_m": pipeline_result.pupil.wavelength_m,
+                "bandwidth_fraction": pipeline_result.pupil.bandwidth_fraction,
+                "spectral_samples": pipeline_result.pupil.spectral_samples,
+                "field_defocus_waves": pipeline_result.pupil.field_defocus_waves,
+                "detector_sigma_pixels": pipeline_result.pupil.detector_sigma_pixels,
+                "jitter_sigma_pixels": pipeline_result.pupil.jitter_sigma_pixels,
+                "pixel_integration_width": pipeline_result.pupil.pixel_integration_width,
             },
         }
         (out_dir / "provenance.json").write_text(json.dumps(provenance, indent=2))
@@ -320,6 +356,7 @@ class RetrievalPipeline:
             metrics={
                 **summary,
                 "convergence": pipeline_result.convergence_summary,
+                "uncertainty": pipeline_result.uncertainty_summary,
             },
             zernike_coefficients=pipeline_result.zernike_coefficients,
         )

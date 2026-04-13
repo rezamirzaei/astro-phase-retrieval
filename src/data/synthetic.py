@@ -16,10 +16,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifftshift
+from scipy.ndimage import shift as ndimage_shift  # type: ignore[import-untyped]
 
 from src.models.config import PupilConfig, TelescopeType
 from src.models.optics import PSFData, PupilModel
+from src.optics.propagator import forward_model
 from src.optics.pupils import build_pupil
 
 
@@ -32,6 +33,10 @@ class SyntheticDataset:
     true_phase: np.ndarray
     true_psf: np.ndarray  # noiseless PSF for reference
     noise_level: float
+    center_offset_pixels: tuple[float, float] = (0.0, 0.0)
+    background_level: float = 0.0
+    bandwidth_fraction: float = 0.0
+    field_defocus_waves: float = 0.0
 
 
 def generate_synthetic_psf(
@@ -43,6 +48,11 @@ def generate_synthetic_psf(
     telescope: TelescopeType = TelescopeType.GENERIC_CIRCULAR,
     wavelength_m: float = 606e-9,
     random_seed: int = 42,
+    center_offset_pixels: tuple[float, float] = (0.0, 0.0),
+    background_level: float = 0.0,
+    bandwidth_fraction: float = 0.0,
+    spectral_samples: int = 1,
+    field_defocus_waves: float = 0.0,
 ) -> SyntheticDataset:
     """Generate a synthetic PSF with configurable aberrations and noise.
 
@@ -82,6 +92,9 @@ def generate_synthetic_psf(
         n_spiders=4 if telescope == TelescopeType.HST else 0,
         wavelength_m=wavelength_m,
         pixel_scale_arcsec=0.04,
+        bandwidth_fraction=bandwidth_fraction,
+        spectral_samples=spectral_samples,
+        field_defocus_waves=field_defocus_waves,
     )
     pupil = build_pupil(pupil_cfg)
     support = pupil.amplitude > 0
@@ -96,12 +109,30 @@ def generate_synthetic_psf(
     )
 
     # Generate noiseless PSF
-    g = pupil.amplitude * np.exp(1j * true_phase)
-    ft = fftshift(fft2(ifftshift(g)))
-    noiseless_psf = np.abs(ft) ** 2
-    total = noiseless_psf.sum()
-    if total > 0:
-        noiseless_psf /= total
+    noiseless_psf = forward_model(
+        pupil.amplitude,
+        true_phase,
+        wavelength_m=pupil.wavelength_m,
+        bandwidth_fraction=pupil.bandwidth_fraction,
+        spectral_samples=pupil.spectral_samples,
+        field_defocus_waves=pupil.field_defocus_waves,
+        detector_sigma_pixels=pupil.detector_sigma_pixels,
+        jitter_sigma_pixels=pupil.jitter_sigma_pixels,
+        pixel_integration_width=pupil.pixel_integration_width,
+    )
+
+    if center_offset_pixels != (0.0, 0.0):
+        noiseless_psf = ndimage_shift(
+            noiseless_psf,
+            shift=center_offset_pixels,
+            order=1,
+            mode="constant",
+            cval=0.0,
+            prefilter=False,
+        ).astype(np.float64)
+        total = noiseless_psf.sum()
+        if total > 0:
+            noiseless_psf /= total
 
     # Add noise
     noisy_psf = noiseless_psf.copy()
@@ -119,6 +150,10 @@ def generate_synthetic_psf(
         noisy_psf = np.maximum(noisy_psf + read_noise, 0.0)
         noise_level += read_noise_std
 
+    if background_level > 0:
+        noisy_psf = noisy_psf + background_level
+        noise_level += background_level
+
     # Normalise
     total = noisy_psf.sum()
     if total > 0:
@@ -131,6 +166,20 @@ def generate_synthetic_psf(
         filter_name="SYNTH",
         telescope=telescope.value,
         obs_id=f"synth-{random_seed}",
+        metadata={
+            "source_kind": "synthetic",
+            "center_offset_pixels": [
+                float(center_offset_pixels[0]),
+                float(center_offset_pixels[1]),
+            ],
+            "background_level": float(background_level),
+            "photon_count": float(photon_count),
+            "read_noise_std": float(read_noise_std),
+            "rms_aberration_rad": float(rms_aberration),
+            "bandwidth_fraction": float(bandwidth_fraction),
+            "spectral_samples": int(spectral_samples),
+            "field_defocus_waves": float(field_defocus_waves),
+        },
     )
 
     return SyntheticDataset(
@@ -139,6 +188,10 @@ def generate_synthetic_psf(
         true_phase=true_phase,
         true_psf=noiseless_psf,
         noise_level=noise_level,
+        center_offset_pixels=(float(center_offset_pixels[0]), float(center_offset_pixels[1])),
+        background_level=float(background_level),
+        bandwidth_fraction=float(bandwidth_fraction),
+        field_defocus_waves=float(field_defocus_waves),
     )
 
 

@@ -154,6 +154,35 @@ class TestCLI:
         assert parsed["algorithm"] == "er"
         assert "strehl_ratio" in parsed
 
+    def test_run_with_uncertainty_outputs_json(self, tmp_path, psf_data, capsys) -> None:
+        fake_fits = tmp_path / "fake.fits"
+        fake_fits.touch()
+        out_dir = tmp_path / "unc_out"
+
+        with (
+            patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
+            patch("src.data.loader.prepare_psf_for_retrieval", return_value=psf_data.image),
+        ):
+            main(
+                [
+                    "run",
+                    "--algorithm",
+                    "er",
+                    "--iterations",
+                    "4",
+                    "--uncertainty-samples",
+                    "2",
+                    "--fits",
+                    str(fake_fits),
+                    "-o",
+                    str(out_dir),
+                    "--quiet",
+                ]
+            )
+
+        capsys.readouterr()
+        assert (out_dir / "uncertainty_er.json").exists()
+
     def test_log_format_json(self, capsys) -> None:
         """--log-format json should not crash."""
         main(["--log-format", "json", "download", "--list"])

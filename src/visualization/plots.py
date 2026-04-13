@@ -919,7 +919,10 @@ def plot_benchmark_case_heatmap(
     case_idx = {name: idx for idx, name in enumerate(cases)}
     alg_idx = {name: idx for idx, name in enumerate(algorithms)}
     for row in records:
-        matrix[case_idx[str(row["case"])] , alg_idx[str(row["algorithm"]).upper()]] = float(row[metric])
+        matrix[
+            case_idx[str(row["case"])],
+            alg_idx[str(row["algorithm"]).upper()],
+        ] = float(row[metric])
 
     fig, ax = plt.subplots(figsize=(1.2 * len(algorithms) + 4, 0.8 * len(cases) + 3))
     im = ax.imshow(matrix, cmap="viridis", aspect="auto")
@@ -929,12 +932,24 @@ def plot_benchmark_case_heatmap(
     ax.set_yticklabels(cases, color="black")
     ax.set_xlabel("Algorithm")
     ax.set_ylabel("Benchmark case")
-    ax.set_title(f"Benchmark Heatmap — {metric.replace('_', ' ').title()}", color="black", fontweight="bold")
+    ax.set_title(
+        f"Benchmark Heatmap — {metric.replace('_', ' ').title()}",
+        color="black",
+        fontweight="bold",
+    )
 
     for i in range(len(cases)):
         for j in range(len(algorithms)):
             if np.isfinite(matrix[i, j]):
-                ax.text(j, i, f"{matrix[i, j]:.2f}", ha="center", va="center", color="white", fontsize=8)
+                ax.text(
+                    j,
+                    i,
+                    f"{matrix[i, j]:.2f}",
+                    ha="center",
+                    va="center",
+                    color="white",
+                    fontsize=8,
+                )
 
     fig.colorbar(im, ax=ax, shrink=0.85, label=metric.replace("_", " "))
     fig.tight_layout()

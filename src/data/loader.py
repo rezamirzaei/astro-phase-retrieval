@@ -8,6 +8,8 @@ from pathlib import Path
 
 import numpy as np
 from astropy.io import fits
+from scipy.ndimage import median_filter  # type: ignore[import-untyped]
+from scipy.ndimage import shift as ndimage_shift
 
 from src.models.config import DataConfig, PupilConfig
 from src.models.optics import PSFData
@@ -118,6 +120,91 @@ def find_brightest_source(image: np.ndarray, *, border: int = 50) -> tuple[int, 
     return int(idx[0]), int(idx[1])
 
 
+def load_fits_dq_mask(filepath: Path, image_shape: tuple[int, int]) -> np.ndarray | None:
+    """Load a FITS data-quality mask when a matching DQ extension exists."""
+    with fits.open(filepath) as hdul:
+        for hdu in hdul:
+            extname = str(hdu.header.get("EXTNAME", "")).upper()
+            if "DQ" not in extname or hdu.data is None:
+                continue
+            dq = np.asarray(hdu.data)
+            if dq.ndim == 2 and dq.shape == image_shape:
+                return dq != 0
+    return None
+
+
+def estimate_background_level(image: np.ndarray, *, percentile: float = 10.0) -> float:
+    """Estimate a robust background level from image-edge pixels."""
+    finite = np.isfinite(image)
+    if not np.any(finite):
+        return 0.0
+
+    nrows, ncols = image.shape
+    border = max(2, min(min(nrows, ncols) // 8, 32))
+    edge_mask = np.zeros_like(image, dtype=bool)
+    edge_mask[:border, :] = True
+    edge_mask[-border:, :] = True
+    edge_mask[:, :border] = True
+    edge_mask[:, -border:] = True
+
+    edge_values = image[edge_mask & finite]
+    if edge_values.size == 0:
+        edge_values = image[finite]
+    return float(np.percentile(edge_values, percentile))
+
+
+def refine_source_centroid(
+    image: np.ndarray,
+    center: tuple[int, int],
+    *,
+    window_radius: int = 12,
+    method: str = "moments",
+) -> tuple[float, float]:
+    """Refine an integer source location to a subpixel flux centroid."""
+    r, c = center
+    nr, nc = image.shape
+    r0 = max(r - window_radius, 0)
+    r1 = min(r + window_radius + 1, nr)
+    c0 = max(c - window_radius, 0)
+    c1 = min(c + window_radius + 1, nc)
+
+    local = np.nan_to_num(image[r0:r1, c0:c1], nan=0.0, posinf=0.0, neginf=0.0)
+    weights = np.maximum(local, 0.0)
+    total = float(weights.sum())
+    if total <= 0:
+        return float(r), float(c)
+
+    if method == "quadratic_peak":
+        peak_r, peak_c = np.unravel_index(np.argmax(weights), weights.shape)
+
+        def _quadratic_offset(left: float, mid: float, right: float) -> float:
+            denom = left - 2.0 * mid + right
+            if abs(denom) < 1e-12:
+                return 0.0
+            return 0.5 * (left - right) / denom
+
+        row_offset = 0.0
+        col_offset = 0.0
+        if 0 < peak_r < weights.shape[0] - 1:
+            row_offset = _quadratic_offset(
+                float(weights[peak_r - 1, peak_c]),
+                float(weights[peak_r, peak_c]),
+                float(weights[peak_r + 1, peak_c]),
+            )
+        if 0 < peak_c < weights.shape[1] - 1:
+            col_offset = _quadratic_offset(
+                float(weights[peak_r, peak_c - 1]),
+                float(weights[peak_r, peak_c]),
+                float(weights[peak_r, peak_c + 1]),
+            )
+        return float(r0 + peak_r + row_offset), float(c0 + peak_c + col_offset)
+
+    y_idx, x_idx = np.indices(local.shape, dtype=np.float64)
+    row = float((weights * (y_idx + r0)).sum() / total)
+    col = float((weights * (x_idx + c0)).sum() / total)
+    return row, col
+
+
 def extract_psf_cutout(
     image: np.ndarray,
     center: tuple[int, int],
@@ -161,11 +248,89 @@ def extract_psf_cutout(
 
 
 def subtract_background(image: np.ndarray, *, percentile: float = 10.0) -> np.ndarray:
-    """Simple background subtraction using a low percentile of the image."""
-    bg = np.percentile(image[np.isfinite(image)], percentile)
+    """Background subtraction using a robust edge-based percentile estimate."""
+    bg = estimate_background_level(image, percentile=percentile)
     result = image - bg
     result[result < 0] = 0.0
     return result  # type: ignore[no-any-return]
+
+
+def recenter_psf(psf: np.ndarray) -> tuple[np.ndarray, tuple[float, float]]:
+    """Shift a PSF cutout so its flux centroid lies at the array centre."""
+    weights = np.maximum(np.nan_to_num(psf, nan=0.0, posinf=0.0, neginf=0.0), 0.0)
+    total = float(weights.sum())
+    if total <= 0:
+        return psf.copy(), (0.0, 0.0)
+
+    y_idx, x_idx = np.indices(weights.shape, dtype=np.float64)
+    row = float((weights * y_idx).sum() / total)
+    col = float((weights * x_idx).sum() / total)
+    target = (psf.shape[0] - 1) / 2.0
+    shift = (target - row, target - col)
+
+    if abs(shift[0]) < 1e-12 and abs(shift[1]) < 1e-12:
+        return psf.copy(), shift
+
+    shifted = ndimage_shift(
+        psf,
+        shift=shift,
+        order=1,
+        mode="constant",
+        cval=0.0,
+        prefilter=False,
+    )
+    return shifted.astype(np.float64), shift
+
+
+def build_quality_mask(
+    image: np.ndarray,
+    *,
+    saturation_percentile: float = 99.95,
+    hot_pixel_sigma: float = 8.0,
+) -> tuple[np.ndarray, dict[str, float]]:
+    """Build a mask for non-finite, saturated, and isolated hot pixels."""
+    finite = np.isfinite(image)
+    mask = ~finite
+    info: dict[str, float] = {
+        "nonfinite_pixels": float(mask.sum()),
+        "saturated_pixels": 0.0,
+        "hot_pixels": 0.0,
+        "masked_fraction": 0.0,
+    }
+    if not np.any(finite):
+        info["masked_fraction"] = 1.0
+        return mask, info
+
+    finite_values = image[finite]
+    saturation_level = float(np.percentile(finite_values, saturation_percentile))
+    if np.isfinite(saturation_level):
+        saturated = image >= saturation_level
+        info["saturated_pixels"] = float(np.count_nonzero(saturated))
+        if np.count_nonzero(saturated) >= 4:
+            mask |= saturated
+
+    local_median = median_filter(np.nan_to_num(image, nan=0.0), size=3, mode="nearest")
+    residual = np.abs(np.nan_to_num(image, nan=0.0) - local_median)
+    mad = float(np.median(residual[finite]))
+    robust_scale = max(1.4826 * mad, 1e-12)
+    hot_pixels = finite & (residual > hot_pixel_sigma * robust_scale)
+    hot_pixels &= residual > max(5.0 * robust_scale, 0.0)
+    mask |= hot_pixels
+    info["hot_pixels"] = float(np.count_nonzero(hot_pixels))
+    info["masked_fraction"] = float(np.count_nonzero(mask) / mask.size)
+    info["saturation_level"] = saturation_level
+    info["hot_pixel_sigma"] = float(hot_pixel_sigma)
+    return mask, info
+
+
+def apply_quality_mask(image: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Replace masked pixels with local-median values."""
+    if not np.any(mask):
+        return image.copy()
+    filled = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64, copy=True)
+    local_median = median_filter(filled, size=3, mode="nearest")
+    filled[mask] = local_median[mask]
+    return filled
 
 
 def normalise_psf(psf: np.ndarray) -> np.ndarray:
@@ -201,16 +366,54 @@ def load_psf_from_fits(
     logger.info("Loaded %s — shape %s", filepath.name, image.shape)
 
     # Background subtraction
-    image = subtract_background(image)
+    background_level = estimate_background_level(image, percentile=data_cfg.background_percentile)
+    image = subtract_background(image, percentile=data_cfg.background_percentile)
     image = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Find brightest star
-    center = find_brightest_source(image)
-    logger.info("Brightest source at row=%d, col=%d", *center)
+    center = find_brightest_source(image, border=data_cfg.source_detection_border)
+    refined_center = refine_source_centroid(
+        image,
+        center,
+        window_radius=max(2, data_cfg.centroid_window_size // 2),
+        method=data_cfg.centroid_method,
+    )
+    logger.info(
+        "Brightest source at row=%d, col=%d; refined centroid row=%.3f, col=%.3f",
+        center[0],
+        center[1],
+        refined_center[0],
+        refined_center[1],
+    )
 
     # Extract cutout
     half = data_cfg.cutout_size // 2
-    cutout = extract_psf_cutout(image, center, half)
+    cutout = extract_psf_cutout(
+        image,
+        (int(round(refined_center[0])), int(round(refined_center[1]))),
+        half,
+    )
+
+    quality_mask, quality_info = build_quality_mask(
+        cutout,
+        saturation_percentile=data_cfg.saturation_percentile,
+        hot_pixel_sigma=data_cfg.hot_pixel_sigma,
+    )
+    dq_cutout = None
+    if data_cfg.use_dq_mask:
+        dq_mask = load_fits_dq_mask(filepath, image.shape)
+        if dq_mask is not None:
+            dq_cutout = extract_psf_cutout(
+                dq_mask.astype(np.float64),
+                (int(round(refined_center[0])), int(round(refined_center[1]))),
+                half,
+            ) > 0
+            quality_mask |= dq_cutout
+    cutout = apply_quality_mask(cutout, quality_mask)
+
+    recenter_shift = (0.0, 0.0)
+    if data_cfg.recenter_psf:
+        cutout, recenter_shift = recenter_psf(cutout)
 
     # Normalise
     cutout = normalise_psf(cutout)
@@ -249,13 +452,41 @@ def load_psf_from_fits(
             "source_filename": filepath.name,
             "source_sha256": _file_sha256(filepath),
             "file_size_bytes": file_size,
+            "background_level": background_level,
+            "background_percentile": float(data_cfg.background_percentile),
             "brightest_source_center_rowcol": [int(center[0]), int(center[1])],
+            "refined_source_centroid_rowcol": [float(refined_center[0]), float(refined_center[1])],
             "cutout_size": int(data_cfg.cutout_size),
             "prepared_shape": [int(cutout.shape[0]), int(cutout.shape[1])],
+            "centroid_window_size": int(data_cfg.centroid_window_size),
+            "centroid_method": data_cfg.centroid_method,
+            "recenter_psf": bool(data_cfg.recenter_psf),
+            "recenter_shift_rowcol": [float(recenter_shift[0]), float(recenter_shift[1])],
+            "quality_mask": {
+                "masked_pixels": int(np.count_nonzero(quality_mask)),
+                "masked_fraction": float(quality_info["masked_fraction"]),
+                "nonfinite_pixels": int(quality_info["nonfinite_pixels"]),
+                "saturated_pixels": int(quality_info["saturated_pixels"]),
+                "hot_pixels": int(quality_info["hot_pixels"]),
+                "dq_pixels": int(np.count_nonzero(dq_cutout)) if dq_cutout is not None else 0,
+                "saturation_level": float(quality_info.get("saturation_level", 0.0)),
+                "hot_pixel_sigma": float(
+                    quality_info.get("hot_pixel_sigma", data_cfg.hot_pixel_sigma)
+                ),
+            },
             "preprocessing": [
-                "background_subtraction_percentile_10",
+                f"background_subtraction_edge_percentile_{data_cfg.background_percentile:g}",
                 "nan_to_num",
+                "brightest_source_detection",
+                "local_flux_centroid_refinement",
                 "brightest_source_cutout",
+                "dq_mask_repair" if dq_cutout is not None else "dq_mask_unavailable",
+                "quality_mask_repair",
+                (
+                    "subpixel_recentering"
+                    if data_cfg.recenter_psf
+                    else "subpixel_recentering_disabled"
+                ),
                 "unit_sum_normalisation",
             ],
             "header": header_subset,

@@ -216,9 +216,11 @@ def _cmd_run(args: argparse.Namespace) -> None:
         default_hst_config,
     )
     from src.reporting import build_evaluation_payload, write_evaluation_report
+    from src.uncertainty import run_uncertainty_analysis
 
     config = default_hst_config()
     config.output_dir = Path(args.output_dir)
+    config.uncertainty_samples = getattr(args, "uncertainty_samples", 0)
 
     psf_resized, pupil, config = _load_psf_and_pupil(args, config)
 
@@ -244,9 +246,32 @@ def _cmd_run(args: argparse.Namespace) -> None:
     support = pupil.amplitude > 0
     zernike_coeffs = zernike_decomposition(result.recovered_phase, support)
     ssim = compute_ssim(psf_resized.image, result.reconstructed_psf)
-    radial_profile_error = compute_radial_profile_error(psf_resized.image, result.reconstructed_psf)
-    encircled_energy_error = compute_encircled_energy_error(psf_resized.image, result.reconstructed_psf)
+    radial_profile_error = compute_radial_profile_error(
+        psf_resized.image,
+        result.reconstructed_psf,
+    )
+    encircled_energy_error = compute_encircled_energy_error(
+        psf_resized.image,
+        result.reconstructed_psf,
+    )
     convergence = summarise_convergence(result.cost_history)
+    uncertainty_summary: dict[str, Any] = {}
+    if config.uncertainty_samples > 0:
+        uncertainty = run_uncertainty_analysis(
+            psf_data=psf_resized,
+            pupil=pupil,
+            algorithm_config=alg_cfg,
+            n_samples=config.uncertainty_samples,
+            shift_sigma_pixels=config.uncertainty_shift_sigma_pixels,
+            background_sigma_fraction=config.uncertainty_background_sigma_fraction,
+            noise_sigma_fraction=config.uncertainty_noise_sigma_fraction,
+            seed=config.uncertainty_seed,
+        )
+        uncertainty_summary = {
+            "n_samples": uncertainty.n_samples,
+            "summary": uncertainty.summary,
+            "sample_records": uncertainty.sample_records,
+        }
 
     summary = {
         "algorithm": result.algorithm.value,
@@ -279,6 +304,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     out_path = config.output_dir / f"result_{alg_name.value}.json"
     out_path.write_text(json.dumps(summary, indent=2))
+    if uncertainty_summary:
+        (config.output_dir / f"uncertainty_{alg_name.value}.json").write_text(
+            json.dumps(uncertainty_summary, indent=2)
+        )
     evaluation_payload = build_evaluation_payload(
         psf_metadata={**psf_resized.metadata, "obs_id": psf_resized.obs_id},
         algorithm_name=alg_name.value,
@@ -295,10 +324,19 @@ def _cmd_run(args: argparse.Namespace) -> None:
         pupil_summary={
             "grid_size": pupil.grid_size,
             "support_pixels": int((pupil.amplitude > 0).sum()),
+            "approximate_model": True,
+            "wavelength_m": pupil.wavelength_m,
+            "bandwidth_fraction": pupil.bandwidth_fraction,
+            "spectral_samples": pupil.spectral_samples,
+            "field_defocus_waves": pupil.field_defocus_waves,
+            "detector_sigma_pixels": pupil.detector_sigma_pixels,
+            "jitter_sigma_pixels": pupil.jitter_sigma_pixels,
+            "pixel_integration_width": pupil.pixel_integration_width,
         },
         metrics={
             **summary,
             "convergence": convergence,
+            "uncertainty": uncertainty_summary,
         },
         zernike_coefficients=zernike_coeffs,
     )
@@ -320,7 +358,11 @@ def _cmd_compare(args: argparse.Namespace) -> None:
     """Run all algorithms and print a comparison table."""
     from src.algorithms.multi_start import multi_start_run
     from src.algorithms.registry import AlgorithmRegistry
-    from src.metrics.quality import compute_encircled_energy_error, compute_radial_profile_error, compute_ssim
+    from src.metrics.quality import (
+        compute_encircled_energy_error,
+        compute_radial_profile_error,
+        compute_ssim,
+    )
     from src.models.config import (
         AlgorithmConfig,
         AlgorithmName,
@@ -381,7 +423,10 @@ def _cmd_compare(args: argparse.Namespace) -> None:
             "strehl_ratio": result.strehl_ratio,
             "rms_phase_rad": result.rms_phase_rad,
             "ssim": compute_ssim(psf_resized.image, result.reconstructed_psf),
-            "radial_profile_error": compute_radial_profile_error(psf_resized.image, result.reconstructed_psf),
+            "radial_profile_error": compute_radial_profile_error(
+                psf_resized.image,
+                result.reconstructed_psf,
+            ),
             "encircled_energy_error": compute_encircled_energy_error(
                 psf_resized.image,
                 result.reconstructed_psf,
@@ -519,6 +564,12 @@ def _add_common_algo_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--n-starts", type=int, default=1, help="Multi-start: number of random restarts"
+    )
+    parser.add_argument(
+        "--uncertainty-samples",
+        type=int,
+        default=0,
+        help="Perturbation runs for uncertainty estimation (0=off)",
     )
     parser.add_argument(
         "--quiet", "-q", action="store_true", help="Suppress progress output (useful for scripting)"

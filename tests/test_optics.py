@@ -110,6 +110,42 @@ class TestPropagation:
         support = pupil.amplitude > 0
         assert np.any(defocused[support] != 0.0)
 
+    def test_forward_model_detector_effects_preserve_normalisation(self, pupil) -> None:
+        phase = np.zeros_like(pupil.amplitude)
+        psf = forward_model(
+            pupil.amplitude,
+            phase,
+            detector_sigma_pixels=0.7,
+            jitter_sigma_pixels=0.3,
+            pixel_integration_width=1.5,
+        )
+        assert psf.sum() == pytest.approx(1.0, abs=1e-10)
+
+    def test_forward_model_detector_effects_reduce_peak(self, pupil) -> None:
+        phase = np.zeros_like(pupil.amplitude)
+        sharp = forward_model(pupil.amplitude, phase)
+        blurred = forward_model(
+            pupil.amplitude,
+            phase,
+            detector_sigma_pixels=0.8,
+            pixel_integration_width=1.8,
+        )
+        assert blurred.max() < sharp.max()
+
+    def test_forward_model_polychromatic_effects_reduce_peak(self, pupil) -> None:
+        phase = np.zeros_like(pupil.amplitude)
+        mono = forward_model(pupil.amplitude, phase, wavelength_m=606e-9)
+        poly = forward_model(
+            pupil.amplitude,
+            phase,
+            wavelength_m=606e-9,
+            bandwidth_fraction=0.15,
+            spectral_samples=5,
+            field_defocus_waves=0.1,
+        )
+        assert poly.sum() == pytest.approx(1.0, abs=1e-10)
+        assert poly.max() < mono.max()
+
 
 # ── Zernike polynomials ──────────────────────────────────────────────────
 

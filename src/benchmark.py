@@ -43,6 +43,11 @@ class BenchmarkCase:
     rms_aberration: float = 0.5
     photon_count: float = 0.0
     read_noise_std: float = 0.0
+    center_offset_pixels: tuple[float, float] = (0.0, 0.0)
+    background_level: float = 0.0
+    bandwidth_fraction: float = 0.0
+    spectral_samples: int = 1
+    field_defocus_waves: float = 0.0
     telescope: TelescopeType = TelescopeType.GENERIC_CIRCULAR
     seed: int = 42
 
@@ -68,6 +73,14 @@ class BenchmarkSummary:
                     "rms_aberration": case.rms_aberration,
                     "photon_count": case.photon_count,
                     "read_noise_std": case.read_noise_std,
+                    "center_offset_pixels": [
+                        float(case.center_offset_pixels[0]),
+                        float(case.center_offset_pixels[1]),
+                    ],
+                    "background_level": case.background_level,
+                    "bandwidth_fraction": case.bandwidth_fraction,
+                    "spectral_samples": case.spectral_samples,
+                    "field_defocus_waves": case.field_defocus_waves,
                     "telescope": case.telescope.value,
                     "seed": case.seed,
                 }
@@ -85,23 +98,39 @@ class BenchmarkSummary:
             "",
             "## Cases",
             "",
-            "| Key | Description | Grid | RMS (rad) | Photons | Read noise | Telescope |",
-            "|-----|-------------|-----:|----------:|--------:|-----------:|-----------|",
+            (
+                "| Key | Description | Grid | RMS (rad) | Photons | Read noise | "
+                "Offset (px) | Background | Telescope |"
+            ),
+            (
+                "|-----|-------------|-----:|----------:|--------:|-----------:|"
+                "------------:|-----------:|-----------|"
+            ),
         ]
-        for case in self.cases:
-            lines.append(
+        lines.extend(
+            [
                 "| "
                 f"{case.key} | {case.description} | {case.grid_size} | {case.rms_aberration:.2f} | "
-                f"{case.photon_count:.0f} | {case.read_noise_std:.2e} | {case.telescope.value} |"
-            )
+                f"{case.photon_count:.0f} | {case.read_noise_std:.2e} | "
+                f"{np.hypot(*case.center_offset_pixels):.2f} | {case.background_level:.2e} | "
+                f"{case.telescope.value} |"
+                for case in self.cases
+            ]
+        )
 
         lines.extend(
             [
                 "",
                 "## Aggregate ranking",
                 "",
-                "| Rank | Algorithm | Score | SSIM | Phase RMS err | Radial err | EE err | Converged | Time (s) |",
-                "|-----:|-----------|------:|-----:|--------------:|-----------:|-------:|----------:|---------:|",
+                (
+                    "| Rank | Algorithm | Score | SSIM | Phase RMS err | "
+                    "Radial err | EE err | Converged | Time (s) |"
+                ),
+                (
+                    "|-----:|-----------|------:|-----:|--------------:|"
+                    "-----------:|-------:|----------:|---------:|"
+                ),
             ]
         )
         for idx, row in enumerate(self.aggregate, start=1):
@@ -112,6 +141,17 @@ class BenchmarkSummary:
                 f"{row['mean_encircled_energy_error']:.4f} | {row['converged_fraction']:.2f} | "
                 f"{row['mean_elapsed_seconds']:.3f} |"
             )
+        lines.extend(
+            [
+                "",
+                "## Limits",
+                "",
+                "These benchmarks are deterministic synthetic stress tests. They improve internal "
+                "validation, but they are not a substitute for external "
+                "instrument-grade validation against trusted datasets or "
+                "literature baselines.",
+            ]
+        )
         return "\n".join(lines) + "\n"
 
 
@@ -150,6 +190,36 @@ _DEFAULT_CASES: dict[str, BenchmarkCase] = {
         read_noise_std=1e-5,
         telescope=TelescopeType.HST,
         seed=44,
+    ),
+    "miscentered-hst": BenchmarkCase(
+        key="miscentered-hst",
+        description="Moderate-aberration HST-like PSF with subpixel centroid offset",
+        grid_size=64,
+        rms_aberration=0.50,
+        center_offset_pixels=(0.75, -0.45),
+        telescope=TelescopeType.HST,
+        seed=55,
+    ),
+    "background-hst": BenchmarkCase(
+        key="background-hst",
+        description="Moderate-aberration HST-like PSF with residual background pedestal",
+        grid_size=64,
+        rms_aberration=0.50,
+        photon_count=40_000,
+        background_level=2e-6,
+        telescope=TelescopeType.HST,
+        seed=66,
+    ),
+    "broadband-hst": BenchmarkCase(
+        key="broadband-hst",
+        description="Moderate-aberration HST-like PSF with simple polychromatic blur",
+        grid_size=64,
+        rms_aberration=0.50,
+        bandwidth_fraction=0.12,
+        spectral_samples=5,
+        field_defocus_waves=0.15,
+        telescope=TelescopeType.HST,
+        seed=77,
     ),
 }
 
@@ -323,6 +393,11 @@ def run_benchmark(
             rms_aberration=case.rms_aberration,
             photon_count=case.photon_count,
             read_noise_std=case.read_noise_std,
+            center_offset_pixels=case.center_offset_pixels,
+            background_level=case.background_level,
+            bandwidth_fraction=case.bandwidth_fraction,
+            spectral_samples=case.spectral_samples,
+            field_defocus_waves=case.field_defocus_waves,
             telescope=case.telescope,
             random_seed=case.seed,
         )
@@ -361,8 +436,19 @@ def run_benchmark(
                 "true_phase_rms_rad": true_rms,
                 "photon_count": case.photon_count,
                 "read_noise_std": case.read_noise_std,
+                "center_offset_pixels": [
+                    float(case.center_offset_pixels[0]),
+                    float(case.center_offset_pixels[1]),
+                ],
+                "background_level": case.background_level,
+                "bandwidth_fraction": case.bandwidth_fraction,
+                "spectral_samples": case.spectral_samples,
+                "field_defocus_waves": case.field_defocus_waves,
                 "ssim": compute_ssim(dataset.psf_data.image, result.reconstructed_psf),
                 "phase_rms_error_rad": _phase_rms_error(dataset, result.recovered_phase),
+                "phase_active_fraction": float(
+                    np.mean(np.abs(result.recovered_phase[support]) > 1e-3)
+                ),
                 "radial_profile_error": compute_radial_profile_error(
                     dataset.psf_data.image,
                     result.reconstructed_psf,
@@ -382,9 +468,12 @@ def run_benchmark(
             records.append(record)
 
     aggregate = _aggregate_records(records)
-    summary = BenchmarkSummary(cases=selected_cases, records=records, aggregate=aggregate, output_dir=output_dir)
+    summary = BenchmarkSummary(
+        cases=selected_cases,
+        records=records,
+        aggregate=aggregate,
+        output_dir=output_dir,
+    )
     if output_dir is not None:
         _write_reports(summary, output_dir)
     return summary
-
-

@@ -227,9 +227,29 @@ class PhaseRetriever(ABC):
         #   base → propagator → (potentially) base
         from src.optics.propagator import forward_model
 
-        recon_psf = forward_model(pupil_amp, phase)
+        recon_psf = forward_model(
+            pupil_amp,
+            phase,
+            wavelength_m=self.pupil.wavelength_m,
+            bandwidth_fraction=self.pupil.bandwidth_fraction,
+            spectral_samples=self.pupil.spectral_samples,
+            field_defocus_waves=self.pupil.field_defocus_waves,
+            detector_sigma_pixels=self.pupil.detector_sigma_pixels,
+            jitter_sigma_pixels=self.pupil.jitter_sigma_pixels,
+            pixel_integration_width=self.pupil.pixel_integration_width,
+        )
         rms = compute_rms_phase(phase, support)
-        strehl = compute_strehl_ratio(recon_psf, pupil_amp)
+        strehl = compute_strehl_ratio(
+            recon_psf,
+            pupil_amp,
+            wavelength_m=self.pupil.wavelength_m,
+            bandwidth_fraction=self.pupil.bandwidth_fraction,
+            spectral_samples=self.pupil.spectral_samples,
+            field_defocus_waves=self.pupil.field_defocus_waves,
+            detector_sigma_pixels=self.pupil.detector_sigma_pixels,
+            jitter_sigma_pixels=self.pupil.jitter_sigma_pixels,
+            pixel_integration_width=self.pupil.pixel_integration_width,
+        )
 
         return PhaseRetrievalResult(
             algorithm=self.config.name,

@@ -76,15 +76,24 @@ class SparsePhaseRetrieval(PhaseRetriever):
 
         # Adaptive threshold: decreases over iterations for refinement
         decay = max(0.1, 1.0 - iteration / max(self.config.max_iterations, 1))
-        threshold = sparsity_level * decay * np.max(np.abs(phase[support]))
+        support_phase = np.abs(phase[support])
+        threshold = sparsity_level * decay * np.max(support_phase)
 
         if self.config.regulariser == Regulariser.L1_WAVELET:
             # Soft thresholding
             phase_thresholded = np.sign(phase) * np.maximum(np.abs(phase) - threshold, 0.0)
         else:
-            # Hard thresholding (default for sparse PR)
+            # Hard thresholding with an explicit keep-fraction on the support.
             phase_thresholded = phase.copy()
             phase_thresholded[np.abs(phase) < threshold] = 0.0
+            keep_count = max(
+                1,
+                int(np.ceil(self.config.sparsity_keep_fraction * np.count_nonzero(support))),
+            )
+            active_values = np.abs(phase_thresholded[support])
+            if active_values.size > keep_count:
+                topk_threshold = float(np.partition(active_values, -keep_count)[-keep_count])
+                phase_thresholded[np.abs(phase_thresholded) < topk_threshold] = 0.0
 
         # ── Project onto pupil support ────────────────────────────────
         g_out = np.zeros_like(g_new)

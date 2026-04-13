@@ -42,7 +42,18 @@ def compute_rms_phase(phase: np.ndarray, support: np.ndarray) -> float:
     return float(np.sqrt(np.mean(vals**2)))
 
 
-def compute_strehl_ratio(psf: np.ndarray, pupil_amplitude: np.ndarray) -> float:
+def compute_strehl_ratio(
+    psf: np.ndarray,
+    pupil_amplitude: np.ndarray,
+    *,
+    wavelength_m: float = 606e-9,
+    bandwidth_fraction: float = 0.0,
+    spectral_samples: int = 1,
+    field_defocus_waves: float = 0.0,
+    detector_sigma_pixels: float = 0.0,
+    jitter_sigma_pixels: float = 0.0,
+    pixel_integration_width: float = 1.0,
+) -> float:
     """Estimate the Strehl ratio.
 
     Strehl = peak(aberrated PSF) / peak(diffraction-limited PSF).
@@ -70,7 +81,26 @@ def compute_strehl_ratio(psf: np.ndarray, pupil_amplitude: np.ndarray) -> float:
     1.0
     """
     # Diffraction-limited PSF (zero phase)
-    perfect_psf = pupil_to_psf(make_complex_pupil(pupil_amplitude, np.zeros_like(pupil_amplitude)))
+    perfect_psf = pupil_to_psf(
+        make_complex_pupil(pupil_amplitude, np.zeros_like(pupil_amplitude)),
+        detector_sigma_pixels=detector_sigma_pixels,
+        jitter_sigma_pixels=jitter_sigma_pixels,
+        pixel_integration_width=pixel_integration_width,
+    )
+    if bandwidth_fraction > 0 or spectral_samples > 1 or field_defocus_waves != 0:
+        from src.optics.propagator import forward_model  # noqa: PLC0415
+
+        perfect_psf = forward_model(
+            pupil_amplitude,
+            np.zeros_like(pupil_amplitude),
+            wavelength_m=wavelength_m,
+            bandwidth_fraction=bandwidth_fraction,
+            spectral_samples=spectral_samples,
+            field_defocus_waves=field_defocus_waves,
+            detector_sigma_pixels=detector_sigma_pixels,
+            jitter_sigma_pixels=jitter_sigma_pixels,
+            pixel_integration_width=pixel_integration_width,
+        )
     peak_perfect = perfect_psf.max()
     peak_aberrated = psf.max()
     if peak_perfect == 0:
@@ -265,7 +295,11 @@ def summarise_convergence(cost_history: list[float]) -> dict[str, float]:
 
     decreases = 0
     if len(cost_history) > 1:
-        decreases = sum(1 for prev, cur in zip(cost_history[:-1], cost_history[1:]) if cur <= prev)
+        decreases = sum(
+            1
+            for prev, cur in zip(cost_history[:-1], cost_history[1:], strict=False)
+            if cur <= prev
+        )
         monotonic_fraction = decreases / (len(cost_history) - 1)
     else:
         monotonic_fraction = 1.0

@@ -122,6 +122,22 @@ class TestSparsePR:
         result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
         assert result.recovered_phase.shape == (pupil.grid_size, pupil.grid_size)
 
+    def test_sparse_pr_keep_fraction_limits_active_support(
+        self,
+        pupil: PupilModel,
+        psf_data: PSFData,
+    ) -> None:
+        cfg = AlgorithmConfig(
+            name=AlgorithmName.SPARSE_PR,
+            max_iterations=20,
+            sparsity_keep_fraction=0.05,
+            random_seed=42,
+        )
+        result = AlgorithmRegistry.create(cfg, pupil).run(psf_data)
+        support = pupil.amplitude > 0
+        active_fraction = float(np.mean(np.abs(result.recovered_phase[support]) > 1e-6))
+        assert active_fraction <= 0.20
+
 
 # ---------------------------------------------------------------------------
 # Synthetic data generator tests
