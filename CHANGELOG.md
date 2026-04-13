@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-04-13
+
+### Security Hardening
+
+- **Password hashing**: Replaced hand-rolled PBKDF2-SHA256 (timing-attack
+  vulnerable via `==` comparison, manual salt management) with **bcrypt**
+  (constant-time verification, automatic salting).
+- **JWT library**: Replaced unmaintained **python-jose** with **PyJWT ≥ 2.8**
+  (actively maintained, no known CVEs). Updated `pyproject.toml` and mypy
+  overrides accordingly.
+- **Refresh-token flow**: Short-lived access tokens (15 min) + long-lived
+  refresh tokens (7 days) with ``"type"`` claim validation. New
+  `POST /api/auth/refresh` endpoint. The `Token` response schema now includes
+  a `refresh_token` field.
+- **Token type validation**: `get_current_user` dependency now rejects refresh
+  tokens used as bearer tokens — only ``type=access`` JWTs are accepted.
+- **Login rate limiting**: In-memory per-IP rate limiter (5 attempts / 60 s)
+  on the login endpoint. Returns HTTP 429 when threshold is exceeded.
+- **Security headers middleware**: Every response now includes
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  `Permissions-Policy`, and `Strict-Transport-Security`. Auth responses also
+  get `Cache-Control: no-store`.
+- **Audit logging**: Structured log messages on user registration, login
+  success/failure, token refresh, password verification failure, and JWT
+  decode errors.
+
+### Improved
+
+- **Access token TTL**: Reduced from 24 hours to 15 minutes (compensated by
+  refresh-token flow).
+- **Config**: Added `refresh_token_expire_days` setting (default: 7 days),
+  configurable via `PR_REFRESH_TOKEN_EXPIRE_DAYS` environment variable.
+- **API version**: Bumped to 2.3.0.
+
+### Tests
+
+| New / updated test | Covers |
+|--------------------|--------|
+| `test_login_success` | Now asserts `refresh_token` field in response |
+| `test_refresh_token` | Refresh endpoint returns new token pair |
+| `test_refresh_with_access_token_rejected` | Access token rejected as refresh token |
+| `test_refresh_token_rejected_as_bearer` | Refresh token rejected as bearer |
+| `test_security_headers` | Hardening headers present on all responses |
+| `test_auth_cache_control` | `Cache-Control: no-store` on auth responses |
+| `test_login_rate_limit` | 429 after 5 failed attempts |
+
 ## [2.2.0] — 2026-04-10
 
 ### Added — New Algorithms

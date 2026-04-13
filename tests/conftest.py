@@ -6,6 +6,8 @@ or network access required.
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pytest
 from numpy.fft import fft2, fftshift, ifftshift
@@ -15,6 +17,25 @@ from src.models.optics import PSFData, PupilModel
 from src.optics.pupils import build_pupil
 
 GRID = 64
+
+
+# ---------------------------------------------------------------------------
+# Global: reset the web login rate limiter before every test (if loaded)
+# ---------------------------------------------------------------------------
+
+_HAS_WEB = importlib.util.find_spec("fastapi") is not None
+
+
+@pytest.fixture(autouse=True)
+def _reset_web_rate_limiter() -> None:  # type: ignore[misc]
+    """Clear the in-memory login rate limiter before every test."""
+    if _HAS_WEB:
+        try:
+            import web.routers.auth as _auth_mod
+
+            _auth_mod._login_attempts.clear()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 @pytest.fixture()

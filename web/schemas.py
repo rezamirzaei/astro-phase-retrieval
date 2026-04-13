@@ -58,10 +58,17 @@ class UserResponse(BaseModel):
 
 
 class Token(BaseModel):
-    """JWT response."""
+    """JWT response (access + refresh token pair)."""
 
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
+
+
+class RefreshRequest(BaseModel):
+    """POST /api/auth/refresh body."""
+
+    refresh_token: str
 
 
 class LoginRequest(BaseModel):

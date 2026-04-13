@@ -19,7 +19,7 @@ import logging.config
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from web.config import settings
@@ -115,7 +115,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="Phase Retrieval — Web API",
-    version="2.2.0",
+    version="2.3.0",
     description=(
         "REST API for astronomical wavefront sensing and X-ray crystallography: "
         "run state-of-the-art phase-retrieval algorithms, compare results, "
@@ -134,6 +134,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Security headers middleware — defence-in-depth
+# ---------------------------------------------------------------------------
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
+    """Inject hardening headers into every response."""
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # HSTS — enable when serving behind TLS
+    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    # Prevent caching of auth responses
+    if "/api/auth/" in request.url.path:
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 # Mount all routers
 app.include_router(auth.router)

@@ -21,8 +21,18 @@ def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: DbSession,
 ) -> User:
-    """Resolve the authenticated user from the JWT bearer token."""
+    """Resolve the authenticated user from the JWT bearer token.
+
+    Rejects refresh tokens — only ``type=access`` JWTs are accepted.
+    """
     payload = decode_access_token(token)
+    # Reject non-access tokens (e.g. refresh tokens used as bearer)
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     sub = payload.get("sub")
     if sub is None:
         raise HTTPException(

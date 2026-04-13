@@ -1,6 +1,6 @@
 [project]
 name = "phase-retrieval"
-version = "2.2.0"
+version = "2.3.0"
 description = "Production-ready phase retrieval with state-of-the-art algorithms for real-world HST/JWST astronomical wavefront sensing and X-ray crystallography"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
@@ -52,8 +52,8 @@ web = [
     "uvicorn[standard]>=0.27",
     "sqlalchemy>=2.0",
     "alembic>=1.13",
-    "python-jose[cryptography]>=3.3",
-    "passlib[bcrypt]>=1.7",
+    "PyJWT>=2.8",
+    "bcrypt>=4.0",
     "python-multipart>=0.0.9",
     "pydantic-settings>=2.0",
     "httpx>=0.27",
@@ -140,9 +140,8 @@ warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["astroquery.*", "astropy.*", "skimage.*", "torch.*", "scipy.*", "jose.*", "tifffile.*"]
+module = ["astroquery.*", "astropy.*", "skimage.*", "torch.*", "scipy.*", "jwt.*", "bcrypt.*"]
 ignore_missing_imports = true
-follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = ["tests.*", "main", "_diag", "_gen_notebook", "_test_synth", "web.alembic.*"]

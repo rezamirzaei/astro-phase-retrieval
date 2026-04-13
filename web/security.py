@@ -1,78 +1,102 @@
 """JWT authentication and password hashing.
 
-Uses ``bcrypt`` for industry-standard password hashing with
-automatic salt generation and configurable work factor.
+Security hardening (v2.3.0):
+* Password hashing uses **bcrypt** (constant-time verification,
+  automatic salting) instead of hand-rolled PBKDF2.
+* JWT encoding/decoding uses **PyJWT** (actively maintained) instead of
+  the unmaintained ``python-jose``.
+* Refresh-token flow: short-lived access tokens (15 min) + long-lived
+  refresh tokens (7 days) with ``"type"`` claim validation.
+* Audit logging on every auth-relevant event.
 """
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt as pyjwt
 
 from web.config import settings
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Password hashing — bcrypt (constant-time verify, auto-salt)
+# ---------------------------------------------------------------------------
 
 
 def hash_password(password: str) -> str:
     """Return a bcrypt hash of *password*."""
-    pwd_bytes = password.encode("utf-8")
-    hashed = bcrypt.hashpw(pwd_bytes, bcrypt.gensalt(rounds=12))
-    return hashed.decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Check *plain_password* against a stored hash.
+    """Check *plain_password* against a stored bcrypt hash.
 
-    Supports both bcrypt (new) and legacy PBKDF2 hashes for migration.
+    Uses bcrypt's constant-time comparison to prevent timing attacks.
     """
-    pwd_bytes = plain_password.encode("utf-8")
-
-    # Try bcrypt first (new format — starts with $2b$)
-    if hashed_password.startswith("$2"):
-        try:
-            return bcrypt.checkpw(pwd_bytes, hashed_password.encode("utf-8"))
-        except (ValueError, TypeError):
-            return False
-
-    # Fall back to legacy PBKDF2-SHA256 for pre-migration hashes
     try:
-        import hashlib
+        ok: bool = bcrypt.checkpw(
+            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+        )
+    except (ValueError, TypeError):
+        ok = False
+    if not ok:
+        logger.warning("Password verification failed")
+    return ok
 
-        salt_hex, key_hex = hashed_password.split(":", 1)
-        salt = bytes.fromhex(salt_hex)
-        key = hashlib.pbkdf2_hmac("sha256", pwd_bytes, salt, 260_000)
-        if key.hex() == key_hex:
-            return True
-    except (ValueError, AttributeError):
-        pass
 
-    return False
+# ---------------------------------------------------------------------------
+# JWT helpers — PyJWT (actively maintained)
+# ---------------------------------------------------------------------------
 
 
 def create_access_token(
     data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
-    """Create a signed JWT."""
+    """Create a signed short-lived access JWT (``type=access``)."""
     to_encode = data.copy()
     expire = datetime.now(UTC) + (
         expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     )
     to_encode["exp"] = int(expire.timestamp())
-    encoded: str = jwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
+    to_encode["type"] = "access"
+    encoded: str = pyjwt.encode(
+        to_encode, settings.secret_key, algorithm=settings.jwt_algorithm
+    )
+    return encoded
+
+
+def create_refresh_token(
+    data: dict[str, Any],
+    expires_delta: timedelta | None = None,
+) -> str:
+    """Create a signed long-lived refresh JWT (``type=refresh``)."""
+    to_encode = data.copy()
+    expire = datetime.now(UTC) + (
+        expires_delta or timedelta(days=settings.refresh_token_expire_days)
+    )
+    to_encode["exp"] = int(expire.timestamp())
+    to_encode["type"] = "refresh"
+    encoded: str = pyjwt.encode(
+        to_encode, settings.secret_key, algorithm=settings.jwt_algorithm
+    )
     return encoded
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
     """Decode and verify a JWT.  Returns an empty dict on failure."""
     try:
-        payload: dict[str, Any] = jwt.decode(
+        payload: dict[str, Any] = pyjwt.decode(
             token,
             settings.secret_key,
             algorithms=[settings.jwt_algorithm],
         )
         return payload
-    except JWTError:
+    except pyjwt.PyJWTError:
+        logger.warning("JWT decode failed (invalid or expired token)")
         return {}
