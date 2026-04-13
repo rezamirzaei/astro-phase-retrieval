@@ -1048,6 +1048,29 @@ code("55c", [
     "print(json.dumps({'reference_validation': best_reference, 'report_paths': {k: str(v) for k, v in report_paths.items()}}, indent=2))",
     "print(f'Verification artifacts saved to {verification_dir}')",
 ])
+md("55d", [
+    "## 22c — Cross-Observation Validation Campaign",
+    "",
+    "A stronger methods story needs more than one good reconstruction. This campaign reruns the",
+    "same algorithm across multiple real observations and reports consistency, reference coverage,",
+    "and pass rate for the available dataset slice.",
+])
+code("55e", [
+    "from src.studies import run_validation_campaign",
+    "",
+    "campaign_paths = fits_paths[: min(len(fits_paths), 3)]",
+    "campaign_dir = config.output_dir / 'validation_campaign'",
+    "campaign_payload = run_validation_campaign(",
+    "    campaign_paths,",
+    "    pipeline_config=config,",
+    "    algorithm_config=best_cfg,",
+    "    output_dir=campaign_dir,",
+    ")",
+    "",
+    "print(json.dumps(campaign_payload['summary'], indent=2))",
+    "print(json.dumps(campaign_payload['consistency'], indent=2))",
+    "print(f'Campaign artifacts saved to {campaign_dir}')",
+])
 
 # ═══════════════════════════════════════════════════════════════════════
 # Cell 56–57 — Export results to JSON

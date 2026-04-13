@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -142,6 +143,13 @@ class CompareRequest(BaseModel):
     max_iterations: int = Field(default=300, ge=1, le=10_000)
     grid_size: int = Field(default=128, ge=64, le=512)
     algorithms: list[AlgorithmName] | None = None
+
+
+class ValidationCampaignRequest(AlgorithmParams):
+    """POST /api/studies/validation-campaign body."""
+
+    fits_filenames: list[str] | None = None
+    algorithm: AlgorithmName = Field(default=AlgorithmName.RAAR)
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +314,15 @@ class ArtifactContentResponse(BaseModel):
     name: str
     format: str
     content: object | str
+
+
+class ValidationCampaignResponse(BaseModel):
+    campaign_id: str
+    selected_files: list[str]
+    summary: dict[str, Any]
+    records: list[dict[str, Any]]
+    consistency: dict[str, Any]
+    artifacts: list[str]
 
 
 # ---------------------------------------------------------------------------

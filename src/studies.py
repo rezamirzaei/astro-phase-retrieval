@@ -70,6 +70,16 @@ def _reference_summary(pipeline_result: PipelineResult) -> dict[str, Any]:
     )
 
 
+def _reference_pass(reference: dict[str, Any]) -> bool:
+    """Return whether all available reference checks are strong."""
+    if not reference:
+        return False
+    summary = reference.get("summary", {})
+    if not isinstance(summary, dict) or not summary:
+        return False
+    return all(str(value) == "strong" for value in summary.values())
+
+
 def _pipeline_record(
     pipeline_result: PipelineResult,
     *,
@@ -98,7 +108,7 @@ def _pipeline_record(
         "convergence_final_cost": pipeline_result.convergence_summary.get("final_cost", 0.0),
         "convergence_relative_drop": pipeline_result.convergence_summary.get("relative_drop", 0.0),
         "reference_available": bool(reference),
-        "reference_pass": bool(reference.get("overall_agreement", False)) if reference else False,
+        "reference_pass": _reference_pass(reference),
         "reference_fwhm_observed": (
             float(reference["observed"]["fwhm_arcsec"]) if reference else None
         ),
@@ -106,11 +116,14 @@ def _pipeline_record(
             float(reference["reconstructed"]["fwhm_arcsec"]) if reference else None
         ),
         "reference_fwhm_relative_error": (
-            float(reference["deviations"]["fwhm_relative_error"]) if reference else None
+            float(reference["deviations"]["reconstructed_fwhm_error_arcsec"])
+            if reference and "reconstructed_fwhm_error_arcsec" in reference.get("deviations", {})
+            else None
         ),
         "reference_ee_relative_error": (
-            float(reference["deviations"]["encircled_energy_relative_error"])
+            float(reference["deviations"]["reconstructed_encircled_energy_error"])
             if reference
+            and "reconstructed_encircled_energy_error" in reference.get("deviations", {})
             else None
         ),
     }

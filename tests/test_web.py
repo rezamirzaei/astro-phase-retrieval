@@ -495,3 +495,44 @@ class TestResults:
 
         # Verify gone
         assert client.get(f"/api/results/{job_id}", headers=headers).status_code == 404
+
+
+class TestStudies:
+    def test_validation_campaign_endpoint(self, client: TestClient) -> None:
+        headers = _register_and_login(client)
+        client.post(
+            "/api/data/synthetic",
+            json={
+                "name": "campaign_input",
+                "grid_size": 64,
+                "aberration_rms": 0.3,
+                "telescope": "hst",
+            },
+            headers=headers,
+        )
+        files = client.get("/api/data/fits", headers=headers).json()
+        filename = [f["filename"] for f in files if "campaign_input" in f["filename"]][0]
+
+        resp = client.post(
+            "/api/studies/validation-campaign",
+            json={
+                "fits_filenames": [filename],
+                "algorithm": "er",
+                "max_iterations": 4,
+                "grid_size": 64,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["summary"]["n_observations"] == 1
+        assert payload["selected_files"] == [filename]
+        assert "validation_campaign.json" in payload["artifacts"]
+
+        artifact_resp = client.get(
+            f"/api/studies/validation-campaigns/{payload['campaign_id']}/artifacts/validation_campaign.json",
+            headers=headers,
+        )
+        assert artifact_resp.status_code == 200
+        assert artifact_resp.json()["format"] == "json"
+        assert artifact_resp.json()["content"]["summary"]["n_observations"] == 1

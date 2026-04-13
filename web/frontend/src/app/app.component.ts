@@ -23,6 +23,7 @@ import { AuthService } from './core/auth.service';
         <button mat-button routerLink="/dashboard" routerLinkActive="active"><mat-icon>dashboard</mat-icon> Dashboard</button>
         <button mat-button routerLink="/run" routerLinkActive="active"><mat-icon>play_arrow</mat-icon> Run</button>
         <button mat-button routerLink="/compare" routerLinkActive="active"><mat-icon>compare</mat-icon> Compare</button>
+        <button mat-button routerLink="/validation" routerLinkActive="active"><mat-icon>fact_check</mat-icon> Validation</button>
         <button mat-button routerLink="/results" routerLinkActive="active"><mat-icon>assessment</mat-icon> Results</button>
         <button mat-button routerLink="/data" routerLinkActive="active"><mat-icon>storage</mat-icon> Data</button>
         <button mat-button routerLink="/crystallography" routerLinkActive="active"><mat-icon>science</mat-icon> Crystal</button>
@@ -51,4 +52,3 @@ export class AppComponent {
     this.router.navigate(['/login']);
   }
 }
-

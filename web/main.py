@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from web.config import settings
 from web.database import Base, SessionLocal, engine
 from web.models import User
-from web.routers import algorithms, auth, crystallography, data, explain, results
+from web.routers import algorithms, auth, crystallography, data, explain, results, studies
 from web.security import hash_password
 
 # ---------------------------------------------------------------------------
@@ -147,6 +147,7 @@ app.include_router(auth.router)
 app.include_router(data.router)
 app.include_router(algorithms.router)
 app.include_router(results.router)
+app.include_router(studies.router)
 app.include_router(explain.router)
 app.include_router(crystallography.router)
 

@@ -15,6 +15,14 @@ export interface CompareResponse    { results: JobResponse[]; comparison_plots: 
 export interface FitsFile          { filename: string; filepath: string; size_bytes: number; }
 export interface Preset            { key: string; description: string; verification_supported?: boolean; baseline_key?: string | null; }
 export interface ArtifactContent   { name: string; format: string; content: unknown; }
+export interface ValidationCampaignResponse {
+  campaign_id: string;
+  selected_files: string[];
+  summary: Record<string, unknown>;
+  records: Array<Record<string, unknown>>;
+  consistency: Record<string, unknown>;
+  artifacts: string[];
+}
 export interface AlgoDefaults      {
   max_iterations: number; tolerance: number; beta: number; beta_schedule: string;
   momentum: number; tv_weight: number; noise_model: string; n_starts: number;
@@ -91,6 +99,12 @@ export class ApiService {
   getPlot(jobId: number, name: string): Observable<Blob> { return this.http.get(`/api/results/${jobId}/plots/${name}`, { responseType: 'blob' }); }
   getArtifactContent(jobId: number, name: string): Observable<ArtifactContent> {
     return this.http.get<ArtifactContent>(`/api/results/${jobId}/artifacts/${name}`);
+  }
+  runValidationCampaign(body: Record<string, unknown>): Observable<ValidationCampaignResponse> {
+    return this.http.post<ValidationCampaignResponse>('/api/studies/validation-campaign', body);
+  }
+  getValidationCampaignArtifact(campaignId: string, name: string): Observable<ArtifactContent> {
+    return this.http.get<ArtifactContent>(`/api/studies/validation-campaigns/${campaignId}/artifacts/${name}`);
   }
   getDashboard(): Observable<DashboardStats> { return this.http.get<DashboardStats>('/api/results/dashboard'); }
 
