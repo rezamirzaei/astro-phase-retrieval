@@ -281,6 +281,17 @@ class TestData:
         assert len(presets) > 0
         assert all("verification_supported" in preset for preset in presets)
         assert any(preset["verification_supported"] for preset in presets)
+        supported = {preset["key"] for preset in presets if preset["verification_supported"]}
+        assert {
+            "hst-wfc3-uvis-f606w",
+            "hst-wfc3-uvis-f814w",
+            "hst-wfc3-uvis-f438w",
+            "hst-wfc3-uvis-f275w",
+            "hst-acs-wfc-f606w",
+            "hst-acs-wfc-f814w",
+            "jwst-nircam-f200w",
+            "jwst-nircam-f356w",
+        }.issubset(supported)
 
 
 # ---------------------------------------------------------------------------

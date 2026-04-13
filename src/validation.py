@@ -51,6 +51,85 @@ _REFERENCE_BASELINES: dict[str, InstrumentReferenceBaseline] = {
         fwhm_tolerance_arcsec=0.02,
         encircled_energy_tolerance=0.05,
     ),
+    "hst-wfc3-uvis-f814w": InstrumentReferenceBaseline(
+        key="hst-wfc3-uvis-f814w",
+        telescope="HST",
+        detector="WFC3/UVIS",
+        filter_name="F814W",
+        citation_title="WFC3 Instrument Handbook: UVIS Optical Performance",
+        citation_url=(
+            "https://hst-docs.stsci.edu/wfc3ihb/chapter-6-uvis-imaging-with-wfc3/"
+            "6-6-uvis-optical-performance"
+        ),
+        notes=(
+            "STScI handbook field-center UVIS PSF-width and encircled-energy guidance "
+            "for F814W; values are used as curated validation targets rather than "
+            "instrument-calibration replacements."
+        ),
+        fwhm_arcsec=0.078,
+        encircled_energy_radius_arcsec=0.20,
+        encircled_energy_fraction=0.70,
+        fwhm_tolerance_arcsec=0.02,
+        encircled_energy_tolerance=0.06,
+    ),
+    "hst-wfc3-uvis-f438w": InstrumentReferenceBaseline(
+        key="hst-wfc3-uvis-f438w",
+        telescope="HST",
+        detector="WFC3/UVIS",
+        filter_name="F438W",
+        citation_title="WFC3 Instrument Handbook: UVIS Optical Performance",
+        citation_url=(
+            "https://hst-docs.stsci.edu/wfc3ihb/chapter-6-uvis-imaging-with-wfc3/"
+            "6-6-uvis-optical-performance"
+        ),
+        notes=(
+            "STScI handbook field-center UVIS PSF-width and encircled-energy guidance "
+            "for F438W. The encircled-energy target reflects the handbook's compact-core "
+            "blue-band behavior near 0.2 arcsec radius."
+        ),
+        fwhm_arcsec=0.069,
+        encircled_energy_radius_arcsec=0.20,
+        encircled_energy_fraction=0.67,
+        fwhm_tolerance_arcsec=0.02,
+        encircled_energy_tolerance=0.06,
+    ),
+    "hst-wfc3-uvis-f275w": InstrumentReferenceBaseline(
+        key="hst-wfc3-uvis-f275w",
+        telescope="HST",
+        detector="WFC3/UVIS",
+        filter_name="F275W",
+        citation_title="WFC3 Instrument Handbook: UVIS Optical Performance",
+        citation_url=(
+            "https://hst-docs.stsci.edu/wfc3ihb/chapter-6-uvis-imaging-with-wfc3/"
+            "6-6-uvis-optical-performance"
+        ),
+        notes=(
+            "STScI handbook field-center UVIS PSF-width and encircled-energy guidance "
+            "for the near-UV F275W channel."
+        ),
+        fwhm_arcsec=0.066,
+        encircled_energy_radius_arcsec=0.20,
+        encircled_energy_fraction=0.63,
+        fwhm_tolerance_arcsec=0.02,
+        encircled_energy_tolerance=0.07,
+    ),
+    "hst-acs-wfc-f606w": InstrumentReferenceBaseline(
+        key="hst-acs-wfc-f606w",
+        telescope="HST",
+        detector="ACS/WFC",
+        filter_name="F606W",
+        citation_title="ACS Instrument Handbook: ACS Point Spread Functions",
+        citation_url="https://hst-docs.stsci.edu/acsihb/chapter-5-imaging/5-6-acs-point-spread-functions",
+        notes=(
+            "STScI ACS handbook field-center PSF-width and encircled-energy guidance "
+            "for F606W."
+        ),
+        fwhm_arcsec=0.085,
+        encircled_energy_radius_arcsec=0.20,
+        encircled_energy_fraction=0.70,
+        fwhm_tolerance_arcsec=0.02,
+        encircled_energy_tolerance=0.06,
+    ),
     "hst-acs-wfc-f814w": InstrumentReferenceBaseline(
         key="hst-acs-wfc-f814w",
         telescope="HST",
