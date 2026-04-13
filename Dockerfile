@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml README.md LICENSE ./
 RUN pip install --no-cache-dir numpy scipy matplotlib astropy pydantic && \
     pip install --no-cache-dir fastapi "uvicorn[standard]" "sqlalchemy>=2.0" \
-        alembic "python-jose[cryptography]" python-multipart \
-        pydantic-settings httpx psycopg2-binary passlib bcrypt rich scikit-image
+        alembic PyJWT python-multipart \
+        pydantic-settings httpx psycopg2-binary bcrypt rich scikit-image \
+        astroquery
 
 # Copy source and install
 COPY src/ src/

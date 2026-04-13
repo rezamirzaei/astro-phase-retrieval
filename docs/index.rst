@@ -2,7 +2,7 @@ phase-retrieval
 ===============
 
 Production-ready phase retrieval with state-of-the-art algorithms for
-real-world HST/JWST astronomical wavefront sensing.
+real-world HST/JWST astronomical wavefront sensing and X-ray crystallography.
 
 .. toctree::
    :maxdepth: 2
@@ -17,6 +17,7 @@ real-world HST/JWST astronomical wavefront sensing.
    api/algorithms
    api/optics
    api/data
+   api/crystallography
    api/metrics
    api/models
    api/visualization

@@ -56,37 +56,50 @@ Frontend runs on http://localhost:4200 and proxies `/api` to :8000.
 
 ## API Endpoints
 
-| Method | Path                         | Description                   |
-|--------|------------------------------|-------------------------------|
-| POST   | /api/auth/register           | Create account                |
-| POST   | /api/auth/login              | Get JWT token                 |
-| GET    | /api/auth/me                 | Current user info             |
-| GET    | /api/data/presets            | List download presets          |
-| POST   | /api/data/download/{key}     | Download MAST preset           |
-| GET    | /api/data/fits               | List available data files      |
-| POST   | /api/data/synthetic          | Generate synthetic PSF         |
-| GET    | /api/algorithms/             | List algorithms                |
-| POST   | /api/algorithms/run          | Run single algorithm           |
-| POST   | /api/algorithms/compare      | Compare all algorithms         |
-| GET    | /api/results/                | List user's results            |
-| GET    | /api/results/dashboard       | Dashboard stats                |
-| GET    | /api/results/{id}            | Single result details          |
-| GET    | /api/results/{id}/plots/{n}  | Serve plot PNG                 |
-| DELETE | /api/results/{id}            | Delete result                  |
-| GET    | /api/explain/algorithms      | Algorithm explanations         |
-| GET    | /api/explain/metrics         | Metric explanations            |
-| GET    | /api/explain/science         | Science overview               |
-| GET    | /api/health                  | Liveness probe                 |
+| Method | Path                                  | Description                   |
+|--------|---------------------------------------|-------------------------------|
+| POST   | /api/auth/register                    | Create account                |
+| POST   | /api/auth/login                       | Get access + refresh tokens   |
+| POST   | /api/auth/refresh                     | Refresh token pair            |
+| GET    | /api/auth/me                          | Current user info             |
+| GET    | /api/data/presets                     | List download presets          |
+| POST   | /api/data/download/{key}              | Download MAST preset           |
+| GET    | /api/data/fits                        | List available data files      |
+| POST   | /api/data/synthetic                   | Generate synthetic PSF         |
+| GET    | /api/algorithms/                      | List algorithms                |
+| POST   | /api/algorithms/run                   | Run single algorithm           |
+| POST   | /api/algorithms/compare               | Compare all algorithms         |
+| GET    | /api/results/                         | List user's results            |
+| GET    | /api/results/dashboard                | Dashboard stats                |
+| GET    | /api/results/{id}                     | Single result details          |
+| GET    | /api/results/{id}/plots/{n}           | Serve plot PNG                 |
+| DELETE | /api/results/{id}                     | Delete result                  |
+| GET    | /api/crystallography/presets          | List COD crystal presets       |
+| POST   | /api/crystallography/download/{key}   | Download CIF from COD          |
+| GET    | /api/crystallography/cif-files        | List available CIF files       |
+| POST   | /api/crystallography/simulate         | Simulate diffraction pattern   |
+| POST   | /api/crystallography/run              | Run crystallographic retrieval |
+| POST   | /api/crystallography/compare          | Compare algorithms on crystal  |
+| GET    | /api/crystallography/{id}             | Get crystal result             |
+| GET    | /api/crystallography/{id}/plots/{n}   | Serve crystal plot PNG         |
+| DELETE | /api/crystallography/{id}             | Delete crystal result          |
+| GET    | /api/explain/algorithms               | Algorithm explanations         |
+| GET    | /api/explain/metrics                  | Metric explanations            |
+| GET    | /api/explain/science                  | Science overview               |
+| GET    | /api/health                           | Liveness probe                 |
+| GET    | /api/version                          | API version + Python info      |
 
 ## Features
 
-- **User authentication** — JWT-based register/login/logout
+- **User authentication** — JWT-based register/login/refresh with bcrypt password hashing
 - **Data management** — download real HST observations, generate synthetic PSFs
 - **Run algorithms** — select data + algorithm + parameters, see plots and metrics
-- **Compare algorithms** — run all 7+ algorithms on the same data, side-by-side
+- **Compare algorithms** — run all 9+ algorithms on the same data, side-by-side
+- **Crystallography** — parse CIF files, simulate diffraction, run phase retrieval on crystal data
 - **Results gallery** — browse, view detail plots, delete old runs
 - **Educational** — learn about algorithms, metrics, and the science
 - **Dashboard** — stats, recent results, quick-action buttons
+- **Security** — rate-limited login, refresh tokens, security headers, audit logging
 - **Interactive API docs** — Swagger UI at `/docs`, ReDoc at `/redoc`
 
 ## Technology Stack
@@ -95,7 +108,7 @@ Frontend runs on http://localhost:4200 and proxies `/api` to :8000.
 |-----------|-------------------------------------------|
 | Frontend  | Angular 18, Material Design, TypeScript   |
 | Backend   | FastAPI, Pydantic v2, SQLAlchemy 2.0      |
-| Auth      | JWT (python-jose), PBKDF2-SHA256          |
+| Auth      | JWT (PyJWT), bcrypt, refresh tokens       |
 | Database  | SQLite (dev) / PostgreSQL 16 (Docker)     |
 | Migration | Alembic                                   |
 | Deploy    | Docker Compose, nginx reverse proxy       |

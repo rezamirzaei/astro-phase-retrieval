@@ -7,6 +7,7 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
+from web.concurrency import get_job_semaphore
 from web.dependencies import CurrentUser, DbSession
 from web.models import Job
 from web.schemas import (
@@ -60,7 +61,8 @@ async def run_single(body: AlgorithmRunRequest, user: CurrentUser, db: DbSession
     db.add(job)
     db.flush()
 
-    job = await asyncio.to_thread(run_algorithm, db, job, fits_path, grid_size=body.grid_size)
+    async with get_job_semaphore():
+        job = await asyncio.to_thread(run_algorithm, db, job, fits_path, grid_size=body.grid_size)
     if job.status == "failed":
         raise HTTPException(status_code=500, detail=job.error_message or "Unknown error")
 
@@ -78,15 +80,16 @@ async def compare(body: CompareRequest, user: CurrentUser, db: DbSession) -> Com
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    jobs = await asyncio.to_thread(
-        compare_algorithms,
-        db,
-        user_id=user.id,
-        fits_path=fits_path,
-        grid_size=body.grid_size,
-        max_iterations=body.max_iterations,
-        algorithm_keys=[a.value for a in body.algorithms] if body.algorithms else None,
-    )
+    async with get_job_semaphore():
+        jobs = await asyncio.to_thread(
+            compare_algorithms,
+            db,
+            user_id=user.id,
+            fits_path=fits_path,
+            grid_size=body.grid_size,
+            max_iterations=body.max_iterations,
+            algorithm_keys=[a.value for a in body.algorithms] if body.algorithms else None,
+        )
 
     results: list[JobResponse] = []
     for j in jobs:

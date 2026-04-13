@@ -105,6 +105,30 @@ _ALGORITHMS: list[dict[str, str]] = [
         ),
         "reference": "Tancik M. et al. (2020) NeurIPS — Fourier Features",
     },
+    {
+        "key": "fista",
+        "name": "FISTA",
+        "category": "State-of-the-Art",
+        "description": (
+            "Fast Iterative Shrinkage-Thresholding Algorithm with Nesterov "
+            "acceleration (Beck & Teboulle 2009). A proximal-gradient method "
+            "that supports pluggable regularisers (TV, L1-wavelet) for "
+            "noise-robust phase recovery. Converges as O(1/k²)."
+        ),
+        "reference": "Beck A., Teboulle M. (2009) SIAM J. Imaging Sciences 2(1):183-202",
+    },
+    {
+        "key": "sparse_pr",
+        "name": "Sparse Phase Retrieval (ThWF)",
+        "category": "State-of-the-Art",
+        "description": (
+            "Thresholded Wirtinger Flow for sparsity-promoting phase recovery "
+            "(Cai, Li & Ma 2016). Applies hard or soft thresholding with "
+            "adaptive decay to exploit signal sparsity — particularly effective "
+            "for crystallographic data with sparse electron density maps."
+        ),
+        "reference": "Cai T., Li X., Ma Z. (2016) Annals of Statistics 44(5):2221-2251",
+    },
 ]
 
 _METRICS: list[dict[str, str]] = [

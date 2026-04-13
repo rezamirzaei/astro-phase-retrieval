@@ -10,40 +10,6 @@ fastapi = pytest.importorskip("fastapi", reason="web extras not installed")
 sqlalchemy = pytest.importorskip("sqlalchemy", reason="web extras not installed")
 
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
-from sqlalchemy.pool import StaticPool  # noqa: E402
-
-from web.database import Base, get_db  # noqa: E402
-from web.main import app  # noqa: E402
-
-
-@pytest.fixture()
-def db_session() -> Session:  # type: ignore[misc]
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    _SessionLocal = sessionmaker(bind=engine)
-    session = _SessionLocal()
-    try:
-        yield session  # type: ignore[misc]
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture()
-def client(db_session: Session) -> TestClient:  # type: ignore[misc]
-    def _override_get_db():  # type: ignore[no-untyped-def]
-        yield db_session
-
-    app.dependency_overrides[get_db] = _override_get_db
-    with TestClient(app) as c:
-        yield c  # type: ignore[misc]
-    app.dependency_overrides.clear()
 
 
 def _register_and_login(client: TestClient) -> dict[str, str]:

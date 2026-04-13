@@ -38,6 +38,52 @@ def _reset_web_rate_limiter() -> None:  # type: ignore[misc]
             pass
 
 
+# ---------------------------------------------------------------------------
+# Shared web-test fixtures (used by test_web.py, test_crystallography_web.py)
+# ---------------------------------------------------------------------------
+
+try:
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine as _create_engine
+    from sqlalchemy.orm import Session as _Session
+    from sqlalchemy.orm import sessionmaker as _sessionmaker
+    from sqlalchemy.pool import StaticPool as _StaticPool
+
+    @pytest.fixture()
+    def db_session() -> _Session:  # type: ignore[misc]
+        from web.database import Base
+
+        _engine = _create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=_StaticPool,
+        )
+        Base.metadata.create_all(bind=_engine)
+        _SL = _sessionmaker(bind=_engine)
+        session = _SL()
+        try:
+            yield session  # type: ignore[misc]
+        finally:
+            session.close()
+            Base.metadata.drop_all(bind=_engine)
+
+    @pytest.fixture()
+    def client(db_session: _Session) -> TestClient:  # type: ignore[misc]
+        from web.database import get_db
+        from web.main import app
+
+        def _override_get_db():  # type: ignore[no-untyped-def]
+            yield db_session
+
+        app.dependency_overrides[get_db] = _override_get_db
+        with TestClient(app) as c:
+            yield c  # type: ignore[misc]
+        app.dependency_overrides.clear()
+
+except ImportError:
+    pass  # web extras not installed — web-test fixtures unavailable
+
+
 @pytest.fixture()
 def pupil_config() -> PupilConfig:
     """Minimal pupil config for fast tests."""

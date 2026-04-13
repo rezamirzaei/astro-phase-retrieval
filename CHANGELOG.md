@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] — 2026-04-13
+
+### Fixed — Production Bugs
+
+- **Dockerfile**: Replaced stale `python-jose[cryptography]` and `passlib`
+  with `PyJWT` and `bcrypt` to match the v2.3.0 dependency migration.
+  Added missing `astroquery` dependency. **This was a real container build bug.**
+- **Job concurrency semaphore**: The `get_job_semaphore()` (introduced in
+  v2.2.0) was declared but never wired up. Algorithm and crystallography
+  routers now acquire the semaphore via `async with get_job_semaphore():`
+  before running heavy compute jobs — the `max_concurrent_jobs` setting
+  is now actually enforced. Moved semaphore to `web/concurrency.py` to
+  avoid a circular import.
+
+### Added
+
+- **FISTA & Sparse PR in explain endpoint**: The `/api/explain/algorithms`
+  endpoint was missing the two algorithms added in v2.2.0 (FISTA and
+  Sparse Phase Retrieval). Now lists all 10 algorithms.
+
+### Improved — Documentation
+
+- **web/README.md**: Updated auth tech stack (python-jose → PyJWT,
+  PBKDF2-SHA256 → bcrypt). Added all 15 crystallography endpoints,
+  `/api/auth/refresh`, and `/api/version` to the endpoints table.
+  Updated feature list to mention crystallography, security features,
+  and 9+ algorithms.
+- **docs/cli.md**: Added `cryst` subcommand documentation (crystallographic
+  phase retrieval from CIF files or COD presets). Updated algorithm key
+  list to include `fista` and `sparse_pr`.
+- **docs/index.rst**: Updated project tagline to mention X-ray
+  crystallography. Re-added crystallography API page to toctree.
+
+### Improved — Code Quality
+
+- **DRY test fixtures**: Extracted duplicate `db_session` and `client`
+  fixtures from `test_web.py` and `test_crystallography_web.py` into
+  `tests/conftest.py`. Both test files now use the shared fixtures.
+- **CI workflow**: Added `web/` to ruff lint scope, `[web]` extras to
+  test install, `--cov=web` to coverage scope, and `[web]` to security
+  audit install.
+- **Makefile**: Added `--cov=web` to `test` and `coverage` targets.
+- **Pre-commit**: Bumped `ruff-pre-commit` from v0.4.4 → v0.8.6.
+
+### All 415 tests pass ✅
+
 ## [2.3.0] — 2026-04-13
 
 ### Security Hardening

@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
 
+from web.concurrency import get_job_semaphore
 from web.config import settings
 from web.dependencies import CurrentUser, DbSession
 from web.models import CrystallographyJob
@@ -108,9 +109,10 @@ async def run_crystallography(
     db.add(job)
     db.flush()
 
-    job = await asyncio.to_thread(
-        run_crystallography_job, db, job, cif_path, grid_size=body.grid_size
-    )
+    async with get_job_semaphore():
+        job = await asyncio.to_thread(
+            run_crystallography_job, db, job, cif_path, grid_size=body.grid_size
+        )
     if job.status == "failed":
         raise HTTPException(status_code=500, detail=job.error_message or "Unknown error")
 
@@ -132,15 +134,16 @@ async def compare_crystallography(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    jobs = await asyncio.to_thread(
-        compare_crystallography_algorithms,
-        db,
-        user_id=user.id,
-        cif_path=cif_path,
-        grid_size=body.grid_size,
-        max_iterations=body.max_iterations,
-        algorithm_keys=[a.value for a in body.algorithms] if body.algorithms else None,
-    )
+    async with get_job_semaphore():
+        jobs = await asyncio.to_thread(
+            compare_crystallography_algorithms,
+            db,
+            user_id=user.id,
+            cif_path=cif_path,
+            grid_size=body.grid_size,
+            max_iterations=body.max_iterations,
+            algorithm_keys=[a.value for a in body.algorithms] if body.algorithms else None,
+        )
 
     results: list[CrystallographyJobResponse] = []
     for j in jobs:

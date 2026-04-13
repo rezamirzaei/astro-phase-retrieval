@@ -20,8 +20,8 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install ruff
-      - run: ruff check src/ tests/
-      - run: ruff format --check src/ tests/
+      - run: ruff check src/ tests/ web/
+      - run: ruff format --check src/ tests/ web/
 
   security:
     name: Security Audit
@@ -36,7 +36,7 @@ jobs:
         run: pip install pip-audit
       - name: Audit installed dependencies
         run: |
-          pip install -e ".[dev]"
+          pip install -e ".[dev,web]"
           pip-audit --skip-editable --desc on
 
   test:
@@ -55,9 +55,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,web]"
       - name: Run tests with coverage
-        run: pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=95 -ra
+        run: pytest --cov=src --cov=web --cov-report=term-missing --cov-report=xml --cov-fail-under=90 -ra
       - name: Upload coverage report
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v4

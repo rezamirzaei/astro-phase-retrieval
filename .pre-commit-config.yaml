@@ -1,7 +1,7 @@
 repos:
   # Ruff — replaces flake8, isort, pyupgrade, and more
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.8.6
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
