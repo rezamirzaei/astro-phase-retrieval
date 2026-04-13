@@ -192,6 +192,8 @@ class CompareResponse(BaseModel):
 class PresetInfo(BaseModel):
     key: str
     description: str
+    verification_supported: bool = False
+    baseline_key: str | None = None
 
 
 class FitsFileInfo(BaseModel):
@@ -298,6 +300,12 @@ class DashboardStats(BaseModel):
     best_strehl: float | None
     algorithms_used: list[str]
     recent_jobs: list[JobResponse]
+
+
+class ArtifactContentResponse(BaseModel):
+    name: str
+    format: str
+    content: object | str
 
 
 # ---------------------------------------------------------------------------

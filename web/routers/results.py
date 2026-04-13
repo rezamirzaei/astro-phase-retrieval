@@ -14,10 +14,22 @@ from sqlalchemy import select
 from web.config import settings
 from web.dependencies import CurrentUser, DbSession
 from web.models import Job
-from web.schemas import DashboardStats, JobResponse
+from web.schemas import ArtifactContentResponse, DashboardStats, JobResponse
 from web.services.algorithm_service import list_job_artifacts, list_job_plots
 
 router = APIRouter(prefix="/api/results", tags=["results"])
+
+
+def _resolve_job_artifact(job: Job, artifact_name: str) -> Path:
+    if not job.output_dir:
+        raise HTTPException(status_code=404, detail="No artifacts available")
+    out_dir = Path(job.output_dir)
+    artifact_path = out_dir / artifact_name
+    if not artifact_path.exists() or not artifact_path.is_file():
+        raise HTTPException(status_code=404, detail=f"Artifact '{artifact_name}' not found")
+    if artifact_path.suffix.lower() not in {".json", ".md", ".csv"}:
+        raise HTTPException(status_code=400, detail="Unsupported artifact type")
+    return artifact_path
 
 
 @router.get("/", response_model=list[JobResponse])
@@ -108,6 +120,28 @@ def get_plot(job_id: int, plot_name: str, user: CurrentUser, db: DbSession) -> F
             raise HTTPException(status_code=404, detail=f"Plot '{plot_name}' not found")
 
     return FileResponse(plot_path, media_type="image/png")
+
+
+@router.get("/{job_id}/artifacts/{artifact_name}", response_model=ArtifactContentResponse)
+def get_artifact_content(
+    job_id: int,
+    artifact_name: str,
+    user: CurrentUser,
+    db: DbSession,
+) -> ArtifactContentResponse:
+    """Return parsed artifact content for JSON/Markdown/CSV reports."""
+    import json
+
+    job = db.get(Job, job_id)
+    if job is None or job.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Result not found")
+    artifact_path = _resolve_job_artifact(job, artifact_name)
+    text = artifact_path.read_text(encoding="utf-8")
+    if artifact_path.suffix.lower() == ".json":
+        return ArtifactContentResponse(name=artifact_name, format="json", content=json.loads(text))
+    if artifact_path.suffix.lower() == ".md":
+        return ArtifactContentResponse(name=artifact_name, format="markdown", content=text)
+    return ArtifactContentResponse(name=artifact_name, format="csv", content=text)
 
 
 @router.get("/{job_id}/export")

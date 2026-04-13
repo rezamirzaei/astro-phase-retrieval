@@ -1,15 +1,15 @@
-import { UpperCasePipe } from '@angular/common';
+import { JsonPipe, UpperCasePipe } from '@angular/common';
 import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
-import { ApiService, JobResponse } from '../core/api.service';
+import { ApiService, ArtifactContent, JobResponse } from '../core/api.service';
 
 @Component({
   selector: 'app-result-detail',
   standalone: true,
-  imports: [UpperCasePipe, RouterLink, MatCardModule, MatButtonModule, MatChipsModule],
+  imports: [JsonPipe, UpperCasePipe, RouterLink, MatCardModule, MatButtonModule, MatChipsModule],
   template: `
     @if (job()) {
       <div class="flex-row mb-16">
@@ -28,6 +28,51 @@ import { ApiService, JobResponse } from '../core/api.service';
         <mat-chip [highlighted]="job()!.converged === true" color="primary">{{ job()!.converged ? 'Converged ✓' : 'Did not converge' }}</mat-chip>
         <mat-chip>{{ job()!.fits_filename }}</mat-chip>
       </mat-chip-set>
+
+      @if (referenceValidation()) {
+        <mat-card class="mb-16">
+          <mat-card-header><mat-card-title>External Reference Verification</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <p><strong>Baseline:</strong> {{ refValue('baseline', 'key') || 'unknown' }}</p>
+            <p><strong>Citation:</strong> {{ refValue('baseline', 'citation_title') || 'n/a' }}</p>
+            <p><strong>Observed FWHM:</strong> {{ refValue('observed', 'fwhm_arcsec') ?? 'n/a' }}</p>
+            <p><strong>Reconstructed FWHM:</strong> {{ refValue('reconstructed', 'fwhm_arcsec') ?? 'n/a' }}</p>
+            <p><strong>Agreement:</strong> {{ refValue('summary', 'fwhm_agreement') || 'n/a' }}</p>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (evaluationReport()) {
+        <mat-card class="mb-16">
+          <mat-card-header><mat-card-title>Evaluation Evidence</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <p><strong>Validation scope:</strong> {{ nestedValue(evaluationReport()!, ['evidence', 'validation_scope']) || 'n/a' }}</p>
+            <p><strong>Data regime:</strong> {{ nestedValue(evaluationReport()!, ['data_regime']) || 'n/a' }}</p>
+            <p><strong>Validated claims:</strong></p>
+            <ul>
+              @for (claim of listValue(evaluationReport()!, 'validated_claims'); track claim) {
+                <li>{{ claim }}</li>
+              }
+            </ul>
+            <p><strong>Limitations:</strong></p>
+            <ul>
+              @for (limitation of listValue(evaluationReport()!, 'limitations'); track limitation) {
+                <li>{{ limitation }}</li>
+              }
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (provenance()) {
+        <mat-card class="mb-16">
+          <mat-card-header><mat-card-title>Preprocessing Provenance</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <pre>{{ provenance() | json }}</pre>
+          </mat-card-content>
+        </mat-card>
+      }
+
       <h3>Plots</h3>
       @if (job()!.plots.length === 0) {
         <p class="text-muted">No figures were generated for this run.</p>
@@ -44,6 +89,7 @@ import { ApiService, JobResponse } from '../core/api.service';
           </mat-card>
         }
       </div>
+
       <h3>Artifacts</h3>
       @if (job()!.artifacts.length === 0) {
         <p class="text-muted">No saved reports were generated for this run.</p>
@@ -64,17 +110,43 @@ export class ResultDetailComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   job = signal<JobResponse | null>(null);
   plotUrls = signal<Record<string, string>>({});
+  evaluationReport = signal<Record<string, unknown> | null>(null);
+  referenceValidation = signal<Record<string, unknown> | null>(null);
+  provenance = signal<Record<string, unknown> | null>(null);
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     this.api.getResult(id).subscribe((j) => {
       this.job.set(j);
       this.loadPlots(j);
+      this.loadArtifacts(j);
     });
   }
 
   ngOnDestroy(): void {
     this.revokePlotUrls();
+  }
+
+  refValue(section: string, key: string): unknown {
+    const data = this.referenceValidation();
+    if (!data) return null;
+    const sectionValue = data[section];
+    if (!sectionValue || typeof sectionValue !== 'object') return null;
+    return (sectionValue as Record<string, unknown>)[key] ?? null;
+  }
+
+  nestedValue(data: Record<string, unknown>, path: string[]): unknown {
+    let current: unknown = data;
+    for (const key of path) {
+      if (!current || typeof current !== 'object') return null;
+      current = (current as Record<string, unknown>)[key];
+    }
+    return current ?? null;
+  }
+
+  listValue(data: Record<string, unknown>, key: string): string[] {
+    const value = data[key];
+    return Array.isArray(value) ? value.map(item => String(item)) : [];
   }
 
   private loadPlots(job: JobResponse): void {
@@ -89,6 +161,26 @@ export class ResultDetailComponent implements OnInit, OnDestroy {
     }
   }
 
+  private loadArtifacts(job: JobResponse): void {
+    for (const artifactName of job.artifacts) {
+      this.api.getArtifactContent(job.id, artifactName).subscribe({
+        next: (artifact) => this.assignArtifact(artifact),
+      });
+    }
+  }
+
+  private assignArtifact(artifact: ArtifactContent): void {
+    if (artifact.name === 'evaluation_report.json' && artifact.format === 'json' && typeof artifact.content === 'object' && artifact.content !== null) {
+      this.evaluationReport.set(artifact.content as Record<string, unknown>);
+    }
+    if (artifact.name === 'reference_validation.json' && artifact.format === 'json' && typeof artifact.content === 'object' && artifact.content !== null) {
+      this.referenceValidation.set(artifact.content as Record<string, unknown>);
+    }
+    if (artifact.name === 'provenance.json' && artifact.format === 'json' && typeof artifact.content === 'object' && artifact.content !== null) {
+      this.provenance.set(artifact.content as Record<string, unknown>);
+    }
+  }
+
   private revokePlotUrls(): void {
     for (const url of Object.values(this.plotUrls())) {
       URL.revokeObjectURL(url);
@@ -96,5 +188,3 @@ export class ResultDetailComponent implements OnInit, OnDestroy {
     this.plotUrls.set({});
   }
 }
-
-

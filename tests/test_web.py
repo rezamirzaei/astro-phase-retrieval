@@ -277,7 +277,10 @@ class TestData:
         headers = _register_and_login(client)
         resp = client.get("/api/data/presets", headers=headers)
         assert resp.status_code == 200
-        assert len(resp.json()) > 0
+        presets = resp.json()
+        assert len(presets) > 0
+        assert all("verification_supported" in preset for preset in presets)
+        assert any(preset["verification_supported"] for preset in presets)
 
 
 # ---------------------------------------------------------------------------
@@ -470,6 +473,21 @@ class TestResults:
         assert "metrics.json" in exported
         assert "provenance.json" in exported
         assert "evaluation_report.json" in exported
+
+        artifact_resp = client.get(
+            f"/api/results/{job_id}/artifacts/evaluation_report.json",
+            headers=headers,
+        )
+        assert artifact_resp.status_code == 200
+        assert artifact_resp.json()["format"] == "json"
+        assert artifact_resp.json()["content"]["report_type"] == "single_run_evaluation"
+
+        provenance_resp = client.get(
+            f"/api/results/{job_id}/artifacts/provenance.json",
+            headers=headers,
+        )
+        assert provenance_resp.status_code == 200
+        assert provenance_resp.json()["content"]["reference_validation_available"] in {True, False}
 
         # Delete
         del_resp = client.delete(f"/api/results/{job_id}", headers=headers)

@@ -35,9 +35,11 @@ def test_notebook_does_not_contain_stale_manual_pinn_values() -> None:
     assert "pinn_result = True" not in text
 
 
-def test_notebook_exposes_benchmark_and_rich_synthetic_workflows() -> None:
+def test_notebook_exposes_real_data_verification_workflows() -> None:
     text = _notebook_source()
-    assert "from src.data.synthetic import generate_synthetic_psf" in text
-    assert "stress_dataset = generate_synthetic_psf(" in text
-    assert "from src.benchmark import available_benchmark_cases, run_benchmark" in text
-    assert "benchmark_summary = run_benchmark(" in text
+    assert "from src.validation import compare_against_reference" in text
+    assert "verification_rows = []" in text
+    assert "best_reference = compare_against_reference(" in text
+    assert "from src.reporting import render_evaluation_markdown, write_evaluation_report, build_evaluation_payload" in text
+    assert "report_paths = write_evaluation_report(evaluation_payload, verification_dir)" in text
+    assert "(verification_dir / 'reference_validation.json').write_text" in text
