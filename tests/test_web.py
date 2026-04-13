@@ -244,6 +244,35 @@ class TestData:
         names = [f["filename"] for f in resp.json()]
         assert any("test_synth" in n for n in names)
 
+    def test_synthetic_accepts_richer_generation_controls(self, client: TestClient) -> None:
+        headers = _register_and_login(client)
+        resp = client.post(
+            "/api/data/synthetic",
+            json={
+                "name": "rich_synth",
+                "grid_size": 64,
+                "aberration_rms": 0.5,
+                "n_zernike": 12,
+                "telescope": "jwst",
+                "photon_count": 25000,
+                "read_noise_std": 1e-4,
+                "center_offset_row_pixels": 0.4,
+                "center_offset_col_pixels": -0.25,
+                "background_level": 1e-6,
+                "bandwidth_fraction": 0.1,
+                "spectral_samples": 3,
+                "spectral_weighting": "gaussian",
+                "field_defocus_waves": 0.2,
+                "detector_sigma_pixels": 0.3,
+                "jitter_sigma_pixels": 0.15,
+                "pixel_integration_width": 1.2,
+                "random_seed": 7,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["filename"].startswith("rich_synth")
+
     def test_presets(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         resp = client.get("/api/data/presets", headers=headers)
@@ -298,6 +327,47 @@ class TestAlgorithms:
         assert "metrics.json" in j["artifacts"]
         assert "evaluation_report.json" in j["artifacts"]
 
+    def test_run_algorithm_accepts_advanced_method_controls(self, client: TestClient) -> None:
+        headers = _register_and_login(client)
+        client.post(
+            "/api/data/synthetic",
+            json={
+                "name": "advanced_run",
+                "grid_size": 64,
+                "aberration_rms": 0.35,
+                "telescope": "hst",
+                "photon_count": 20000,
+            },
+            headers=headers,
+        )
+        files = client.get("/api/data/fits", headers=headers).json()
+        fname = [f["filename"] for f in files if "advanced_run" in f["filename"]][0]
+
+        resp = client.post(
+            "/api/algorithms/run",
+            json={
+                "fits_filename": fname,
+                "algorithm": "admm",
+                "max_iterations": 12,
+                "grid_size": 64,
+                "tolerance": 1e-6,
+                "noise_model": "poisson",
+                "n_starts": 1,
+                "uncertainty_samples": 2,
+                "admm_rho": 1.25,
+                "wf_step_size": 0.4,
+                "wf_spectral_init": True,
+                "spectral_init": True,
+                "regulariser": "tv",
+                "proximal_weight": 5e-4,
+                "sparsity_threshold": 0.08,
+                "sparsity_keep_fraction": 0.6,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "completed"
+
     def test_run_missing_file(self, client: TestClient) -> None:
         headers = _register_and_login(client)
         resp = client.post(
@@ -310,6 +380,28 @@ class TestAlgorithms:
             headers=headers,
         )
         assert resp.status_code == 404
+
+    def test_benchmark_endpoint(self, client: TestClient) -> None:
+        headers = _register_and_login(client)
+        cases_resp = client.get("/api/algorithms/benchmark/cases", headers=headers)
+        assert cases_resp.status_code == 200
+        assert any(case["key"] == "clean-low" for case in cases_resp.json())
+
+        resp = client.post(
+            "/api/algorithms/benchmark",
+            json={
+                "algorithms": ["er", "hio"],
+                "cases": ["clean-low", "poisson-hst"],
+                "max_iterations": 3,
+                "beta": 0.9,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["records_count"] == 4
+        assert {row["algorithm"] for row in payload["aggregate"]} == {"er", "hio"}
+        assert any(case["key"] == "clean-low" for case in payload["selected_cases"])
 
 
 # ---------------------------------------------------------------------------

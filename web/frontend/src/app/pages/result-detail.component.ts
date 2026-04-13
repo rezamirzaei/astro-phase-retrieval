@@ -16,6 +16,7 @@ import { ApiService, JobResponse } from '../core/api.service';
         <h2>{{ job()!.algorithm | uppercase }} — Result #{{ job()!.id }}</h2>
         <span class="spacer"></span>
         <button mat-stroked-button routerLink="/results">← Back</button>
+        <a mat-raised-button color="primary" [href]="'/api/results/' + job()!.id + '/export'">Export ZIP</a>
       </div>
       <div class="card-grid mb-16">
         <mat-card class="stat-card"><div class="stat-value">{{ job()!.strehl_ratio !== null ? job()!.strehl_ratio!.toFixed(4) : '—' }}</div><div class="stat-label">Strehl Ratio</div></mat-card>
@@ -43,6 +44,16 @@ import { ApiService, JobResponse } from '../core/api.service';
           </mat-card>
         }
       </div>
+      <h3>Artifacts</h3>
+      @if (job()!.artifacts.length === 0) {
+        <p class="text-muted">No saved reports were generated for this run.</p>
+      } @else {
+        <mat-chip-set>
+          @for (artifact of job()!.artifacts; track artifact) {
+            <mat-chip>{{ artifact }}</mat-chip>
+          }
+        </mat-chip-set>
+      }
     } @else {
       <p class="text-muted">Loading…</p>
     }
@@ -85,6 +96,5 @@ export class ResultDetailComponent implements OnInit, OnDestroy {
     this.plotUrls.set({});
   }
 }
-
 
 

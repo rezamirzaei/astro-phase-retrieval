@@ -931,6 +931,63 @@ code("55", [
     "console.print(table)",
 ])
 
+md("55a", [
+    "## 22b — Advanced Synthetic Stress Test and Benchmark",
+    "",
+    "The web surface now exposes richer synthetic-data controls and the benchmark harness."
+    " This notebook mirrors that workflow directly: we create a more realistic synthetic"
+    " PSF with blur, offset, broadband effects, and noise, then run a compact benchmark"
+    " across representative cases to compare methods under controlled stress.",
+])
+code("55b", [
+    "from src.data.synthetic import generate_synthetic_psf",
+    "",
+    "stress_dataset = generate_synthetic_psf(",
+    "    grid_size=128,",
+    "    rms_aberration=0.6,",
+    "    telescope=config.pupil.telescope,",
+    "    photon_count=50_000,",
+    "    read_noise_std=1e-5,",
+    "    center_offset_pixels=(0.5, -0.35),",
+    "    background_level=2e-6,",
+    "    bandwidth_fraction=0.12,",
+    "    spectral_samples=5,",
+    "    spectral_weighting='gaussian',",
+    "    detector_sigma_pixels=0.25,",
+    "    jitter_sigma_pixels=0.15,",
+    "    pixel_integration_width=1.2,",
+    "    random_seed=42,",
+    ")",
+    "",
+    "print('Stress-test synthetic dataset:')",
+    "print(json.dumps(stress_dataset.psf_data.metadata, indent=2))",
+])
+code("55c", [
+    "from src.benchmark import available_benchmark_cases, run_benchmark",
+    "",
+    "benchmark_output_dir = config.output_dir / 'benchmark'",
+    "selected_cases = [",
+    "    available_benchmark_cases()['clean-low'],",
+    "    available_benchmark_cases()['poisson-hst'],",
+    "    available_benchmark_cases()['broadband-hst'],",
+    "]",
+    "benchmark_summary = run_benchmark(",
+    "    algorithms=[",
+    "        AlgorithmName.ERROR_REDUCTION,",
+    "        AlgorithmName.RAAR,",
+    "        AlgorithmName.WIRTINGER_FLOW,",
+    "        AlgorithmName.ADMM,",
+    "    ],",
+    "    cases=selected_cases,",
+    "    max_iterations=20,",
+    "    output_dir=benchmark_output_dir,",
+    ")",
+    "",
+    "print('Benchmark aggregate:')",
+    "print(json.dumps(benchmark_summary.aggregate, indent=2))",
+    "print(f'Benchmark reports saved to {benchmark_output_dir}')",
+])
+
 # ═══════════════════════════════════════════════════════════════════════
 # Cell 56–57 — Export results to JSON
 # ═══════════════════════════════════════════════════════════════════════

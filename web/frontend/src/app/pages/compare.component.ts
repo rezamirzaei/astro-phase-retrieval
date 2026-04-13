@@ -10,7 +10,14 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { RouterLink } from '@angular/router';
-import { ApiService, CompareResponse, FitsFile } from '../core/api.service';
+import {
+  AlgoInfo,
+  ApiService,
+  BenchmarkCaseInfo,
+  BenchmarkResponse,
+  CompareResponse,
+  FitsFile,
+} from '../core/api.service';
 
 @Component({
   selector: 'app-compare',
@@ -28,11 +35,38 @@ import { ApiService, CompareResponse, FitsFile } from '../core/api.service';
         </mat-form-field>
         <mat-form-field><mat-label>Iterations</mat-label><input matInput type="number" [(ngModel)]="iterations" name="iter"></mat-form-field>
         <mat-form-field><mat-label>Grid Size</mat-label><input matInput type="number" [(ngModel)]="gridSize" name="gs"></mat-form-field>
+        <mat-form-field>
+          <mat-label>Algorithms</mat-label>
+          <mat-select [(ngModel)]="selectedAlgorithms" name="algorithms" multiple>
+            @for (algo of algos(); track algo.key) { <mat-option [value]="algo.key">{{ algo.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
         <button mat-raised-button color="accent" (click)="compare()" [disabled]="loading()">
           {{ loading() ? 'Comparing…' : 'Compare All' }}
         </button>
       </mat-card-content>
       @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+    </mat-card>
+    <mat-card class="mb-16">
+      <mat-card-header><mat-card-title>Benchmark Methods</mat-card-title></mat-card-header>
+      <mat-card-content class="flex-row flex-wrap">
+        <mat-form-field>
+          <mat-label>Benchmark Algorithms</mat-label>
+          <mat-select [(ngModel)]="selectedBenchmarkAlgorithms" name="benchmarkAlgorithms" multiple>
+            @for (algo of algos(); track algo.key) { <mat-option [value]="algo.key">{{ algo.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Benchmark Cases</mat-label>
+          <mat-select [(ngModel)]="selectedBenchmarkCases" name="benchmarkCases" multiple>
+            @for (c of benchmarkCases(); track c.key) { <mat-option [value]="c.key">{{ c.key }} — {{ c.description }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field><mat-label>Benchmark Iterations</mat-label><input matInput type="number" [(ngModel)]="benchmarkIterations" name="benchmarkIter"></mat-form-field>
+        <button mat-raised-button color="primary" (click)="runBenchmark()" [disabled]="loading()">
+          {{ loading() ? 'Running…' : 'Run Benchmark' }}
+        </button>
+      </mat-card-content>
     </mat-card>
     @if (response()) {
       <h3>Results</h3>
@@ -62,26 +96,73 @@ import { ApiService, CompareResponse, FitsFile } from '../core/api.service';
         </div>
       }
     }
+    @if (benchmarkResponse()) {
+      <h3>Benchmark Aggregate</h3>
+      <table mat-table [dataSource]="benchmarkResponse()!.aggregate" class="mat-elevation-z1 mb-16">
+        <ng-container matColumnDef="algorithm"><th mat-header-cell *matHeaderCellDef>Algorithm</th><td mat-cell *matCellDef="let r">{{ r.algorithm | uppercase }}</td></ng-container>
+        <ng-container matColumnDef="score"><th mat-header-cell *matHeaderCellDef>Score</th><td mat-cell *matCellDef="let r">{{ r.mean_score.toFixed(4) }}</td></ng-container>
+        <ng-container matColumnDef="ssim"><th mat-header-cell *matHeaderCellDef>SSIM</th><td mat-cell *matCellDef="let r">{{ r.mean_ssim.toFixed(4) }}</td></ng-container>
+        <ng-container matColumnDef="conv"><th mat-header-cell *matHeaderCellDef>Converged</th><td mat-cell *matCellDef="let r">{{ (100 * r.converged_fraction).toFixed(0) }}%</td></ng-container>
+        <tr mat-header-row *matHeaderRowDef="benchmarkCols"></tr>
+        <tr mat-row *matRowDef="let row; columns: benchmarkCols;"></tr>
+      </table>
+      <h3>Benchmark Robustness</h3>
+      <table mat-table [dataSource]="benchmarkResponse()!.study" class="mat-elevation-z1">
+        <ng-container matColumnDef="algorithm"><th mat-header-cell *matHeaderCellDef>Algorithm</th><td mat-cell *matCellDef="let r">{{ r.algorithm | uppercase }}</td></ng-container>
+        <ng-container matColumnDef="clean"><th mat-header-cell *matHeaderCellDef>Clean</th><td mat-cell *matCellDef="let r">{{ r.clean_mean_score.toFixed(4) }}</td></ng-container>
+        <ng-container matColumnDef="stress"><th mat-header-cell *matHeaderCellDef>Stress</th><td mat-cell *matCellDef="let r">{{ r.stress_mean_score.toFixed(4) }}</td></ng-container>
+        <ng-container matColumnDef="drop"><th mat-header-cell *matHeaderCellDef>Drop</th><td mat-cell *matCellDef="let r">{{ r.robustness_drop.toFixed(4) }}</td></ng-container>
+        <ng-container matColumnDef="fail"><th mat-header-cell *matHeaderCellDef>Failure Rate</th><td mat-cell *matCellDef="let r">{{ (100 * r.failure_rate).toFixed(0) }}%</td></ng-container>
+        <ng-container matColumnDef="worst"><th mat-header-cell *matHeaderCellDef>Worst Case</th><td mat-cell *matCellDef="let r">{{ r.worst_case }}</td></ng-container>
+        <tr mat-header-row *matHeaderRowDef="benchmarkStudyCols"></tr>
+        <tr mat-row *matRowDef="let row; columns: benchmarkStudyCols;"></tr>
+      </table>
+    }
   `,
 })
 export class CompareComponent implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
   files = signal<FitsFile[]>([]);
+  algos = signal<AlgoInfo[]>([]);
+  benchmarkCases = signal<BenchmarkCaseInfo[]>([]);
   loading = signal(false);
   response = signal<CompareResponse | null>(null);
+  benchmarkResponse = signal<BenchmarkResponse | null>(null);
   comparisonPlotUrls = signal<Record<string, string>>({});
   selectedFile = ''; iterations = 300; gridSize = 128;
+  selectedAlgorithms: string[] = [];
+  selectedBenchmarkAlgorithms: string[] = [];
+  selectedBenchmarkCases: string[] = [];
+  benchmarkIterations = 40;
   cols = ['algorithm', 'strehl', 'rms', 'iter', 'time', 'actions'];
+  benchmarkCols = ['algorithm', 'score', 'ssim', 'conv'];
+  benchmarkStudyCols = ['algorithm', 'clean', 'stress', 'drop', 'fail', 'worst'];
 
-  ngOnInit(): void { this.api.getFitsFiles().subscribe(f => this.files.set(f)); }
+  ngOnInit(): void {
+    this.api.getFitsFiles().subscribe(f => this.files.set(f));
+    this.api.listAlgorithms().subscribe(a => {
+      this.algos.set(a);
+      this.selectedAlgorithms = a.map(algo => algo.key);
+      this.selectedBenchmarkAlgorithms = a.filter(algo => algo.key !== 'phase_diversity').map(algo => algo.key);
+    });
+    this.api.getBenchmarkCases().subscribe(cases => {
+      this.benchmarkCases.set(cases);
+      this.selectedBenchmarkCases = cases.map(item => item.key);
+    });
+  }
   ngOnDestroy(): void { this.revokePlotUrls(); }
 
   compare(): void {
     if (!this.selectedFile) { this.snack.open('Select a data file', 'OK', { duration: 2000 }); return; }
     this.loading.set(true);
     this.revokePlotUrls();
-    this.api.compare({ fits_filename: this.selectedFile, max_iterations: this.iterations, grid_size: this.gridSize }).subscribe({
+    this.api.compare({
+      fits_filename: this.selectedFile,
+      max_iterations: this.iterations,
+      grid_size: this.gridSize,
+      algorithms: this.selectedAlgorithms.length > 0 ? this.selectedAlgorithms : null,
+    }).subscribe({
       next: r => {
         this.loading.set(false);
         this.response.set(r);
@@ -98,6 +179,25 @@ export class CompareComponent implements OnInit, OnDestroy {
     });
   }
 
+  runBenchmark(): void {
+    this.loading.set(true);
+    this.benchmarkResponse.set(null);
+    this.api.runBenchmark({
+      algorithms: this.selectedBenchmarkAlgorithms.length > 0 ? this.selectedBenchmarkAlgorithms : null,
+      cases: this.selectedBenchmarkCases.length > 0 ? this.selectedBenchmarkCases : null,
+      max_iterations: this.benchmarkIterations,
+    }).subscribe({
+      next: r => {
+        this.loading.set(false);
+        this.benchmarkResponse.set(r);
+      },
+      error: e => {
+        this.loading.set(false);
+        this.snack.open(e?.error?.detail || 'Benchmark failed', 'OK', { duration: 4000 });
+      },
+    });
+  }
+
   private revokePlotUrls(): void {
     for (const url of Object.values(this.comparisonPlotUrls())) {
       URL.revokeObjectURL(url);
@@ -105,6 +205,5 @@ export class CompareComponent implements OnInit, OnDestroy {
     this.comparisonPlotUrls.set({});
   }
 }
-
 
 

@@ -33,3 +33,11 @@ def test_notebook_does_not_contain_stale_manual_pinn_values() -> None:
     )
     assert stale_marker not in text
     assert "pinn_result = True" not in text
+
+
+def test_notebook_exposes_benchmark_and_rich_synthetic_workflows() -> None:
+    text = _notebook_source()
+    assert "from src.data.synthetic import generate_synthetic_psf" in text
+    assert "stress_dataset = generate_synthetic_psf(" in text
+    assert "from src.benchmark import available_benchmark_cases, run_benchmark" in text
+    assert "benchmark_summary = run_benchmark(" in text

@@ -8,12 +8,13 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatIconModule } from '@angular/material/icon';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { ApiService, FitsFile, Preset } from '../core/api.service';
 
 @Component({
   selector: 'app-data',
   standalone: true,
-  imports: [FormsModule, MatCardModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatTableModule, MatSnackBarModule, MatIconModule],
+  imports: [FormsModule, MatCardModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatTableModule, MatSnackBarModule, MatIconModule, MatExpansionModule],
   template: `
     <h2>Data Manager</h2>
     <div class="card-grid mb-16">
@@ -32,6 +33,34 @@ import { ApiService, FitsFile, Preset } from '../core/api.service';
               <mat-option value="generic_circular">Generic Circular</mat-option>
             </mat-select>
           </mat-form-field>
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title>Advanced realism controls</mat-panel-title>
+            </mat-expansion-panel-header>
+            <div class="card-grid">
+              <mat-form-field><mat-label>Zernike Terms</mat-label><input matInput type="number" [(ngModel)]="synthNZernike" name="snz"></mat-form-field>
+              <mat-form-field><mat-label>Photon Count</mat-label><input matInput type="number" [(ngModel)]="synthPhotonCount" name="spc"></mat-form-field>
+              <mat-form-field><mat-label>Read Noise</mat-label><input matInput type="number" step="0.0001" [(ngModel)]="synthReadNoise" name="srn"></mat-form-field>
+              <mat-form-field><mat-label>Offset Row (px)</mat-label><input matInput type="number" step="0.1" [(ngModel)]="synthOffsetRow" name="sor"></mat-form-field>
+              <mat-form-field><mat-label>Offset Col (px)</mat-label><input matInput type="number" step="0.1" [(ngModel)]="synthOffsetCol" name="soc"></mat-form-field>
+              <mat-form-field><mat-label>Background</mat-label><input matInput type="number" step="0.000001" [(ngModel)]="synthBackground" name="sbg"></mat-form-field>
+              <mat-form-field><mat-label>Bandwidth Fraction</mat-label><input matInput type="number" step="0.01" [(ngModel)]="synthBandwidth" name="sbw"></mat-form-field>
+              <mat-form-field><mat-label>Spectral Samples</mat-label><input matInput type="number" [(ngModel)]="synthSpectralSamples" name="sss"></mat-form-field>
+              <mat-form-field>
+                <mat-label>Spectral Weighting</mat-label>
+                <mat-select [(ngModel)]="synthSpectralWeighting" name="ssw">
+                  <mat-option value="delta">Delta</mat-option>
+                  <mat-option value="gaussian">Gaussian</mat-option>
+                  <mat-option value="uniform">Uniform</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field><mat-label>Field Defocus (waves)</mat-label><input matInput type="number" step="0.1" [(ngModel)]="synthFieldDefocus" name="sfd"></mat-form-field>
+              <mat-form-field><mat-label>Detector Blur (px)</mat-label><input matInput type="number" step="0.1" [(ngModel)]="synthDetectorSigma" name="sds"></mat-form-field>
+              <mat-form-field><mat-label>Jitter Blur (px)</mat-label><input matInput type="number" step="0.1" [(ngModel)]="synthJitterSigma" name="sjs"></mat-form-field>
+              <mat-form-field><mat-label>Pixel Integration Width</mat-label><input matInput type="number" step="0.1" [(ngModel)]="synthPixelIntegrationWidth" name="spiw"></mat-form-field>
+              <mat-form-field><mat-label>Random Seed</mat-label><input matInput type="number" [(ngModel)]="synthSeed" name="ssd"></mat-form-field>
+            </div>
+          </mat-expansion-panel>
         </mat-card-content>
         <mat-card-actions><button mat-raised-button color="primary" (click)="genSynthetic()"><mat-icon>science</mat-icon> Generate</button></mat-card-actions>
       </mat-card>
@@ -69,12 +98,35 @@ export class DataComponent implements OnInit {
   files = signal<FitsFile[]>([]);
   presets = signal<Preset[]>([]);
   synthName = 'synthetic'; synthGrid = 128; synthRms = 0.5; synthTelescope = 'hst';
+  synthNZernike = 15; synthPhotonCount = 0; synthReadNoise = 0; synthOffsetRow = 0; synthOffsetCol = 0;
+  synthBackground = 0; synthBandwidth = 0; synthSpectralSamples = 1; synthSpectralWeighting = 'delta';
+  synthFieldDefocus = 0; synthDetectorSigma = 0; synthJitterSigma = 0; synthPixelIntegrationWidth = 1;
+  synthSeed = 42;
 
   ngOnInit(): void { this.refresh(); this.api.getPresets().subscribe(p => this.presets.set(p)); }
   refresh(): void { this.api.getFitsFiles().subscribe(f => this.files.set(f)); }
 
   genSynthetic(): void {
-    this.api.generateSynthetic({ name: this.synthName, grid_size: this.synthGrid, aberration_rms: this.synthRms, telescope: this.synthTelescope }).subscribe({
+    this.api.generateSynthetic({
+      name: this.synthName,
+      grid_size: this.synthGrid,
+      aberration_rms: this.synthRms,
+      n_zernike: this.synthNZernike,
+      telescope: this.synthTelescope,
+      photon_count: this.synthPhotonCount,
+      read_noise_std: this.synthReadNoise,
+      center_offset_row_pixels: this.synthOffsetRow,
+      center_offset_col_pixels: this.synthOffsetCol,
+      background_level: this.synthBackground,
+      bandwidth_fraction: this.synthBandwidth,
+      spectral_samples: this.synthSpectralSamples,
+      spectral_weighting: this.synthSpectralWeighting,
+      field_defocus_waves: this.synthFieldDefocus,
+      detector_sigma_pixels: this.synthDetectorSigma,
+      jitter_sigma_pixels: this.synthJitterSigma,
+      pixel_integration_width: this.synthPixelIntegrationWidth,
+      random_seed: this.synthSeed,
+    }).subscribe({
       next: () => { this.snack.open('Synthetic PSF generated', 'OK', { duration: 2000 }); this.refresh(); },
       error: e => this.snack.open(e?.error?.detail || 'Generation failed', 'OK', { duration: 3000 }),
     });
@@ -88,4 +140,3 @@ export class DataComponent implements OnInit {
     });
   }
 }
-

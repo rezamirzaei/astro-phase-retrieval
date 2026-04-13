@@ -36,7 +36,11 @@ class SyntheticDataset:
     center_offset_pixels: tuple[float, float] = (0.0, 0.0)
     background_level: float = 0.0
     bandwidth_fraction: float = 0.0
+    spectral_weighting: str = "delta"
     field_defocus_waves: float = 0.0
+    detector_sigma_pixels: float = 0.0
+    jitter_sigma_pixels: float = 0.0
+    pixel_integration_width: float = 1.0
 
 
 def generate_synthetic_psf(
@@ -52,7 +56,11 @@ def generate_synthetic_psf(
     background_level: float = 0.0,
     bandwidth_fraction: float = 0.0,
     spectral_samples: int = 1,
+    spectral_weighting: str = "delta",
     field_defocus_waves: float = 0.0,
+    detector_sigma_pixels: float = 0.0,
+    jitter_sigma_pixels: float = 0.0,
+    pixel_integration_width: float = 1.0,
 ) -> SyntheticDataset:
     """Generate a synthetic PSF with configurable aberrations and noise.
 
@@ -81,20 +89,27 @@ def generate_synthetic_psf(
         Complete synthetic dataset including PSF, pupil, and ground truth.
     """
     rng = np.random.default_rng(random_seed)
+    telescope_enum = (
+        telescope if isinstance(telescope, TelescopeType) else TelescopeType(str(telescope))
+    )
 
     # Build pupil
     pupil_cfg = PupilConfig(
-        telescope=telescope,
+        telescope=telescope_enum,
         grid_size=grid_size,
         primary_radius=1.0,
-        secondary_radius=0.3 if telescope != TelescopeType.JWST else 0.15,
-        spider_width=0.02 if telescope == TelescopeType.HST else 0.0,
-        n_spiders=4 if telescope == TelescopeType.HST else 0,
+        secondary_radius=0.3 if telescope_enum != TelescopeType.JWST else 0.15,
+        spider_width=0.02 if telescope_enum == TelescopeType.HST else 0.0,
+        n_spiders=4 if telescope_enum == TelescopeType.HST else 0,
         wavelength_m=wavelength_m,
         pixel_scale_arcsec=0.04,
         bandwidth_fraction=bandwidth_fraction,
         spectral_samples=spectral_samples,
+        spectral_weighting=spectral_weighting,
         field_defocus_waves=field_defocus_waves,
+        detector_sigma_pixels=detector_sigma_pixels,
+        jitter_sigma_pixels=jitter_sigma_pixels,
+        pixel_integration_width=pixel_integration_width,
     )
     pupil = build_pupil(pupil_cfg)
     support = pupil.amplitude > 0
@@ -165,7 +180,7 @@ def generate_synthetic_psf(
         pixel_scale_arcsec=0.04,
         wavelength_m=wavelength_m,
         filter_name="SYNTH",
-        telescope=telescope.value,
+        telescope=telescope_enum.value,
         obs_id=f"synth-{random_seed}",
         metadata={
             "source_kind": "synthetic",
@@ -179,7 +194,11 @@ def generate_synthetic_psf(
             "rms_aberration_rad": float(rms_aberration),
             "bandwidth_fraction": float(bandwidth_fraction),
             "spectral_samples": int(spectral_samples),
+            "spectral_weighting": str(spectral_weighting),
             "field_defocus_waves": float(field_defocus_waves),
+            "detector_sigma_pixels": float(detector_sigma_pixels),
+            "jitter_sigma_pixels": float(jitter_sigma_pixels),
+            "pixel_integration_width": float(pixel_integration_width),
         },
     )
 
@@ -192,7 +211,11 @@ def generate_synthetic_psf(
         center_offset_pixels=(float(center_offset_pixels[0]), float(center_offset_pixels[1])),
         background_level=float(background_level),
         bandwidth_fraction=float(bandwidth_fraction),
+        spectral_weighting=str(spectral_weighting),
         field_defocus_waves=float(field_defocus_waves),
+        detector_sigma_pixels=float(detector_sigma_pixels),
+        jitter_sigma_pixels=float(jitter_sigma_pixels),
+        pixel_integration_width=float(pixel_integration_width),
     )
 
 

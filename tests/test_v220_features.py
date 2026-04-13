@@ -7,6 +7,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from src.algorithms.registry import AlgorithmRegistry
 from src.data.synthetic import SyntheticDataset, generate_synthetic_psf
@@ -191,6 +192,25 @@ class TestSyntheticDataGenerator:
         ds1 = generate_synthetic_psf(grid_size=64, random_seed=1)
         ds2 = generate_synthetic_psf(grid_size=64, random_seed=2)
         assert not np.allclose(ds1.true_phase, ds2.true_phase)
+
+    def test_generate_with_broadband_and_detector_effects(self) -> None:
+        ds = generate_synthetic_psf(
+            grid_size=64,
+            rms_aberration=0.4,
+            bandwidth_fraction=0.12,
+            spectral_samples=5,
+            spectral_weighting="gaussian",
+            detector_sigma_pixels=0.25,
+            jitter_sigma_pixels=0.15,
+            pixel_integration_width=1.2,
+            random_seed=42,
+        )
+        assert ds.bandwidth_fraction == pytest.approx(0.12)
+        assert ds.spectral_weighting == "gaussian"
+        assert ds.detector_sigma_pixels == pytest.approx(0.25)
+        assert ds.jitter_sigma_pixels == pytest.approx(0.15)
+        assert ds.pixel_integration_width == pytest.approx(1.2)
+        assert ds.psf_data.metadata["spectral_weighting"] == "gaussian"
 
 
 # ---------------------------------------------------------------------------

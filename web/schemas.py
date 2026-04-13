@@ -16,7 +16,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from src.models.config import AlgorithmName, BetaSchedule, NoiseModel
+from src.models.config import (
+    AlgorithmName,
+    BetaSchedule,
+    NoiseModel,
+    Regulariser,
+    TelescopeType,
+)
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -91,11 +97,22 @@ class AlgorithmParams(BaseModel):
     """
 
     max_iterations: int = Field(default=300, ge=1, le=10_000)
+    tolerance: float = Field(default=1e-8, gt=0)
     beta: float = Field(default=0.9, gt=0, le=1.0)
     beta_schedule: BetaSchedule = Field(default=BetaSchedule.CONSTANT)
     momentum: float = Field(default=0.0, ge=0, le=0.99)
     tv_weight: float = Field(default=0.0, ge=0, description="TV regularisation weight (0 = off)")
     noise_model: NoiseModel = Field(default=NoiseModel.GAUSSIAN)
+    n_starts: int = Field(default=1, ge=1, le=32)
+    uncertainty_samples: int = Field(default=0, ge=0, le=32)
+    admm_rho: float = Field(default=1.0, gt=0)
+    wf_step_size: float = Field(default=0.5, gt=0, le=10.0)
+    wf_spectral_init: bool = True
+    spectral_init: bool = True
+    regulariser: Regulariser = Field(default=Regulariser.NONE)
+    proximal_weight: float = Field(default=1e-3, ge=0)
+    sparsity_threshold: float = Field(default=0.1, ge=0, le=1.0)
+    sparsity_keep_fraction: float = Field(default=1.0, gt=0, le=1.0)
     grid_size: int = Field(default=128, ge=64, le=512)
 
 
@@ -189,8 +206,66 @@ class SyntheticRequest(BaseModel):
     name: str = Field(default="synthetic", max_length=100)
     grid_size: int = Field(default=128, ge=64, le=512)
     aberration_rms: float = Field(default=0.5, ge=0.1, le=3.0)
-    telescope: str = Field(default="hst")
+    n_zernike: int = Field(default=15, ge=3, le=50)
+    telescope: TelescopeType = Field(default=TelescopeType.HST)
     filter_name: str = Field(default="F606W")
+    photon_count: float = Field(default=0.0, ge=0.0)
+    read_noise_std: float = Field(default=0.0, ge=0.0)
+    center_offset_row_pixels: float = Field(default=0.0, ge=-8.0, le=8.0)
+    center_offset_col_pixels: float = Field(default=0.0, ge=-8.0, le=8.0)
+    background_level: float = Field(default=0.0, ge=0.0)
+    bandwidth_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
+    spectral_samples: int = Field(default=1, ge=1, le=15)
+    spectral_weighting: str = Field(default="delta", pattern="^(delta|gaussian|uniform)$")
+    field_defocus_waves: float = Field(default=0.0, ge=-5.0, le=5.0)
+    detector_sigma_pixels: float = Field(default=0.0, ge=0.0, le=10.0)
+    jitter_sigma_pixels: float = Field(default=0.0, ge=0.0, le=10.0)
+    pixel_integration_width: float = Field(default=1.0, ge=0.5, le=4.0)
+    random_seed: int = Field(default=42)
+
+
+class BenchmarkCaseInfo(BaseModel):
+    key: str
+    description: str
+
+
+class BenchmarkAggregateRow(BaseModel):
+    algorithm: str
+    n_cases: int
+    mean_score: float
+    mean_ssim: float
+    mean_phase_rms_error_rad: float
+    mean_radial_profile_error: float
+    mean_encircled_energy_error: float
+    mean_elapsed_seconds: float
+    converged_fraction: float
+
+
+class BenchmarkStudyRow(BaseModel):
+    algorithm: str
+    clean_mean_score: float
+    stress_mean_score: float
+    robustness_drop: float
+    failure_rate: float
+    convergence_stability: float
+    worst_case: str
+
+
+class BenchmarkRunRequest(BaseModel):
+    algorithms: list[AlgorithmName] | None = None
+    cases: list[str] | None = None
+    max_iterations: int = Field(default=80, ge=1, le=10_000)
+    beta: float = Field(default=0.9, gt=0, le=1.0)
+    random_seed: int = Field(default=42)
+
+
+class BenchmarkResponse(BaseModel):
+    selected_algorithms: list[str]
+    selected_cases: list[BenchmarkCaseInfo]
+    aggregate: list[BenchmarkAggregateRow]
+    study: list[BenchmarkStudyRow]
+    records_count: int
+    artifacts: dict[str, str] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

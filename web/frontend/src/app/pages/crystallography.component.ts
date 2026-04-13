@@ -84,6 +84,10 @@ import { ApiService, CodPreset, CifFile, CrystJobResponse } from '../core/api.se
             <mat-label>Max Iterations</mat-label>
             <input matInput type="number" [(ngModel)]="maxIterations" min="1" max="10000">
           </mat-form-field>
+          <mat-form-field>
+            <mat-label>β</mat-label>
+            <input matInput type="number" [(ngModel)]="beta" min="0.1" max="1.0" step="0.05">
+          </mat-form-field>
         </div>
         <button mat-raised-button color="accent" (click)="runRetrieval()"
                 [disabled]="!selectedCif() || loading()">
@@ -171,6 +175,7 @@ export class CrystallographyComponent {
   algorithm = 'hio';
   gridSize = 128;
   maxIterations = 500;
+  beta = 0.9;
 
   constructor() {
     this.api.getCodPresets().subscribe(p => this.presets.set(p));
@@ -196,6 +201,7 @@ export class CrystallographyComponent {
       cif_filename: this.selectedCif(),
       algorithm: this.algorithm,
       max_iterations: this.maxIterations,
+      beta: this.beta,
       grid_size: this.gridSize,
     }).subscribe({
       next: r => { this.result.set(r); this.loading.set(false); },
@@ -216,4 +222,3 @@ export class CrystallographyComponent {
     });
   }
 }
-

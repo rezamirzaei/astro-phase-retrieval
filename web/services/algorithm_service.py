@@ -11,6 +11,11 @@ import matplotlib
 from matplotlib import pyplot as plt
 from sqlalchemy.orm import Session
 
+from src.benchmark import (
+    available_benchmark_cases,
+    default_benchmark_algorithms,
+    run_benchmark,
+)
 from src.algorithms.registry import AlgorithmRegistry
 from src.metrics.quality import zernike_decomposition
 from src.models.config import (
@@ -18,6 +23,7 @@ from src.models.config import (
     AlgorithmName,
     BetaSchedule,
     NoiseModel,
+    Regulariser,
     default_hst_config,
 )
 from src.models.optics import PSFData, PupilModel
@@ -34,7 +40,13 @@ from src.visualization.plots import (
 )
 from web.config import settings
 from web.models import Job
-from web.schemas import AlgorithmDefaults, AlgorithmInfo, PlotReference
+from web.schemas import (
+    AlgorithmDefaults,
+    AlgorithmInfo,
+    BenchmarkCaseInfo,
+    BenchmarkResponse,
+    PlotReference,
+)
 
 matplotlib.use("Agg")  # headless backend for the web server
 
@@ -147,22 +159,44 @@ def _build_algorithm_config(job: Job) -> AlgorithmConfig:
     return AlgorithmConfig(
         name=AlgorithmName(job.algorithm),
         max_iterations=int(str(_g("max_iterations", 300))),
+        tolerance=float(str(_g("tolerance", 1e-8))),
         beta=float(str(_g("beta", 0.9))),
         beta_schedule=BetaSchedule(str(_g("beta_schedule", "constant"))),
         momentum=float(str(_g("momentum", 0.0))),
         tv_weight=float(str(_g("tv_weight", 0.0))),
         noise_model=NoiseModel(str(_g("noise_model", "gaussian"))),
+        n_starts=int(str(_g("n_starts", 1))),
+        admm_rho=float(str(_g("admm_rho", 1.0))),
+        wf_step_size=float(str(_g("wf_step_size", 0.5))),
+        wf_spectral_init=bool(_g("wf_spectral_init", True)),
+        spectral_init=bool(_g("spectral_init", True)),
+        regulariser=Regulariser(str(_g("regulariser", "none"))),
+        proximal_weight=float(str(_g("proximal_weight", 1e-3))),
+        sparsity_threshold=float(str(_g("sparsity_threshold", 0.1))),
+        sparsity_keep_fraction=float(str(_g("sparsity_keep_fraction", 1.0))),
         random_seed=42,
     )
 
 
-def _build_pipeline(grid_size: int, output_dir: Path) -> RetrievalPipeline:
+def _build_pipeline(
+    grid_size: int,
+    output_dir: Path,
+    *,
+    uncertainty_samples: int = 0,
+) -> RetrievalPipeline:
     """Construct the shared retrieval pipeline used by the web application."""
     config = default_hst_config()
     data_cfg = config.data.model_copy(update={"cutout_size": grid_size})
     pupil_cfg = config.pupil.model_copy(update={"grid_size": grid_size})
     return RetrievalPipeline(
-        config.model_copy(update={"data": data_cfg, "pupil": pupil_cfg, "output_dir": output_dir})
+        config.model_copy(
+            update={
+                "data": data_cfg,
+                "pupil": pupil_cfg,
+                "output_dir": output_dir,
+                "uncertainty_samples": uncertainty_samples,
+            }
+        )
     )
 
 
@@ -241,7 +275,12 @@ def run_algorithm(
         db.commit()
 
         out_dir = settings.output_dir / str(job.id)
-        pipeline = _build_pipeline(grid_size, out_dir)
+        cfg_raw: dict[str, object] = json.loads(job.config_json)
+        pipeline = _build_pipeline(
+            grid_size,
+            out_dir,
+            uncertainty_samples=int(str(cfg_raw.get("uncertainty_samples", 0))),
+        )
         pipeline_result = pipeline.run_from_file(
             fits_path,
             algorithm_config=_build_algorithm_config(job),
@@ -404,6 +443,60 @@ def list_algorithms_with_defaults() -> list[AlgorithmInfo]:
         )
         for key in AlgorithmRegistry.available()
     ]
+
+
+def list_benchmark_cases() -> list[BenchmarkCaseInfo]:
+    """Return the benchmark cases that can be launched from the web UI."""
+    return [
+        BenchmarkCaseInfo(key=key, description=case.description)
+        for key, case in sorted(available_benchmark_cases().items())
+    ]
+
+
+def run_algorithm_benchmark(
+    *,
+    algorithm_keys: list[str] | None,
+    case_keys: list[str] | None,
+    max_iterations: int,
+    beta: float,
+    random_seed: int,
+) -> BenchmarkResponse:
+    """Run the synthetic benchmark suite and return a web-friendly summary."""
+    available_cases = available_benchmark_cases()
+    selected_cases = [
+        available_cases[key]
+        for key in (case_keys or list(available_cases))
+        if key in available_cases
+    ]
+    if not selected_cases:
+        raise ValueError("No valid benchmark cases were selected")
+
+    selected_algorithms = (
+        [AlgorithmName(key) for key in algorithm_keys]
+        if algorithm_keys
+        else default_benchmark_algorithms()
+    )
+    output_dir = settings.output_dir / "benchmarks" / (
+        datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+    )
+    summary = run_benchmark(
+        algorithms=selected_algorithms,
+        cases=selected_cases,
+        max_iterations=max_iterations,
+        beta=beta,
+        random_seed=random_seed,
+        output_dir=output_dir,
+    )
+    return BenchmarkResponse(
+        selected_algorithms=[algorithm.value for algorithm in selected_algorithms],
+        selected_cases=[
+            BenchmarkCaseInfo(key=case.key, description=case.description) for case in selected_cases
+        ],
+        aggregate=summary.aggregate,
+        study=summary.study,
+        records_count=len(summary.records),
+        artifacts=summary.artifacts,
+    )
 
 
 def list_job_plots(job: Job) -> list[str]:
