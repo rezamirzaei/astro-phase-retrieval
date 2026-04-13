@@ -12,12 +12,20 @@ regulariser (TV or L1-wavelet sparsity).
 
 The FISTA update is:
 
-    g_k     = prox_{λ/L · R}( y_k − (1/L) · ∇f(y_k) )
+    g_k     = prox_{λ/L_k · R}( y_k − (1/L_k) · ∇f(y_k) )
     t_{k+1} = (1 + √(1 + 4·t_k²)) / 2
     y_{k+1} = g_k + (t_k − 1) / t_{k+1} · (g_k − g_{k-1})
 
-where L is the Lipschitz constant of ∇f and t_k implements Nesterov
-acceleration.
+**Adaptive Lipschitz scheduling:**  The intensity loss f(g) = Σ(|Fg|² − y)²
+is quartic — not Lipschitz-smooth — so a fixed step-size L often leads to
+divergence or oscillation.  We use a time-increasing schedule:
+
+    L_k = L₀ · √k
+
+where L₀ = ``fista_lipschitz`` (config) and k is the 1-based iteration.
+This corresponds to a decaying step-size η_k = 1/(L₀·√k · ⟨I⟩ · n²),
+which is the standard O(1/√t) rate for non-smooth optimisation and matches
+the subgradient convergence theory (Nesterov, 2004, §3.2.3).
 
 Pluggable regularisers:
     - ``none``: plain projected gradient descent
@@ -33,6 +41,10 @@ Beck A., Teboulle M. (2009)
 Candes E.J., Li X., Soltanolkotabi M. (2015)
     "Phase Retrieval via Wirtinger Flow"
     IEEE Trans. Info. Theory 61(4):1985–2007
+
+Nesterov Y. (2004)
+    "Introductory Lectures on Convex Optimization: A Basic Course"
+    Springer, §3.2.3 — subgradient step-size rules for non-smooth problems
 """
 
 from __future__ import annotations
@@ -77,7 +89,12 @@ class FISTA(PhaseRetriever):
     ) -> tuple[np.ndarray, float]:
         """One FISTA iteration: gradient step → proximal step → Nesterov extrapolation."""
         n = g.shape[0]
-        L = self.config.fista_lipschitz  # Lipschitz constant estimate
+        # Adaptive √t Lipschitz schedule: L_k = L₀ · √k.
+        # The intensity loss f(g) = Σ(|Fg|² − y)² is quartic (non-smooth
+        # gradient), so a fixed step-size diverges.  The O(1/√t) decaying
+        # step-size matches subgradient convergence theory for non-smooth
+        # problems (Nesterov 2004, §3.2.3).
+        L = self.config.fista_lipschitz * np.sqrt(float(iteration))
         lam = self.config.proximal_weight
 
         # ── Wirtinger gradient of the data-fidelity term ──────────────

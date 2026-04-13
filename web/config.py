@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     # Rate-limiting: max concurrent heavy algorithm runs (0 = unlimited)
     max_concurrent_jobs: int = Field(default=4, ge=0)
 
+    # Graceful shutdown: max seconds to wait for running jobs to complete
+    shutdown_timeout_seconds: float = Field(default=30.0, ge=0)
+
+    # Upload limits
+    upload_max_bytes: int = Field(default=100 * 1024 * 1024, ge=0)
+
     @field_validator("secret_key")
     @classmethod
     def _warn_insecure_key(cls, v: str) -> str:

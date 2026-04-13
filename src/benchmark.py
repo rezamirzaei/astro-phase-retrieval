@@ -273,7 +273,12 @@ def default_benchmark_algorithms(*, include_pinn: bool = False) -> list[Algorith
 
 
 def _phase_rms_error(dataset: SyntheticDataset, recovered_phase: np.ndarray) -> float:
-    """Compute RMS phase error after piston removal over the true support."""
+    """Compute RMS phase error after piston removal over the true support.
+
+    Phase retrieval has an inherent global sign ambiguity: φ and −φ produce
+    the same PSF intensity.  We evaluate the error for both signs and return
+    the minimum, avoiding artificially inflated scores.
+    """
     support = dataset.pupil.amplitude > 0
     truth = dataset.true_phase.copy()
     recon = recovered_phase.copy()
@@ -286,8 +291,17 @@ def _phase_rms_error(dataset: SyntheticDataset, recovered_phase: np.ndarray) -> 
         return 0.0
 
     truth_vals = truth_vals - truth_vals.mean()
-    recon_vals = recon_vals - recon_vals.mean()
-    return float(np.sqrt(np.mean((recon_vals - truth_vals) ** 2)))
+
+    # Try +φ
+    recon_plus = recon_vals - recon_vals.mean()
+    error_plus = float(np.sqrt(np.mean((recon_plus - truth_vals) ** 2)))
+
+    # Try −φ (global sign flip)
+    recon_minus = -recon_vals
+    recon_minus = recon_minus - recon_minus.mean()
+    error_minus = float(np.sqrt(np.mean((recon_minus - truth_vals) ** 2)))
+
+    return min(error_plus, error_minus)
 
 
 def _score_record(record: dict[str, Any]) -> float:

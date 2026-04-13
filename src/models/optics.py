@@ -80,6 +80,22 @@ class PupilModel(NumpyModel):
             raise ValueError("Pupil amplitude must be a square 2-D array")
         return v
 
+    def forward_model_kwargs(self) -> dict[str, Any]:
+        """Return the keyword arguments for :func:`forward_model` / :func:`compute_strehl_ratio`.
+
+        This eliminates copy-pasting 8 keyword arguments at every call-site.
+        """
+        return {
+            "wavelength_m": self.wavelength_m,
+            "bandwidth_fraction": self.bandwidth_fraction,
+            "spectral_samples": self.spectral_samples,
+            "spectral_weighting": self.spectral_weighting,
+            "field_defocus_waves": self.field_defocus_waves,
+            "detector_sigma_pixels": self.detector_sigma_pixels,
+            "jitter_sigma_pixels": self.jitter_sigma_pixels,
+            "pixel_integration_width": self.pixel_integration_width,
+        }
+
 
 # ---------------------------------------------------------------------------
 # Phase-retrieval result

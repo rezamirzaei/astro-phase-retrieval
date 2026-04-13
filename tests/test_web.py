@@ -185,7 +185,16 @@ class TestAuth:
 
 class TestHealth:
     def test_health(self, client: TestClient) -> None:
-        assert client.get("/api/health").json() == {"status": "ok"}
+        data = client.get("/api/health").json()
+        assert data["status"] == "ok"
+        assert "version" in data
+        assert "uptime_seconds" in data
+
+    def test_readiness(self, client: TestClient) -> None:
+        data = client.get("/api/readiness").json()
+        assert data["db"] == "ok"
+        assert data["disk"] == "ok"
+        assert "version" in data
 
 
 # ---------------------------------------------------------------------------
@@ -241,8 +250,10 @@ class TestData:
 
         resp = client.get("/api/data/fits", headers=headers)
         assert resp.status_code == 200
-        names = [f["filename"] for f in resp.json()]
+        data = resp.json()
+        names = [f["filename"] for f in data["items"]]
         assert any("test_synth" in n for n in names)
+        assert data["total"] >= 1
 
     def test_synthetic_accepts_richer_generation_controls(self, client: TestClient) -> None:
         headers = _register_and_login(client)
@@ -320,7 +331,7 @@ class TestAlgorithms:
             },
             headers=headers,
         )
-        files = client.get("/api/data/fits", headers=headers).json()
+        files = client.get("/api/data/fits", headers=headers).json()["items"]
         fname = [f["filename"] for f in files if "run_test" in f["filename"]][0]
 
         resp = client.post(
@@ -354,7 +365,7 @@ class TestAlgorithms:
             },
             headers=headers,
         )
-        files = client.get("/api/data/fits", headers=headers).json()
+        files = client.get("/api/data/fits", headers=headers).json()["items"]
         fname = [f["filename"] for f in files if "advanced_run" in f["filename"]][0]
 
         resp = client.post(
@@ -428,7 +439,9 @@ class TestResults:
         headers = _register_and_login(client)
         resp = client.get("/api/results/", headers=headers)
         assert resp.status_code == 200
-        assert resp.json() == []
+        data = resp.json()
+        assert data["items"] == []
+        assert data["total"] == 0
 
     def test_dashboard_empty(self, client: TestClient) -> None:
         headers = _register_and_login(client)
@@ -449,7 +462,7 @@ class TestResults:
             },
             headers=headers,
         )
-        files = client.get("/api/data/fits", headers=headers).json()
+        files = client.get("/api/data/fits", headers=headers).json()["items"]
         fname = [f["filename"] for f in files if "del_test" in f["filename"]][0]
         run_resp = client.post(
             "/api/algorithms/run",
@@ -521,7 +534,7 @@ class TestStudies:
             },
             headers=headers,
         )
-        files = client.get("/api/data/fits", headers=headers).json()
+        files = client.get("/api/data/fits", headers=headers).json()["items"]
         filename = [f["filename"] for f in files if "campaign_input" in f["filename"]][0]
 
         resp = client.post(

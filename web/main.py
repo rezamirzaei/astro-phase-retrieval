@@ -1,4 +1,4 @@
-"""FastAPI application entry-point.
+"""FastAPI application entry-point — Phase Retrieval Web API.
 
 Run with::
 
@@ -9,23 +9,32 @@ Environment variables (see ``web/config.py`` for full list):
 * ``PR_SECRET_KEY``      — JWT signing secret (required in production)
 * ``PR_ADMIN_PASSWORD``  — seed admin password (default: ``admin123``)
 * ``PR_DATABASE_URL``    — SQLAlchemy DB URL (default: SQLite)
+* ``PR_CORS_ORIGINS``    — comma-separated allowed origins
 """
 
 from __future__ import annotations
 
-import logging
+import logging  # noqa: F401 — used by logging.config
 import logging.config
+import sys
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from web.config import settings
 from web.database import Base, SessionLocal, engine
+from web.middleware import RequestIDMiddleware, RequestLoggingMiddleware
 from web.models import User
 from web.routers import algorithms, auth, crystallography, data, explain, results, studies
+from web.routers import jobs as jobs_router
+from web.routers import ws as ws_router
+from web.schemas import HealthDetail, ReadinessDetail
 from web.security import hash_password
+from web.services.job_queue import shutdown_pool
 
 # ---------------------------------------------------------------------------
 # Structured JSON logging (machine-readable for log aggregators)
@@ -63,19 +72,31 @@ _LOG_CONFIG: dict = {
 logging.config.dictConfig(_LOG_CONFIG)
 logger = logging.getLogger(__name__)
 
+_startup_time: float = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Lifespan — startup / shutdown
+# ---------------------------------------------------------------------------
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Create DB tables on startup and seed an admin account."""
+    """Create DB tables on startup, seed admin, and drain resources on shutdown."""
+    global _startup_time
+    _startup_time = time.time()
+
+    # ── Startup ─────────────────────────────────────────────────────
     Base.metadata.create_all(bind=engine)
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
+    (settings.data_dir / "uploads").mkdir(parents=True, exist_ok=True)
 
-    # Seed admin account — password is read from PR_ADMIN_PASSWORD env var
+    # Seed admin account
     db = SessionLocal()
     try:
         if not db.query(User).filter(User.username == "admin").first():
-            admin_pw = settings.admin_password  # env-configurable, never hardcoded
+            admin_pw = settings.admin_password
             admin = User(
                 email="admin@phase-retrieval.local",
                 username="admin",
@@ -94,34 +115,125 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         settings.output_dir,
     )
     yield
-    logger.info("Phase Retrieval API shutting down")
 
+    # ── Shutdown ────────────────────────────────────────────────────
+    logger.info("Phase Retrieval API shutting down — draining job queue…")
+    await shutdown_pool(timeout=settings.shutdown_timeout_seconds)
+    engine.dispose()
+    logger.info("Phase Retrieval API shutdown complete")
+
+
+# ---------------------------------------------------------------------------
+# OpenAPI tag descriptions — enriched documentation
+# ---------------------------------------------------------------------------
+
+tags_metadata = [
+    {
+        "name": "auth",
+        "description": "User registration, login, JWT refresh, and account introspection.",
+    },
+    {
+        "name": "data",
+        "description": (
+            "Data management — list / upload FITS & NPY files, generate synthetic PSFs, "
+            "and download curated observation presets from MAST."
+        ),
+    },
+    {
+        "name": "algorithms",
+        "description": (
+            "Run phase-retrieval algorithms (GS, HIO, RAAR, WF, FISTA, ADMM, PINN, …), "
+            "compare multiple algorithms, and benchmark on synthetic test suites."
+        ),
+    },
+    {
+        "name": "results",
+        "description": (
+            "Browse results, view / download plots, export reproducibility archives, "
+            "and aggregate dashboard statistics."
+        ),
+    },
+    {
+        "name": "studies",
+        "description": "Multi-observation validation campaigns and robustness studies.",
+    },
+    {
+        "name": "crystallography",
+        "description": (
+            "X-ray crystallography phase retrieval — load CIF files from COD, "
+            "simulate diffraction patterns, and solve the crystallographic phase problem."
+        ),
+    },
+    {
+        "name": "explain",
+        "description": "Educational endpoints — algorithm theory, metric descriptions, science primer.",
+    },
+    {
+        "name": "jobs",
+        "description": "Background job queue — submit, poll, list asynchronous compute jobs.",
+    },
+    {
+        "name": "websocket",
+        "description": "Real-time WebSocket streaming of algorithm progress.",
+    },
+    {
+        "name": "health",
+        "description": "Liveness, readiness, and version probes for orchestration / monitoring.",
+    },
+]
+
+# ---------------------------------------------------------------------------
+# Application
+# ---------------------------------------------------------------------------
 
 app = FastAPI(
     title="Phase Retrieval — Web API",
-    version="2.3.0",
+    version="3.0.0",
     description=(
-        "REST API for astronomical wavefront sensing and X-ray crystallography: "
-        "run state-of-the-art phase-retrieval algorithms, compare results, "
-        "and explore the underlying science."
+        "Production-grade REST + WebSocket API for astronomical wavefront sensing "
+        "and X-ray crystallography.  Run state-of-the-art phase-retrieval algorithms, "
+        "compare results in real-time, and explore the underlying science.\n\n"
+        "**Key features:**\n"
+        "- 10 phase-retrieval algorithms (GS, HIO, RAAR, WF, FISTA, ADMM, DR, SparsePR, PINN, PhaseDiversity)\n"
+        "- Background job queue with WebSocket progress streaming\n"
+        "- Paginated results with one-click ZIP export\n"
+        "- File upload for custom FITS/NPY datasets\n"
+        "- JWT auth with refresh tokens, rate limiting, and audit logging\n"
+        "- X-ray crystallography workflow (COD → diffraction → phase retrieval)\n"
     ),
     contact={"name": "Reza Mirzaeifard"},
     license_info={"name": "MIT"},
     lifespan=lifespan,
+    openapi_tags=tags_metadata,
+    responses={
+        401: {"description": "Authentication required — provide a valid JWT bearer token."},
+        422: {"description": "Validation error — check the request body against the schema."},
+    },
 )
 
-# CORS
+# ---------------------------------------------------------------------------
+# Middleware stack (applied in reverse order)
+# ---------------------------------------------------------------------------
+
+# 1. CORS — must be outermost so pre-flight responses include CORS headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID", "Content-Disposition"],
 )
+
+# 2. Request ID
+app.add_middleware(RequestIDMiddleware)
+
+# 3. Request logging
+app.add_middleware(RequestLoggingMiddleware)
 
 
 # ---------------------------------------------------------------------------
-# Security headers middleware — defence-in-depth
+# Security headers — defence-in-depth
 # ---------------------------------------------------------------------------
 
 
@@ -134,15 +246,17 @@ async def add_security_headers(request: Request, call_next) -> Response:  # type
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    # HSTS — enable when serving behind TLS
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
-    # Prevent caching of auth responses
     if "/api/auth/" in request.url.path:
         response.headers["Cache-Control"] = "no-store"
     return response
 
 
+# ---------------------------------------------------------------------------
 # Mount all routers
+# ---------------------------------------------------------------------------
+
+# Core API
 app.include_router(auth.router)
 app.include_router(data.router)
 app.include_router(algorithms.router)
@@ -151,17 +265,58 @@ app.include_router(studies.router)
 app.include_router(explain.router)
 app.include_router(crystallography.router)
 
+# New in v3.0
+app.include_router(jobs_router.router)
+app.include_router(ws_router.router)
 
-@app.get("/api/health", tags=["health"])
-def health_check() -> dict[str, str]:
-    """Liveness probe — returns ``{"status": "ok"}``."""
-    return {"status": "ok"}
+
+# ---------------------------------------------------------------------------
+# Health / readiness / version — unversioned, no auth
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/health", response_model=HealthDetail, tags=["health"])
+def health_check() -> HealthDetail:
+    """Liveness probe — always returns ``status: ok`` if the process is alive."""
+    uptime = time.time() - _startup_time if _startup_time else 0.0
+    return HealthDetail(status="ok", version=app.version, uptime_seconds=round(uptime, 1))
+
+
+@app.get("/api/readiness", response_model=ReadinessDetail, tags=["health"])
+def readiness_check() -> ReadinessDetail:
+    """Readiness probe — verifies database connectivity and disk write access.
+
+    Returns 200 with per-subsystem status.  Kubernetes / load-balancers
+    should use this to decide whether to route traffic.
+    """
+    detail = ReadinessDetail(version=app.version)
+
+    # Check DB
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+        finally:
+            db.close()
+        detail.db = "ok"
+    except Exception as exc:
+        detail.db = f"error: {exc}"
+
+    # Check disk write
+    try:
+        test_file = settings.output_dir / ".readiness_check"
+        test_file.write_text("ok")
+        test_file.unlink()
+        detail.disk = "ok"
+    except Exception as exc:
+        detail.disk = f"error: {exc}"
+
+    return detail
 
 
 @app.get("/api/version", tags=["health"])
 def version() -> dict[str, str]:
     """Return the API version and Python runtime info."""
-    import sys
 
     return {
         "api_version": app.version,

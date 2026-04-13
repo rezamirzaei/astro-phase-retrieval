@@ -1,16 +1,22 @@
-"""Data management endpoints — presets, FITS listing, synthetic generation."""
+"""Data management endpoints — presets, FITS listing, upload, synthetic generation."""
 
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, UploadFile, status
 
+from web.config import settings
 from web.dependencies import CurrentUser
-from web.schemas import FitsFileInfo, PresetInfo, SyntheticRequest
+from web.schemas import FitsFileInfo, PaginatedResponse, PresetInfo, SyntheticRequest, UploadedFileResponse
 from web.services.data_service import generate_synthetic_psf, list_fits_files
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+
+# Maximum upload size: 100 MB
+_MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+_ALLOWED_EXTENSIONS = {".fits", ".fit", ".npy", ".npz"}
 
 
 @router.get("/presets", response_model=list[PresetInfo])
@@ -49,10 +55,63 @@ async def download_preset(key: str, _user: CurrentUser) -> dict[str, str]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.get("/fits", response_model=list[FitsFileInfo])
-def get_fits_files(_user: CurrentUser) -> list[dict[str, object]]:
-    """List all available FITS / ``.npy`` data files."""
-    return list_fits_files()
+@router.get("/fits", response_model=PaginatedResponse[FitsFileInfo])
+def get_fits_files(
+    _user: CurrentUser,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+) -> PaginatedResponse[FitsFileInfo]:
+    """List all available FITS / ``.npy`` data files (paginated)."""
+    all_files = list_fits_files()
+    total = len(all_files)
+    items = all_files[skip : skip + limit]
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
+
+
+@router.post(
+    "/upload",
+    response_model=UploadedFileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_file(file: UploadFile, _user: CurrentUser) -> UploadedFileResponse:
+    """Upload a custom FITS or NPY file for analysis.
+
+    * Maximum file size: 100 MB
+    * Allowed extensions: ``.fits``, ``.fit``, ``.npy``, ``.npz``
+    * Files are stored under ``data/uploads/``
+    """
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="No filename provided")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported file type '{ext}'. Allowed: {_ALLOWED_EXTENSIONS}",
+        )
+
+    upload_dir = settings.data_dir / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    dest = upload_dir / file.filename
+
+    # Stream to disk respecting the size limit
+    total = 0
+    with open(dest, "wb") as f:
+        while chunk := await file.read(1024 * 64):
+            total += len(chunk)
+            if total > _MAX_UPLOAD_BYTES:
+                dest.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File exceeds {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+                )
+            f.write(chunk)
+
+    return UploadedFileResponse(
+        filename=file.filename,
+        size_bytes=total,
+        message=f"Uploaded to {dest.relative_to(settings.data_dir)}",
+    )
 
 
 @router.post("/synthetic", response_model=FitsFileInfo)
@@ -84,3 +143,5 @@ async def create_synthetic(body: SyntheticRequest, _user: CurrentUser) -> dict[s
         "filepath": str(path),
         "size_bytes": path.stat().st_size,
     }
+
+

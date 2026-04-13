@@ -6,6 +6,8 @@ MTF (Modulation Transfer Function), SSIM, and Phase Structure Function.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from numpy.fft import fft2, fftshift
 
@@ -107,7 +109,15 @@ def compute_strehl_ratio(
     peak_aberrated = psf.max()
     if peak_perfect == 0:
         return 0.0
-    return float(min(peak_aberrated / peak_perfect, 1.0))
+    raw = float(peak_aberrated / peak_perfect)
+    if raw > 1.0 + 1e-6:
+        warnings.warn(
+            f"Strehl ratio {raw:.4f} > 1.0 — this indicates a normalisation "
+            f"mismatch or noise amplification in the reconstruction. "
+            f"Clamping to 1.0 for downstream consumers.",
+            stacklevel=2,
+        )
+    return min(raw, 1.0)
 
 
 def compute_rms_wavelength(rms_rad: float, wavelength_m: float) -> float:
@@ -400,6 +410,16 @@ def zernike_decomposition(
 ) -> dict[int, float]:
     """Decompose recovered phase into Zernike coefficients.
 
+    Uses a proper least-squares projection that accounts for the non-
+    orthogonality of Noll-ordered Zernike polynomials over annular pupil
+    supports (e.g. HST with a secondary obstruction).  The naive inner-
+    product approach fails when the polynomials are not orthogonal over the
+    actual mask, producing biased coefficients.
+
+    We solve  N @ c = b  where:
+        N[i,j] = Σ_mask Z_i · Z_j   (Gram matrix)
+        b[i]   = Σ_mask phase · Z_i  (cross-correlation)
+
     Parameters
     ----------
     phase : ndarray
@@ -418,17 +438,25 @@ def zernike_decomposition(
 
     n = phase.shape[0]
     basis, rho, theta = zernike_basis(n_terms, n, start_j=2)
+    mask = support & (rho <= 1.0)
+    n_px = float(mask.sum())
 
-    coefficients: dict[int, float] = {}
-    for idx in range(n_terms):
-        j = idx + 2  # Noll index
-        z = basis[idx]
-        mask = support & (rho <= 1.0)
-        if mask.sum() == 0:
-            coefficients[j] = 0.0
-            continue
-        # Inner product
-        coeff = float(np.sum(phase[mask] * z[mask])) / float(mask.sum())
-        coefficients[j] = float(coeff)
+    if n_px == 0:
+        return {j + 2: 0.0 for j in range(n_terms)}
 
-    return coefficients
+    # Build Gram matrix and cross-correlation vector
+    Z_masked = basis[:, mask]  # shape (n_terms, n_px)
+    gram = Z_masked @ Z_masked.T  # shape (n_terms, n_terms)
+    b = Z_masked @ phase[mask]  # shape (n_terms,)
+
+    # Regularise the Gram matrix for numerical stability
+    gram += 1e-12 * np.eye(n_terms)
+
+    # Solve the least-squares system
+    try:
+        coeffs = np.linalg.solve(gram, b)
+    except np.linalg.LinAlgError:
+        # Fallback to pseudo-inverse if singular
+        coeffs = np.linalg.lstsq(gram, b, rcond=None)[0]
+
+    return {j + 2: float(coeffs[j]) for j in range(n_terms)}

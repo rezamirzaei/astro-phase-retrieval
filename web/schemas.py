@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -24,6 +24,30 @@ from src.models.config import (
     Regulariser,
     TelescopeType,
 )
+
+# ---------------------------------------------------------------------------
+# Generics for paginated responses
+# ---------------------------------------------------------------------------
+T = TypeVar("T")
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Wrapper for paginated list endpoints.
+
+    Example response::
+
+        {
+          "items": [...],
+          "total": 142,
+          "skip": 0,
+          "limit": 50
+        }
+    """
+
+    items: list[T]
+    total: int
+    skip: int
+    limit: int
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -393,3 +417,52 @@ class SimulateDiffractionRequest(BaseModel):
 
     cif_filename: str
     grid_size: int = Field(default=128, ge=64, le=512)
+
+
+# ---------------------------------------------------------------------------
+# Health & readiness
+# ---------------------------------------------------------------------------
+
+
+class HealthDetail(BaseModel):
+    """Response for ``GET /api/health``."""
+
+    status: str = "ok"
+    version: str = ""
+    uptime_seconds: float = 0.0
+
+
+class ReadinessDetail(BaseModel):
+    """Response for ``GET /api/readiness`` — checks downstream deps."""
+
+    db: str = "ok"
+    disk: str = "ok"
+    version: str = ""
+
+
+# ---------------------------------------------------------------------------
+# File upload
+# ---------------------------------------------------------------------------
+
+
+class UploadedFileResponse(BaseModel):
+    """Response after successfully uploading a FITS/NPY file."""
+
+    filename: str
+    size_bytes: int
+    message: str = "Upload successful"
+
+
+# ---------------------------------------------------------------------------
+# Background job (queue-based)
+# ---------------------------------------------------------------------------
+
+
+class BackgroundJobResponse(BaseModel):
+    """Response when a job is submitted to the background queue."""
+
+    job_id: str
+    state: str = "queued"
+    message: str = "Job submitted"
+
+

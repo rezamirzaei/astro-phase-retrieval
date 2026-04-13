@@ -9,12 +9,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 
 from web.config import settings
 from web.dependencies import CurrentUser, DbSession
 from web.models import Job
-from web.schemas import ArtifactContentResponse, DashboardStats, JobResponse
+from web.schemas import ArtifactContentResponse, DashboardStats, JobResponse, PaginatedResponse
 from web.services.algorithm_service import list_job_artifacts, list_job_plots
 
 router = APIRouter(prefix="/api/results", tags=["results"])
@@ -32,14 +33,18 @@ def _resolve_job_artifact(job: Job, artifact_name: str) -> Path:
     return artifact_path
 
 
-@router.get("/", response_model=list[JobResponse])
+@router.get("/", response_model=PaginatedResponse[JobResponse])
 def list_results(
     user: CurrentUser,
     db: DbSession,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-) -> list[JobResponse]:
-    """Return all jobs belonging to the current user, newest first."""
+) -> PaginatedResponse[JobResponse]:
+    """Return all jobs belonging to the current user, newest first (paginated)."""
+    total = db.execute(
+        select(func.count()).select_from(Job).where(Job.user_id == user.id)
+    ).scalar_one()
+
     rows = (
         db.execute(
             select(Job)
@@ -51,13 +56,13 @@ def list_results(
         .scalars()
         .all()
     )
-    out: list[JobResponse] = []
+    items: list[JobResponse] = []
     for j in rows:
         resp = JobResponse.model_validate(j)
         resp.plots = list_job_plots(j)
         resp.artifacts = list_job_artifacts(j)
-        out.append(resp)
-    return out
+        items.append(resp)
+    return PaginatedResponse(items=items, total=total, skip=skip, limit=limit)
 
 
 @router.get("/dashboard", response_model=DashboardStats)
@@ -218,3 +223,71 @@ def delete_result(job_id: int, user: CurrentUser, db: DbSession) -> None:
         shutil.rmtree(job.output_dir, ignore_errors=True)
     db.delete(job)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Batch export
+# ---------------------------------------------------------------------------
+
+
+class _BatchExportRequest(BaseModel):
+    """POST /api/results/export-batch body."""
+
+    job_ids: list[int] = Field(..., min_length=1, max_length=50)
+
+
+@router.post("/export-batch")
+async def export_batch(
+    body: _BatchExportRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> StreamingResponse:
+    """Download a single ZIP containing outputs from multiple jobs.
+
+    Returns ``application/zip`` with sub-directories per job:
+    ``job_<id>/...``.
+    """
+    import json as _json
+
+    jobs_to_export: list[Job] = []
+    for jid in body.job_ids:
+        job = db.get(Job, jid)
+        if job is None or job.user_id != user.id:
+            raise HTTPException(status_code=404, detail=f"Job {jid} not found")
+        if job.status != "completed" or not job.output_dir:
+            continue
+        jobs_to_export.append(job)
+
+    if not jobs_to_export:
+        raise HTTPException(status_code=404, detail="No exportable completed jobs found")
+
+    def _build() -> io.BytesIO:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for job in jobs_to_export:
+                prefix = f"job_{job.id}"
+                out_dir = Path(job.output_dir)  # type: ignore[arg-type]
+                for f in sorted(out_dir.iterdir()):
+                    if f.is_file():
+                        zf.write(f, arcname=f"{prefix}/{f.name}")
+                meta = {
+                    "job_id": job.id,
+                    "algorithm": job.algorithm,
+                    "strehl_ratio": job.strehl_ratio,
+                    "rms_phase_rad": job.rms_phase_rad,
+                    "elapsed_seconds": job.elapsed_seconds,
+                }
+                zf.writestr(f"{prefix}/metadata.json", _json.dumps(meta, indent=2))
+        buf.seek(0)
+        return buf
+
+    buf = await asyncio.to_thread(_build)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="phase_retrieval_batch.zip"'
+        },
+    )
+
+

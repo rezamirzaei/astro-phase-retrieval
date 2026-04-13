@@ -5,6 +5,97 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] — 2026-04-14
+
+### 🔬 Scientific Correctness
+
+- **FISTA: adaptive √t Lipschitz scheduling** — The intensity loss
+  f(g) = Σ(|Fg|² − y)² is quartic (non-smooth gradient), so a fixed
+  Lipschitz constant diverges or stagnates.  FISTA now uses L_k = L₀·√k,
+  yielding a decaying step-size η_k ∝ 1/√k that matches subgradient
+  convergence theory for non-smooth problems (Nesterov 2004, §3.2.3).
+
+- **Global phase sign ambiguity in benchmarks** — `_phase_rms_error` now
+  evaluates both φ and −φ and takes min(error_plus, error_minus), correctly
+  handling the inherent sign ambiguity of intensity-only measurements.
+
+- **Zernike decomposition: proper least-squares** — Replaced the naïve
+  inner-product projection (which assumes orthogonality) with a Gram-matrix
+  solve N·c = b.  This produces correct coefficients for annular pupils
+  (e.g. HST with secondary obstruction) where Zernike polynomials are not
+  orthogonal over the masked domain.
+
+- **Strehl ratio > 1.0 diagnostic** — Instead of silently clamping to 1.0,
+  the system now emits `warnings.warn()` with the actual value when
+  Strehl > 1.0, flagging normalisation mismatches or noise amplification.
+  The returned value is still clamped for backward compatibility.
+
+### 🏗️ Architecture: DRY Forward Model
+
+- **`PupilModel.forward_model_kwargs()`** — New helper method returns the
+  8 spectral/polychromatic keyword arguments as a dict.  Replaced all ~8
+  copy-pasted kwarg blocks across `base.py`, `pinn.py`, `phase_diversity.py`,
+  and `synthetic.py` with `**pupil.forward_model_kwargs()`.
+
+### 🌐 Web API — Major Upgrade (v3.0)
+
+#### New Features
+
+- **Request-ID middleware** (`web/middleware.py`) — Every request gets a
+  `X-Request-ID` header (UUID-4 or client-supplied).  Stored in a
+  `ContextVar` for structured log correlation.
+
+- **Request logging middleware** — Logs method, path, status code, latency,
+  request ID, and client IP for every request (except health probes).
+
+- **Background job queue** (`web/services/job_queue.py`) — Thread-pool-backed
+  job executor with states `queued → running → completed | failed`.
+  Publish/subscribe progress events for real-time streaming.
+
+- **WebSocket progress streaming** (`/api/ws/jobs/{job_id}`) — Real-time
+  iteration-level progress for running jobs.  JWT-authenticated via
+  `?token=` query parameter.
+
+- **Job management endpoints** (`/api/v1/jobs/`, `/api/v1/jobs/{id}`) —
+  Poll status & progress of background jobs.
+
+- **Readiness probe** (`GET /api/readiness`) — Checks database connectivity
+  (`SELECT 1`) and disk write access.  Returns per-subsystem status for
+  Kubernetes / load-balancer integration.
+
+- **File upload** (`POST /api/data/upload`) — Upload custom FITS/NPY files
+  (up to 100 MB).  Validates extension and streams to disk with size guard.
+
+- **Batch export** (`POST /api/results/export-batch`) — Download a single
+  ZIP containing outputs from multiple jobs.
+
+- **Paginated responses** — `GET /api/results/` and `GET /api/data/fits`
+  now return `PaginatedResponse[T]` with `{items, total, skip, limit}`.
+
+- **OpenAPI enrichment** — Tag descriptions for all 10 endpoint groups,
+  global 401/422 response documentation.
+
+#### Improvements
+
+- **CORS hardening** — `expose_headers` now includes `X-Request-ID` and
+  `Content-Disposition` for download/tracing in browsers.
+
+- **Connection pooling** — `pool_pre_ping=True` for automatic stale
+  connection detection.  PostgreSQL gets `pool_size=5`, `max_overflow=10`,
+  `pool_recycle=1800`.
+
+- **Graceful shutdown** — Lifespan context drains the job thread-pool
+  (configurable `shutdown_timeout_seconds`) and disposes the DB engine.
+
+- **Health endpoint enriched** — Returns `{status, version, uptime_seconds}`.
+
+- **API version bumped to 3.0.0**.
+
+### Configuration
+
+- `PR_SHUTDOWN_TIMEOUT_SECONDS` (default: 30) — max wait for running jobs.
+- `PR_UPLOAD_MAX_BYTES` (default: 100 MB) — file upload size limit.
+
 ## [2.3.1] — 2026-04-13
 
 ### Fixed — Production Bugs

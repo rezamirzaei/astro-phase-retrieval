@@ -127,14 +127,7 @@ def generate_synthetic_psf(
     noiseless_psf = forward_model(
         pupil.amplitude,
         true_phase,
-        wavelength_m=pupil.wavelength_m,
-        bandwidth_fraction=pupil.bandwidth_fraction,
-        spectral_samples=pupil.spectral_samples,
-        spectral_weighting=pupil.spectral_weighting,
-        field_defocus_waves=pupil.field_defocus_waves,
-        detector_sigma_pixels=pupil.detector_sigma_pixels,
-        jitter_sigma_pixels=pupil.jitter_sigma_pixels,
-        pixel_integration_width=pupil.pixel_integration_width,
+        **pupil.forward_model_kwargs(),
     )
 
     if center_offset_pixels != (0.0, 0.0):
