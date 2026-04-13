@@ -190,6 +190,97 @@ def compute_ssim(
 
 
 # ---------------------------------------------------------------------------
+# Radial-profile / encircled-energy validation helpers
+# ---------------------------------------------------------------------------
+
+
+def _radial_profile(image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return the azimuthally averaged radial profile of *image*."""
+    img = image.astype(np.float64)
+    img = img / max(float(img.sum()), 1e-30)
+
+    n = img.shape[0]
+    cy, cx = n // 2, n // 2
+    y, x = np.ogrid[:n, :n]
+    r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2).astype(int)
+    max_r = n // 2
+
+    r_flat = r.ravel()
+    img_flat = img.ravel()
+    mask = r_flat < max_r
+    counts = np.bincount(r_flat[mask], minlength=max_r)
+    sums = np.bincount(r_flat[mask], weights=img_flat[mask], minlength=max_r)
+    profile = np.where(counts > 0, sums / counts, 0.0)
+    return np.arange(max_r, dtype=float), profile
+
+
+def compute_radial_profile_error(observed: np.ndarray, reconstructed: np.ndarray) -> float:
+    """Compute a normalised RMSE between observed and reconstructed radial profiles."""
+    _, obs_profile = _radial_profile(observed)
+    _, rec_profile = _radial_profile(reconstructed)
+
+    scale = max(float(np.sqrt(np.mean(obs_profile**2))), 1e-30)
+    return float(np.sqrt(np.mean((obs_profile - rec_profile) ** 2)) / scale)
+
+
+def compute_encircled_energy(psf: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Compute the encircled-energy curve of a PSF."""
+    img = psf.astype(np.float64)
+    img = img / max(float(img.sum()), 1e-30)
+
+    n = img.shape[0]
+    cy, cx = n // 2, n // 2
+    y, x = np.ogrid[:n, :n]
+    r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2).astype(int)
+    max_r = n // 2
+
+    radii = np.arange(max_r, dtype=float)
+    energy = np.zeros(max_r, dtype=np.float64)
+    for idx in range(max_r):
+        energy[idx] = float(img[r <= idx].sum())
+    return radii, np.clip(energy, 0.0, 1.0)
+
+
+def compute_encircled_energy_error(observed: np.ndarray, reconstructed: np.ndarray) -> float:
+    """Return the mean absolute encircled-energy curve mismatch."""
+    _, ee_obs = compute_encircled_energy(observed)
+    _, ee_rec = compute_encircled_energy(reconstructed)
+    return float(np.mean(np.abs(ee_obs - ee_rec)))
+
+
+def summarise_convergence(cost_history: list[float]) -> dict[str, float]:
+    """Summarise basic convergence behaviour from a cost history."""
+    if not cost_history:
+        return {
+            "initial_cost": 0.0,
+            "final_cost": 0.0,
+            "best_cost": 0.0,
+            "improvement_ratio": 0.0,
+            "monotonic_fraction": 0.0,
+        }
+
+    initial = float(cost_history[0])
+    final = float(cost_history[-1])
+    best = float(min(cost_history))
+
+    decreases = 0
+    if len(cost_history) > 1:
+        decreases = sum(1 for prev, cur in zip(cost_history[:-1], cost_history[1:]) if cur <= prev)
+        monotonic_fraction = decreases / (len(cost_history) - 1)
+    else:
+        monotonic_fraction = 1.0
+
+    improvement_ratio = max(initial - final, 0.0) / max(abs(initial), 1e-30)
+    return {
+        "initial_cost": initial,
+        "final_cost": final,
+        "best_cost": best,
+        "improvement_ratio": float(improvement_ratio),
+        "monotonic_fraction": float(monotonic_fraction),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Phase Structure Function
 # ---------------------------------------------------------------------------
 
@@ -239,7 +330,7 @@ def compute_phase_structure_function(
 
     # Pre-compute all 8 (dx, dy) angle offsets
     angles = np.linspace(0, np.pi, 8, endpoint=False)
-    angle_offsets = [(int(round(np.cos(a))), int(round(np.sin(a)))) for a in angles]
+    angle_offsets = [(int(round(float(np.cos(a)))), int(round(float(np.sin(a))))) for a in angles]
 
     for i, sep in enumerate(separations):
         diffs = []
@@ -301,7 +392,7 @@ def zernike_decomposition(
             coefficients[j] = 0.0
             continue
         # Inner product
-        coeff = np.sum(phase[mask] * z[mask]) / mask.sum()
+        coeff = float(np.sum(phase[mask] * z[mask])) / float(mask.sum())
         coefficients[j] = float(coeff)
 
     return coefficients

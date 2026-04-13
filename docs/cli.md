@@ -73,6 +73,40 @@ Use `--no-save` to skip writing per-algorithm JSON files:
 phase-retrieval compare --fits my.fits --iterations 100 --no-save
 ```
 
+Comparison runs now save the usual per-algorithm JSON summaries, while full
+pipeline runs also emit richer `metrics.json` and `provenance.json` manifests.
+
+---
+
+## `benchmark` — deterministic synthetic validation
+
+Run a repeatable synthetic benchmark suite and export reports in JSON, CSV, and
+Markdown formats.
+
+```bash
+# Quick benchmark on one clean synthetic case
+phase-retrieval benchmark --algorithms er,hio,raar --cases clean-low --iterations 20
+
+# Full benchmark report set
+phase-retrieval benchmark \
+    --algorithms er,gs,hio,raar,wf,dr,admm,fista,sparse_pr \
+    --cases clean-low,clean-hst,poisson-hst,noisy-high \
+    --iterations 40 \
+    --output-dir outputs/benchmark
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--algorithms` | `er,gs,hio,raar,wf,dr,admm,fista,sparse_pr` | Comma-separated algorithm keys |
+| `--cases` | all built-in cases | Comma-separated benchmark case keys (`clean-low`, `clean-hst`, `poisson-hst`, `noisy-high`) |
+| `-n` / `--iterations` | `40` | Maximum iterations per run |
+| `--beta` | `0.9` | Feedback parameter β |
+| `--seed` | `42` | Random seed for algorithm reproducibility |
+| `-o` / `--output-dir` | `outputs/benchmark` | Directory for `benchmark_results.json`, `benchmark_summary.csv`, `benchmark_report.md` |
+| `-q` / `--quiet` | off | Suppress stdout ranking table |
+
 ---
 
 ## `download` — fetch real HST/JWST data
@@ -95,25 +129,21 @@ Run phase retrieval on X-ray crystallography data from CIF files.
 
 ```bash
 # Run on a local CIF file
-phase-retrieval cryst --cif data/crystallography/test_nacl.cif --algorithm hio
+phase-retrieval cryst data/crystallography/test_nacl.cif --algorithm hio
 
 # Use a COD preset key (downloads from the Crystallography Open Database)
 phase-retrieval cryst nacl
-
-# Compare algorithms on a crystal structure
-phase-retrieval cryst nacl --compare --iterations 500 --grid-size 128
 ```
 
 ### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--cif` | — | Path to a CIF file |
+| `cif` | — | Positional: path to a CIF file or COD preset key |
 | `-a` / `--algorithm` | `hio` | Algorithm key (see `run` options) |
 | `-n` / `--iterations` | `500` | Maximum number of iterations |
 | `--beta` | `0.9` | Feedback parameter β |
 | `--grid-size` | `128` | Fourier grid size |
-| `--compare` | off | Run all algorithms and compare |
 | `-o` / `--output-dir` | `outputs` | Directory for results |
 
 The first positional argument is treated as a COD preset key (e.g. `nacl`,

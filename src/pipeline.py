@@ -9,9 +9,12 @@ delegate to this module, eliminating duplicated orchestration logic.
 
 Usage
 -----
->>> from src.pipeline import RetrievalPipeline, PipelineResult
->>> pipeline = RetrievalPipeline(config)
->>> result = pipeline.run_from_file(Path("data/psf.fits"))
+    from src.models.config import default_hst_config
+    from src.pipeline import RetrievalPipeline
+
+    config = default_hst_config()
+    pipeline = RetrievalPipeline(config)
+    result = pipeline.run_from_file(Path("data/psf.fits"))
 """
 
 from __future__ import annotations
@@ -27,7 +30,10 @@ import numpy as np
 from src.algorithms.multi_start import multi_start_run
 from src.algorithms.registry import AlgorithmRegistry
 from src.metrics.quality import (
+    compute_encircled_energy_error,
+    compute_radial_profile_error,
     compute_ssim,
+    summarise_convergence,
     zernike_decomposition,
 )
 from src.models.config import AlgorithmConfig, PipelineConfig
@@ -48,6 +54,9 @@ class PipelineResult:
     algorithm_config: AlgorithmConfig
     zernike_coefficients: dict[int, float] = field(default_factory=dict)
     ssim: float = 0.0
+    radial_profile_error: float = 0.0
+    encircled_energy_error: float = 0.0
+    convergence_summary: dict[str, float] = field(default_factory=dict)
     plots_generated: list[str] = field(default_factory=list)
     output_dir: Path | None = None
 
@@ -107,6 +116,12 @@ class RetrievalPipeline:
         support = pupil.amplitude > 0
         zc = zernike_decomposition(result.recovered_phase, support)
         ssim = compute_ssim(psf_data.image, result.reconstructed_psf)
+        radial_error = compute_radial_profile_error(psf_data.image, result.reconstructed_psf)
+        encircled_energy_error = compute_encircled_energy_error(
+            psf_data.image,
+            result.reconstructed_psf,
+        )
+        convergence_summary = summarise_convergence(result.cost_history)
 
         logger.info(
             "Pipeline completed: alg=%s strehl=%.4f rms=%.4f ssim=%.4f iter=%d time=%.2fs",
@@ -126,6 +141,9 @@ class RetrievalPipeline:
             algorithm_config=alg_cfg,
             zernike_coefficients=zc,
             ssim=ssim,
+            radial_profile_error=radial_error,
+            encircled_energy_error=encircled_energy_error,
+            convergence_summary=convergence_summary,
             output_dir=out_dir,
         )
 
@@ -155,6 +173,7 @@ class RetrievalPipeline:
         # ── Load PSF ──────────────────────────────────────────────────
         if fits_path.suffix == ".npy":
             psf_image = np.load(str(fits_path)).astype(np.float64)
+            original_shape = list(psf_image.shape)
             total = float(psf_image.sum())
             if total > 0:
                 psf_image /= total
@@ -166,6 +185,13 @@ class RetrievalPipeline:
                     filter_name="SYNTH",
                     telescope="synthetic",
                     obs_id=fits_path.stem,
+                    metadata={
+                        "source_kind": "npy",
+                        "source_path": str(fits_path),
+                        "source_filename": fits_path.name,
+                        "original_shape": original_shape,
+                        "preprocessing": ["unit_sum_normalisation", "prepare_psf_for_retrieval"],
+                    },
                 )
                 psf_image = prepare_psf_for_retrieval(tmp, grid_size)
             psf_data = PSFData(
@@ -175,6 +201,14 @@ class RetrievalPipeline:
                 filter_name="SYNTH",
                 telescope="synthetic",
                 obs_id=fits_path.stem,
+                metadata={
+                    "source_kind": "npy",
+                    "source_path": str(fits_path),
+                    "source_filename": fits_path.name,
+                    "original_shape": original_shape,
+                    "prepared_grid_size": grid_size,
+                    "preprocessing": ["unit_sum_normalisation", "prepare_psf_for_retrieval"],
+                },
             )
         else:
             psf_data = load_psf_from_fits(fits_path, self.config.data, self.config.pupil)
@@ -186,6 +220,11 @@ class RetrievalPipeline:
                 filter_name=psf_data.filter_name,
                 telescope=psf_data.telescope,
                 obs_id=psf_data.obs_id,
+                metadata={
+                    **psf_data.metadata,
+                    "prepared_grid_size": grid_size,
+                    "prepared_shape": [int(psf_image.shape[0]), int(psf_image.shape[1])],
+                },
             )
 
         # ── Sync pupil grid to actual image size ──────────────────────
@@ -233,9 +272,40 @@ class RetrievalPipeline:
             "strehl_ratio": r.strehl_ratio,
             "rms_phase_rad": r.rms_phase_rad,
             "ssim": pipeline_result.ssim,
+            "radial_profile_error": pipeline_result.radial_profile_error,
+            "encircled_energy_error": pipeline_result.encircled_energy_error,
             "elapsed_seconds": r.elapsed_seconds,
             "timestamp": r.timestamp.isoformat(),
         }
         (out_dir / "result.json").write_text(json.dumps(summary, indent=2))
+
+        metrics = {
+            "ssim": pipeline_result.ssim,
+            "radial_profile_error": pipeline_result.radial_profile_error,
+            "encircled_energy_error": pipeline_result.encircled_energy_error,
+            "convergence": pipeline_result.convergence_summary,
+            "zernike_coefficients": pipeline_result.zernike_coefficients,
+        }
+        (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+
+        provenance = {
+            "psf": pipeline_result.psf_data.metadata,
+            "algorithm": {
+                "name": cfg.name.value,
+                "max_iterations": cfg.max_iterations,
+                "beta": cfg.beta,
+                "beta_schedule": cfg.beta_schedule.value,
+                "momentum": cfg.momentum,
+                "tv_weight": cfg.tv_weight,
+                "noise_model": cfg.noise_model.value,
+                "n_starts": cfg.n_starts,
+                "random_seed": cfg.random_seed,
+            },
+            "pupil": {
+                "grid_size": pipeline_result.pupil.grid_size,
+                "support_pixels": int(np.sum(pipeline_result.pupil.amplitude > 0)),
+            },
+        }
+        (out_dir / "provenance.json").write_text(json.dumps(provenance, indent=2))
 
         logger.info("Saved outputs to %s", out_dir)

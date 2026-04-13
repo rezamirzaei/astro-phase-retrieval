@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 
@@ -15,6 +16,15 @@ logger = logging.getLogger(__name__)
 
 # Guard limit: refuse to open FITS files larger than 2 GiB to prevent OOM
 _MAX_FITS_BYTES: int = 2 * 1024**3
+
+
+def _file_sha256(filepath: Path) -> str:
+    """Return a SHA-256 checksum for *filepath*."""
+    digest = hashlib.sha256()
+    with filepath.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def load_fits_image(filepath: Path, *, ext: int | str = 1) -> tuple[np.ndarray, dict]:
@@ -205,6 +215,27 @@ def load_psf_from_fits(
     # Normalise
     cutout = normalise_psf(cutout)
 
+    try:
+        file_size = filepath.stat().st_size
+    except OSError:
+        file_size = 0
+
+    header_subset = {
+        key: str(header[key])
+        for key in (
+            "ROOTNAME",
+            "FILTER",
+            "FILTER1",
+            "FILTER2",
+            "INSTRUME",
+            "DETECTOR",
+            "TARGNAME",
+            "EXPTIME",
+            "DATE-OBS",
+        )
+        if key in header and header[key] not in (None, "")
+    }
+
     return PSFData(
         image=cutout,
         pixel_scale_arcsec=pupil_cfg.pixel_scale_arcsec,
@@ -212,6 +243,23 @@ def load_psf_from_fits(
         filter_name=_header_filter(header, data_cfg.filter_name),
         telescope=str(pupil_cfg.telescope.value),
         obs_id=header.get("ROOTNAME", filepath.stem),
+        metadata={
+            "source_kind": "fits",
+            "source_path": str(filepath),
+            "source_filename": filepath.name,
+            "source_sha256": _file_sha256(filepath),
+            "file_size_bytes": file_size,
+            "brightest_source_center_rowcol": [int(center[0]), int(center[1])],
+            "cutout_size": int(data_cfg.cutout_size),
+            "prepared_shape": [int(cutout.shape[0]), int(cutout.shape[1])],
+            "preprocessing": [
+                "background_subtraction_percentile_10",
+                "nan_to_num",
+                "brightest_source_cutout",
+                "unit_sum_normalisation",
+            ],
+            "header": header_subset,
+        },
     )
 
 

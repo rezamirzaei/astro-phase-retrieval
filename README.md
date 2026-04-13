@@ -190,6 +190,9 @@ phase-retrieval download --list
 
 # Optional PINN / neural-field solver (requires pip install -e ".[pinn]")
 phase-retrieval run --algorithm pinn --iterations 300
+
+# Deterministic synthetic benchmark with JSON / CSV / Markdown reports
+phase-retrieval benchmark --algorithms er,hio,raar,wf --cases clean-low,poisson-hst
 ```
 
 ### As a Python module
@@ -209,6 +212,32 @@ pytest
 # With coverage
 pytest --cov=src --cov-report=term-missing
 ```
+
+## Benchmarking & Reproducibility
+
+The CLI includes a deterministic synthetic benchmark harness for regression
+testing and algorithm comparison:
+
+```bash
+phase-retrieval benchmark \
+    --algorithms er,gs,hio,raar,wf,dr,admm,fista,sparse_pr \
+    --cases clean-low,clean-hst,poisson-hst,noisy-high \
+    --iterations 40 \
+    --output-dir outputs/benchmark
+```
+
+This writes three reports:
+
+- `benchmark_results.json` — full per-case metrics and rankings
+- `benchmark_summary.csv` — aggregate per-algorithm table for spreadsheets/CI
+- `benchmark_report.md` — human-readable experiment summary
+
+Regular pipeline runs now also persist richer output manifests:
+
+- `config.json` — algorithm configuration snapshot
+- `result.json` — top-level run summary
+- `metrics.json` — SSIM, radial-profile error, encircled-energy error, convergence summary, Zernike terms
+- `provenance.json` — source file metadata, preprocessing steps, and pupil/algorithm provenance
 
 ## References
 

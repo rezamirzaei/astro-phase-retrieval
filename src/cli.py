@@ -91,6 +91,23 @@ def _preset_choices() -> list[str]:
     return sorted(available_presets())
 
 
+def _benchmark_case_choices() -> list[str]:
+    """Return built-in benchmark case keys for argparse/help text."""
+    from src.benchmark import available_benchmark_cases
+
+    return sorted(available_benchmark_cases())
+
+
+def _parse_algorithm_csv(value: str) -> list[str]:
+    """Parse a comma-separated algorithm list."""
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _parse_case_csv(value: str) -> list[str]:
+    """Parse a comma-separated benchmark case list."""
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 def _load_psf_and_pupil(args: argparse.Namespace, config: Any) -> Any:
     """Shared PSF loading + pupil building logic for `run` and `compare`.
 
@@ -313,6 +330,45 @@ def _cmd_download(args: argparse.Namespace) -> None:
         print(f"  ✅ {p}")
 
 
+# ── benchmark ─────────────────────────────────────────────────────────────
+
+
+def _cmd_benchmark(args: argparse.Namespace) -> None:
+    """Run the deterministic synthetic benchmark suite and export reports."""
+    from src.benchmark import available_benchmark_cases, run_benchmark
+    from src.models.config import AlgorithmName
+
+    case_map = available_benchmark_cases()
+    algorithms = [AlgorithmName(key) for key in _parse_algorithm_csv(args.algorithms)]
+    case_keys = _parse_case_csv(args.cases)
+    unknown_cases = [key for key in case_keys if key not in case_map]
+    if unknown_cases:
+        raise SystemExit(f"Unknown benchmark case(s): {', '.join(unknown_cases)}")
+
+    summary = run_benchmark(
+        algorithms=algorithms,
+        cases=[case_map[key] for key in case_keys],
+        max_iterations=args.iterations,
+        beta=args.beta,
+        random_seed=args.seed,
+        output_dir=Path(args.output_dir),
+    )
+
+    if getattr(args, "quiet", False):
+        return
+
+    print(f"{'Rank':>4s}  {'Algorithm':>10s}  {'Score':>8s}  {'SSIM':>8s}  {'PhaseErr':>10s}")
+    print("-" * 52)
+    for idx, row in enumerate(summary.aggregate, start=1):
+        print(
+            f"{idx:4d}  {row['algorithm']:>10s}  {row['mean_score']:8.4f}  "
+            f"{row['mean_ssim']:8.4f}  {row['mean_phase_rms_error_rad']:10.4f}"
+        )
+    print(f"📁 {Path(args.output_dir) / 'benchmark_results.json'}")
+    print(f"📁 {Path(args.output_dir) / 'benchmark_summary.csv'}")
+    print(f"📁 {Path(args.output_dir) / 'benchmark_report.md'}")
+
+
 def _add_common_algo_args(parser: argparse.ArgumentParser) -> None:
     """Add shared algorithm arguments to a subcommand parser."""
     parser.add_argument("-n", "--iterations", type=int, default=500, help="Max iterations")
@@ -487,6 +543,28 @@ def main(argv: list[str] | None = None) -> None:
     p_dl.add_argument("-d", "--data-dir", default="data", help="Download directory")
     p_dl.add_argument("-l", "--list", action="store_true", help="List available presets")
     p_dl.set_defaults(func=_cmd_download)
+
+    # --- benchmark ---
+    p_bench = sub.add_parser(
+        "benchmark",
+        help="Run deterministic synthetic benchmarks and export JSON/CSV/Markdown reports",
+    )
+    p_bench.add_argument(
+        "--algorithms",
+        default="er,gs,hio,raar,wf,dr,admm,fista,sparse_pr",
+        help="Comma-separated algorithm keys to benchmark",
+    )
+    p_bench.add_argument(
+        "--cases",
+        default=",".join(_benchmark_case_choices()),
+        help="Comma-separated benchmark case keys",
+    )
+    p_bench.add_argument("-n", "--iterations", type=int, default=40, help="Max iterations")
+    p_bench.add_argument("--beta", type=float, default=0.9, help="Feedback β")
+    p_bench.add_argument("--seed", type=int, default=42, help="Random seed")
+    p_bench.add_argument("-o", "--output-dir", default="outputs/benchmark", help="Report directory")
+    p_bench.add_argument("--quiet", "-q", action="store_true", help="Suppress stdout table")
+    p_bench.set_defaults(func=_cmd_benchmark)
 
     # --- cryst (crystallography) ---
     p_cryst = sub.add_parser("cryst", help="Run crystallographic phase retrieval on a CIF file")

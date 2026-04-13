@@ -375,6 +375,26 @@ class TestCLI:
         captured = capsys.readouterr()
         assert "Downloading" in captured.out
 
+    def test_benchmark_command_writes_reports(self, tmp_path, capsys) -> None:
+        main(
+            [
+                "benchmark",
+                "--algorithms",
+                "er,hio",
+                "--cases",
+                "clean-low",
+                "--iterations",
+                "2",
+                "-o",
+                str(tmp_path / "bench"),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert "Algorithm" in captured.out
+        assert (tmp_path / "bench" / "benchmark_results.json").exists()
+        assert (tmp_path / "bench" / "benchmark_summary.csv").exists()
+        assert (tmp_path / "bench" / "benchmark_report.md").exists()
+
 
 class TestSyncPupilToImage:
     def test_non_square_raises(self) -> None:

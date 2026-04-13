@@ -6,12 +6,16 @@ import numpy as np
 import pytest
 
 from src.metrics.quality import (
+    compute_encircled_energy,
+    compute_encircled_energy_error,
     compute_mtf,
     compute_phase_structure_function,
+    compute_radial_profile_error,
     compute_rms_phase,
     compute_rms_wavelength,
     compute_ssim,
     compute_strehl_ratio,
+    summarise_convergence,
     zernike_decomposition,
 )
 from src.models.optics import PupilModel
@@ -149,6 +153,47 @@ class TestSSIM:
         z = np.zeros((32, 32))
         ssim = compute_ssim(z, z)
         assert isinstance(ssim, float)
+
+
+class TestRadialProfileError:
+    def test_identical_images_have_zero_error(self, pupil: PupilModel) -> None:
+        psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        assert compute_radial_profile_error(psf, psf) == pytest.approx(0.0, abs=1e-12)
+
+    def test_different_images_have_positive_error(
+        self, pupil: PupilModel, true_phase: np.ndarray
+    ) -> None:
+        psf_perfect = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        psf_aberrated = forward_model(pupil.amplitude, true_phase)
+        assert compute_radial_profile_error(psf_perfect, psf_aberrated) > 0.0
+
+
+class TestEncircledEnergy:
+    def test_encircled_energy_is_bounded_and_monotone(self, pupil: PupilModel) -> None:
+        psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        radii, energy = compute_encircled_energy(psf)
+        assert len(radii) == len(energy)
+        assert np.all(energy >= 0.0)
+        assert np.all(energy <= 1.0)
+        assert np.all(np.diff(energy) >= -1e-12)
+
+    def test_encircled_energy_error_identical_is_zero(self, pupil: PupilModel) -> None:
+        psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+        assert compute_encircled_energy_error(psf, psf) == pytest.approx(0.0, abs=1e-12)
+
+
+class TestConvergenceSummary:
+    def test_empty_history(self) -> None:
+        summary = summarise_convergence([])
+        assert summary["initial_cost"] == 0.0
+        assert summary["improvement_ratio"] == 0.0
+
+    def test_decreasing_history_reports_improvement(self) -> None:
+        summary = summarise_convergence([1.0, 0.8, 0.6, 0.4])
+        assert summary["initial_cost"] == pytest.approx(1.0)
+        assert summary["final_cost"] == pytest.approx(0.4)
+        assert summary["improvement_ratio"] > 0.0
+        assert summary["monotonic_fraction"] == pytest.approx(1.0)
 
 
 # ── Phase Structure Function ─────────────────────────────────────────────

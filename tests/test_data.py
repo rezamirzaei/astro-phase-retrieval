@@ -536,6 +536,18 @@ class TestLoadPSFFromFits:
         psf = load_psf_from_fits(fpath, data_cfg, pupil_cfg)
         assert psf.wavelength_m == pytest.approx(606e-9)
 
+    def test_provenance_metadata_added(self, tmp_path) -> None:
+        fpath = tmp_path / "test.fits"
+        _create_test_fits(fpath)
+        data_cfg = DataConfig(data_dir=tmp_path, cutout_size=64)
+        pupil_cfg = PupilConfig(grid_size=64)
+        psf = load_psf_from_fits(fpath, data_cfg, pupil_cfg)
+        assert psf.metadata["source_kind"] == "fits"
+        assert psf.metadata["source_filename"] == "test.fits"
+        assert "source_sha256" in psf.metadata
+        assert psf.metadata["prepared_shape"] == [64, 64]
+        assert "header" in psf.metadata
+
 
 class TestHeaderFilter:
     def test_returns_filter_key(self) -> None:

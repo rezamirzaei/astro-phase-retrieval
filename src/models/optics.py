@@ -27,6 +27,7 @@ class PSFData(NumpyModel):
     filter_name: str
     telescope: str
     obs_id: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("image")
     @classmethod
