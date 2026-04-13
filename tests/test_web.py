@@ -528,6 +528,8 @@ class TestStudies:
         assert payload["summary"]["n_observations"] == 1
         assert payload["selected_files"] == [filename]
         assert "validation_campaign.json" in payload["artifacts"]
+        assert "reference_summary" in payload
+        assert "validation_campaign.md" in payload["artifacts"]
 
         artifact_resp = client.get(
             f"/api/studies/validation-campaigns/{payload['campaign_id']}/artifacts/validation_campaign.json",
@@ -536,3 +538,11 @@ class TestStudies:
         assert artifact_resp.status_code == 200
         assert artifact_resp.json()["format"] == "json"
         assert artifact_resp.json()["content"]["summary"]["n_observations"] == 1
+
+        md_resp = client.get(
+            f"/api/studies/validation-campaigns/{payload['campaign_id']}/artifacts/validation_campaign.md",
+            headers=headers,
+        )
+        assert md_resp.status_code == 200
+        assert md_resp.json()["format"] == "markdown"
+        assert "Validation Campaign Report" in md_resp.json()["content"]

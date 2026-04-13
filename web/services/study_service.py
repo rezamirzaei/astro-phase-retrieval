@@ -103,5 +103,6 @@ def run_web_validation_campaign(
         "summary": payload["summary"],
         "records": payload["records"],
         "consistency": payload["consistency"],
+        "reference_summary": payload["reference_summary"],
         "artifacts": sorted(path.name for path in output_dir.glob("*") if path.is_file()),
     }

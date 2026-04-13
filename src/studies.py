@@ -45,6 +45,10 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
             writer.writerow({key: _json_safe(row.get(key)) for key in fieldnames})
 
 
+def _write_markdown(path: Path, content: str) -> None:
+    path.write_text(content, encoding="utf-8")
+
+
 def _metric_summary(values: list[float]) -> dict[str, float]:
     arr = np.asarray(values, dtype=np.float64)
     mean = float(np.mean(arr))
@@ -109,6 +113,15 @@ def _pipeline_record(
         "convergence_relative_drop": pipeline_result.convergence_summary.get("relative_drop", 0.0),
         "reference_available": bool(reference),
         "reference_pass": _reference_pass(reference),
+        "baseline_key": str(reference.get("baseline", {}).get("key", "")) if reference else "",
+        "reference_fwhm_agreement": (
+            str(reference.get("summary", {}).get("fwhm_agreement", "n/a")) if reference else "n/a"
+        ),
+        "reference_encircled_energy_agreement": (
+            str(reference.get("summary", {}).get("encircled_energy_agreement", "n/a"))
+            if reference
+            else "n/a"
+        ),
         "reference_fwhm_observed": (
             float(reference["observed"]["fwhm_arcsec"]) if reference else None
         ),
@@ -132,6 +145,82 @@ def _pipeline_record(
     return record
 
 
+def _agreement_counts(records: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts = {"strong": 0, "weak": 0, "n/a": 0}
+    for record in records:
+        value = str(record.get(key, "n/a"))
+        counts[value if value in counts else "n/a"] += 1
+    return counts
+
+
+def _reference_payload(records: list[dict[str, Any]]) -> dict[str, Any]:
+    by_baseline: dict[str, dict[str, Any]] = {}
+    weak_cases: list[dict[str, Any]] = []
+    filters_without_reference = sorted(
+        {
+            str(record.get("filter_name", "unknown"))
+            for record in records
+            if not bool(record.get("reference_available"))
+        }
+    )
+
+    for record in records:
+        if not bool(record.get("reference_available")):
+            continue
+        baseline_key = str(record.get("baseline_key") or "unknown")
+        entry = by_baseline.setdefault(
+            baseline_key,
+            {
+                "n_records": 0,
+                "n_pass": 0,
+                "filters": set(),
+                "fwhm_agreement": {"strong": 0, "weak": 0, "n/a": 0},
+                "encircled_energy_agreement": {"strong": 0, "weak": 0, "n/a": 0},
+            },
+        )
+        entry["n_records"] += 1
+        entry["n_pass"] += int(bool(record.get("reference_pass")))
+        entry["filters"].add(str(record.get("filter_name", "unknown")))
+        entry["fwhm_agreement"][str(record.get("reference_fwhm_agreement", "n/a"))] += 1
+        entry["encircled_energy_agreement"][
+            str(record.get("reference_encircled_energy_agreement", "n/a"))
+        ] += 1
+        if not bool(record.get("reference_pass")):
+            weak_cases.append(
+                {
+                    "source_name": record.get("source_name"),
+                    "filter_name": record.get("filter_name"),
+                    "baseline_key": baseline_key,
+                    "fwhm_agreement": record.get("reference_fwhm_agreement"),
+                    "encircled_energy_agreement": record.get(
+                        "reference_encircled_energy_agreement"
+                    ),
+                }
+            )
+
+    final_by_baseline: dict[str, dict[str, Any]] = {}
+    for baseline_key, entry in by_baseline.items():
+        n_records = int(entry["n_records"])
+        final_by_baseline[baseline_key] = {
+            "n_records": n_records,
+            "pass_rate": float(entry["n_pass"] / n_records) if n_records else 0.0,
+            "filters": sorted(entry["filters"]),
+            "fwhm_agreement": entry["fwhm_agreement"],
+            "encircled_energy_agreement": entry["encircled_energy_agreement"],
+        }
+
+    return {
+        "baseline_keys": sorted(final_by_baseline),
+        "filters_without_reference": filters_without_reference,
+        "fwhm_agreement": _agreement_counts(records, "reference_fwhm_agreement"),
+        "encircled_energy_agreement": _agreement_counts(
+            records, "reference_encircled_energy_agreement"
+        ),
+        "by_baseline": final_by_baseline,
+        "weak_cases": weak_cases,
+    }
+
+
 def _consistency_payload(records: list[dict[str, Any]]) -> dict[str, Any]:
     metric_keys = (
         "strehl_ratio",
@@ -144,6 +233,7 @@ def _consistency_payload(records: list[dict[str, Any]]) -> dict[str, Any]:
         "n_records": len(records),
         "global": {},
         "by_filter": {},
+        "by_baseline": {},
     }
     for metric in metric_keys:
         values = [float(record[metric]) for record in records if record.get(metric) is not None]
@@ -160,7 +250,64 @@ def _consistency_payload(records: list[dict[str, Any]]) -> dict[str, Any]:
             if values:
                 filter_summary[metric] = _metric_summary(values)
         consistency["by_filter"][filter_name] = filter_summary
+
+    baseline_groups: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        baseline_key = str(record.get("baseline_key", ""))
+        if baseline_key:
+            baseline_groups.setdefault(baseline_key, []).append(record)
+    for baseline_key, group in baseline_groups.items():
+        baseline_summary: dict[str, Any] = {"n_records": len(group)}
+        for metric in metric_keys:
+            values = [float(record[metric]) for record in group if record.get(metric) is not None]
+            if values:
+                baseline_summary[metric] = _metric_summary(values)
+        consistency["by_baseline"][baseline_key] = baseline_summary
     return consistency
+
+
+def render_validation_campaign_markdown(payload: dict[str, Any]) -> str:
+    """Render a concise markdown summary for a validation campaign."""
+    summary = payload["summary"]
+    reference = payload["reference_summary"]
+    lines = [
+        "# Validation Campaign Report",
+        "",
+        "## Summary",
+        "",
+        f"- Observations: **{summary['n_observations']}**",
+        f"- Completed: **{summary['n_completed']}**",
+        f"- Success rate: **{summary['success_rate']:.1%}**",
+        f"- Reference coverage: **{summary['reference_coverage']}**",
+        f"- Reference pass rate: **{summary['reference_pass_rate']:.1%}**",
+        f"- Filters covered: {', '.join(summary['filters_covered']) or 'none'}",
+        f"- Filters without curated baseline: {', '.join(summary['filters_without_reference']) or 'none'}",
+        "",
+        "## Agreement Breakdown",
+        "",
+        f"- FWHM agreement: `{reference['fwhm_agreement']}`",
+        f"- Encircled-energy agreement: `{reference['encircled_energy_agreement']}`",
+        "",
+        "## Baseline Coverage",
+        "",
+    ]
+    if reference["by_baseline"]:
+        for baseline_key, entry in reference["by_baseline"].items():
+            lines.append(
+                f"- `{baseline_key}` — {entry['n_records']} record(s), pass rate {entry['pass_rate']:.1%}, filters: {', '.join(entry['filters'])}"
+            )
+    else:
+        lines.append("- No curated external baselines were matched in this campaign.")
+    lines.extend(["", "## Cases Requiring Review", ""])
+    if reference["weak_cases"]:
+        for case in reference["weak_cases"]:
+            lines.append(
+                f"- `{case['source_name']}` ({case['filter_name']}) against `{case['baseline_key']}` — "
+                f"FWHM: `{case['fwhm_agreement']}`, EE: `{case['encircled_energy_agreement']}`"
+            )
+    else:
+        lines.append("- No weak reference-agreement cases were recorded.")
+    return "\n".join(lines)
 
 
 def run_validation_campaign(
@@ -192,6 +339,7 @@ def run_validation_campaign(
 
     completed = [record for record in records if bool(record["converged"])]
     consistency = _consistency_payload(records)
+    reference_summary = _reference_payload(records)
     summary = {
         "n_observations": len(records),
         "n_completed": len(completed),
@@ -202,11 +350,15 @@ def run_validation_campaign(
             if records
             else 0.0
         ),
+        "filters_covered": sorted({str(record.get("filter_name", "unknown")) for record in records}),
+        "filters_without_reference": reference_summary["filters_without_reference"],
+        "baseline_keys": reference_summary["baseline_keys"],
     }
     payload = {
         "summary": summary,
         "records": records,
         "consistency": consistency,
+        "reference_summary": reference_summary,
     }
 
     if output_dir is not None:
@@ -215,6 +367,8 @@ def run_validation_campaign(
         _write_csv(output_dir / "validation_campaign.csv", records)
         _write_csv(output_dir / "benchmark_table.csv", records)
         _write_json(output_dir / "cross_observation_consistency.json", consistency)
+        _write_json(output_dir / "reference_summary.json", reference_summary)
+        _write_markdown(output_dir / "validation_campaign.md", render_validation_campaign_markdown(payload))
 
     return payload
 

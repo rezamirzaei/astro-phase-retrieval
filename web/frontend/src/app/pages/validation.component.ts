@@ -58,6 +58,33 @@ import { AlgoInfo, ApiService, FitsFile, ValidationCampaignResponse } from '../c
       </div>
 
       <mat-card class="mb-16">
+        <mat-card-header><mat-card-title>Reference Evidence Summary</mat-card-title></mat-card-header>
+        <mat-card-content>
+          <p><strong>Baselines covered:</strong> {{ joinList(summaryList('baseline_keys')) }}</p>
+          <p><strong>Filters covered:</strong> {{ joinList(summaryList('filters_covered')) }}</p>
+          <p><strong>Filters without curated baseline:</strong> {{ joinList(summaryList('filters_without_reference')) }}</p>
+          <p><strong>FWHM agreement counts:</strong> {{ stringify(referenceSummary()['fwhm_agreement']) }}</p>
+          <p><strong>Encircled-energy agreement counts:</strong> {{ stringify(referenceSummary()['encircled_energy_agreement']) }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      @if (baselineRows().length > 0) {
+        <mat-card class="mb-16">
+          <mat-card-header><mat-card-title>Baseline Breakdown</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <table mat-table [dataSource]="baselineRows()" class="mat-elevation-z1">
+              <ng-container matColumnDef="baseline"><th mat-header-cell *matHeaderCellDef>Baseline</th><td mat-cell *matCellDef="let row">{{ row.key }}</td></ng-container>
+              <ng-container matColumnDef="records"><th mat-header-cell *matHeaderCellDef>Records</th><td mat-cell *matCellDef="let row">{{ row.nRecords }}</td></ng-container>
+              <ng-container matColumnDef="passRate"><th mat-header-cell *matHeaderCellDef>Pass Rate</th><td mat-cell *matCellDef="let row">{{ (row.passRate * 100).toFixed(0) }}%</td></ng-container>
+              <ng-container matColumnDef="filters"><th mat-header-cell *matHeaderCellDef>Filters</th><td mat-cell *matCellDef="let row">{{ row.filters }}</td></ng-container>
+              <tr mat-header-row *matHeaderRowDef="baselineColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: baselineColumns;"></tr>
+            </table>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <mat-card class="mb-16">
         <mat-card-header><mat-card-title>Observation Records</mat-card-title></mat-card-header>
         <mat-card-content>
           <table mat-table [dataSource]="campaign()!.records" class="mat-elevation-z1">
@@ -71,6 +98,22 @@ import { AlgoInfo, ApiService, FitsFile, ValidationCampaignResponse } from '../c
           </table>
         </mat-card-content>
       </mat-card>
+
+      @if (reviewCases().length > 0) {
+        <mat-card class="mb-16">
+          <mat-card-header><mat-card-title>Cases Requiring Review</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <table mat-table [dataSource]="reviewCases()" class="mat-elevation-z1">
+              <ng-container matColumnDef="source"><th mat-header-cell *matHeaderCellDef>Observation</th><td mat-cell *matCellDef="let row">{{ row.source }}</td></ng-container>
+              <ng-container matColumnDef="baseline"><th mat-header-cell *matHeaderCellDef>Baseline</th><td mat-cell *matCellDef="let row">{{ row.baseline }}</td></ng-container>
+              <ng-container matColumnDef="fwhm"><th mat-header-cell *matHeaderCellDef>FWHM</th><td mat-cell *matCellDef="let row">{{ row.fwhm }}</td></ng-container>
+              <ng-container matColumnDef="ee"><th mat-header-cell *matHeaderCellDef>EE</th><td mat-cell *matCellDef="let row">{{ row.ee }}</td></ng-container>
+              <tr mat-header-row *matHeaderRowDef="reviewColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: reviewColumns;"></tr>
+            </table>
+          </mat-card-content>
+        </mat-card>
+      }
 
       <mat-card class="mb-16">
         <mat-card-header><mat-card-title>Cross-Observation Consistency</mat-card-title></mat-card-header>
@@ -96,6 +139,8 @@ export class ValidationComponent implements OnInit {
   maxIterations = 120;
   gridSize = 128;
   columns = ['source_name', 'filter_name', 'strehl_ratio', 'ssim', 'reference_pass'];
+  baselineColumns = ['baseline', 'records', 'passRate', 'filters'];
+  reviewColumns = ['source', 'baseline', 'fwhm', 'ee'];
 
   ngOnInit(): void {
     this.api.getFitsFiles().subscribe(files => this.files.set(files.filter(file => file.filename.endsWith('.fits'))));
@@ -129,6 +174,49 @@ export class ValidationComponent implements OnInit {
   percent(key: string): string {
     const value = this.campaign()?.summary?.[key];
     return typeof value === 'number' ? `${(value * 100).toFixed(0)}%` : '—';
+  }
+
+  summaryList(key: string): string[] {
+    const value = this.campaign()?.summary?.[key];
+    return Array.isArray(value) ? value.map(item => String(item)) : [];
+  }
+
+  referenceSummary(): Record<string, unknown> {
+    const value = this.campaign()?.reference_summary;
+    return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  }
+
+  baselineRows(): Array<{ key: string; nRecords: number; passRate: number; filters: string }> {
+    const byBaseline = this.referenceSummary()['by_baseline'];
+    if (!byBaseline || typeof byBaseline !== 'object') return [];
+    return Object.entries(byBaseline as Record<string, Record<string, unknown>>).map(([key, value]) => ({
+      key,
+      nRecords: Number(value['n_records'] ?? 0),
+      passRate: Number(value['pass_rate'] ?? 0),
+      filters: Array.isArray(value['filters']) ? value['filters'].join(', ') : '—',
+    }));
+  }
+
+  reviewCases(): Array<{ source: string; baseline: string; fwhm: string; ee: string }> {
+    const weakCases = this.referenceSummary()['weak_cases'];
+    if (!Array.isArray(weakCases)) return [];
+    return weakCases.map((item: unknown) => {
+      const row = (item && typeof item === 'object') ? item as Record<string, unknown> : {};
+      return {
+        source: String(row['source_name'] ?? 'unknown'),
+        baseline: String(row['baseline_key'] ?? 'unknown'),
+        fwhm: String(row['fwhm_agreement'] ?? 'n/a'),
+        ee: String(row['encircled_energy_agreement'] ?? 'n/a'),
+      };
+    });
+  }
+
+  joinList(values: string[]): string {
+    return values.length > 0 ? values.join(', ') : 'none';
+  }
+
+  stringify(value: unknown): string {
+    return value && typeof value === 'object' ? JSON.stringify(value) : String(value ?? 'n/a');
   }
 
   formatNumber(value: unknown): string {

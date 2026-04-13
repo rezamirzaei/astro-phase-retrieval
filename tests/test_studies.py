@@ -51,9 +51,12 @@ def test_validation_campaign_writes_reproducible_tables(tmp_path: Path) -> None:
 
     assert payload["summary"]["n_observations"] == 2
     assert len(payload["records"]) == 2
+    assert "reference_summary" in payload
     assert (tmp_path / "campaign_outputs" / "validation_campaign.json").exists()
     assert (tmp_path / "campaign_outputs" / "benchmark_table.csv").exists()
     assert (tmp_path / "campaign_outputs" / "cross_observation_consistency.json").exists()
+    assert (tmp_path / "campaign_outputs" / "reference_summary.json").exists()
+    assert (tmp_path / "campaign_outputs" / "validation_campaign.md").exists()
 
 
 def test_sensitivity_studies_produce_json_and_csv(tmp_path: Path) -> None:

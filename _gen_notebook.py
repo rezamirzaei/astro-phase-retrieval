@@ -1068,7 +1068,9 @@ code("55e", [
     ")",
     "",
     "print(json.dumps(campaign_payload['summary'], indent=2))",
+    "print(json.dumps(campaign_payload['reference_summary'], indent=2))",
     "print(json.dumps(campaign_payload['consistency'], indent=2))",
+    "print((campaign_dir / 'validation_campaign.md').read_text())",
     "print(f'Campaign artifacts saved to {campaign_dir}')",
 ])
 

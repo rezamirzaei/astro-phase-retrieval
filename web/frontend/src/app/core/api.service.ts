@@ -21,6 +21,7 @@ export interface ValidationCampaignResponse {
   summary: Record<string, unknown>;
   records: Array<Record<string, unknown>>;
   consistency: Record<string, unknown>;
+  reference_summary?: Record<string, unknown>;
   artifacts: string[];
 }
 export interface AlgoDefaults      {

@@ -322,6 +322,7 @@ class ValidationCampaignResponse(BaseModel):
     summary: dict[str, Any]
     records: list[dict[str, Any]]
     consistency: dict[str, Any]
+    reference_summary: dict[str, Any]
     artifacts: list[str]
 
 

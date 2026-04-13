@@ -45,3 +45,5 @@ def test_notebook_exposes_real_data_verification_workflows() -> None:
     assert "(verification_dir / 'reference_validation.json').write_text" in text
     assert "from src.studies import run_validation_campaign" in text
     assert "campaign_payload = run_validation_campaign(" in text
+    assert "campaign_payload['reference_summary']" in text
+    assert "(campaign_dir / 'validation_campaign.md').read_text()" in text
