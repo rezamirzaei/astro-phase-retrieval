@@ -20,7 +20,7 @@ def _gaussian_psf(grid_size: int, offset: float = 0.0) -> np.ndarray:
     coords = np.linspace(-1.0, 1.0, grid_size)
     xx, yy = np.meshgrid(coords, coords)
     image = np.exp(-((xx - offset) ** 2 + (yy + offset) ** 2) / 0.05)
-    return image / np.sum(image)
+    return np.asarray(image / np.sum(image), dtype=np.float64)
 
 
 def test_validation_campaign_writes_reproducible_tables(tmp_path: Path) -> None:

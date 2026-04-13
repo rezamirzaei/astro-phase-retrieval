@@ -14,19 +14,19 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 
 
 @router.get("/presets", response_model=list[PresetInfo])
-def get_presets(_user: CurrentUser) -> list[dict[str, str]]:
+def get_presets(_user: CurrentUser) -> list[PresetInfo]:
     """List curated observation presets available for download."""
     from src.data.downloader import available_presets
     from src.validation import available_reference_baselines
 
     baselines = available_reference_baselines()
     return [
-        {
-            "key": k,
-            "description": v,
-            "verification_supported": k in baselines,
-            "baseline_key": k if k in baselines else None,
-        }
+        PresetInfo(
+            key=k,
+            description=v,
+            verification_supported=k in baselines,
+            baseline_key=k if k in baselines else None,
+        )
         for k, v in available_presets().items()
     ]
 

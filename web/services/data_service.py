@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from src.models.config import TelescopeType
 from web.config import settings
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ def generate_synthetic_psf(
     grid_size: int = 128,
     aberration_rms: float = 0.5,
     n_zernike: int = 15,
-    telescope: str = "hst",
+    telescope: str | TelescopeType = TelescopeType.HST,
     filter_name: str = "F606W",
     photon_count: float = 0.0,
     read_noise_std: float = 0.0,
@@ -77,7 +78,7 @@ def generate_synthetic_psf(
         n_zernike=n_zernike,
         photon_count=photon_count,
         read_noise_std=read_noise_std,
-        telescope=telescope,
+        telescope=TelescopeType(telescope),
         random_seed=random_seed,
         center_offset_pixels=center_offset_pixels,
         background_level=background_level,

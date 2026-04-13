@@ -8,6 +8,7 @@ even in CI environments that do not install the ``pinn`` optional extra.
 from __future__ import annotations
 
 import sys
+from typing import Literal
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -239,9 +240,9 @@ class _FakeTorch:
         return _FT(np.linspace(start, end, steps), dtype=dtype)  # type: ignore[arg-type]
 
     @staticmethod
-    def meshgrid(*tensors: _FT, indexing: str = "ij") -> list[_FT]:
+    def meshgrid(*tensors: _FT, indexing: Literal["xy", "ij"] = "ij") -> list[_FT]:
         unwrapped = [_uw(t) for t in tensors]
-        grids = np.meshgrid(*unwrapped, indexing=indexing)  # type: ignore[call-overload]
+        grids = np.meshgrid(*unwrapped, indexing=indexing)
         return [_FT(r) for r in grids]
 
     @staticmethod

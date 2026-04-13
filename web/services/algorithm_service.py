@@ -11,12 +11,12 @@ import matplotlib
 from matplotlib import pyplot as plt
 from sqlalchemy.orm import Session
 
+from src.algorithms.registry import AlgorithmRegistry
 from src.benchmark import (
     available_benchmark_cases,
     default_benchmark_algorithms,
     run_benchmark,
 )
-from src.algorithms.registry import AlgorithmRegistry
 from src.metrics.quality import zernike_decomposition
 from src.models.config import (
     AlgorithmConfig,

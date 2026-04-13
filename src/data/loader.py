@@ -481,18 +481,18 @@ def build_quality_mask(
 def apply_quality_mask(image: np.ndarray, mask: np.ndarray) -> np.ndarray:
     """Replace masked pixels with local-median values."""
     if not np.any(mask):
-        return image.copy()
+        return np.asarray(image.copy(), dtype=np.float64)
     filled = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64, copy=True)
     local_median = median_filter(filled, size=3, mode="nearest")
     filled[mask] = local_median[mask]
-    return filled
+    return np.asarray(filled, dtype=np.float64)
 
 
 def normalise_psf(psf: np.ndarray) -> np.ndarray:
     """Normalise a PSF so that it sums to 1."""
     total = psf.sum()
     if total > 0:
-        return psf / total  # type: ignore[no-any-return]
+        return np.asarray(psf / total, dtype=np.float64)
     return psf
 
 

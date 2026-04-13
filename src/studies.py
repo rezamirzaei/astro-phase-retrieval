@@ -270,6 +270,8 @@ def render_validation_campaign_markdown(payload: dict[str, Any]) -> str:
     """Render a concise markdown summary for a validation campaign."""
     summary = payload["summary"]
     reference = payload["reference_summary"]
+    filters_covered = ", ".join(summary["filters_covered"]) or "none"
+    filters_without_reference = ", ".join(summary["filters_without_reference"]) or "none"
     lines = [
         "# Validation Campaign Report",
         "",
@@ -280,8 +282,8 @@ def render_validation_campaign_markdown(payload: dict[str, Any]) -> str:
         f"- Success rate: **{summary['success_rate']:.1%}**",
         f"- Reference coverage: **{summary['reference_coverage']}**",
         f"- Reference pass rate: **{summary['reference_pass_rate']:.1%}**",
-        f"- Filters covered: {', '.join(summary['filters_covered']) or 'none'}",
-        f"- Filters without curated baseline: {', '.join(summary['filters_without_reference']) or 'none'}",
+        f"- Filters covered: {filters_covered}",
+        f"- Filters without curated baseline: {filters_without_reference}",
         "",
         "## Agreement Breakdown",
         "",
@@ -293,18 +295,25 @@ def render_validation_campaign_markdown(payload: dict[str, Any]) -> str:
     ]
     if reference["by_baseline"]:
         for baseline_key, entry in reference["by_baseline"].items():
+            filters = ", ".join(entry["filters"])
             lines.append(
-                f"- `{baseline_key}` — {entry['n_records']} record(s), pass rate {entry['pass_rate']:.1%}, filters: {', '.join(entry['filters'])}"
+                f"- `{baseline_key}` — {entry['n_records']} record(s), "
+                f"pass rate {entry['pass_rate']:.1%}, filters: {filters}"
             )
     else:
         lines.append("- No curated external baselines were matched in this campaign.")
     lines.extend(["", "## Cases Requiring Review", ""])
     if reference["weak_cases"]:
-        for case in reference["weak_cases"]:
-            lines.append(
-                f"- `{case['source_name']}` ({case['filter_name']}) against `{case['baseline_key']}` — "
-                f"FWHM: `{case['fwhm_agreement']}`, EE: `{case['encircled_energy_agreement']}`"
-            )
+        lines.extend(
+            [
+                (
+                    f"- `{case['source_name']}` ({case['filter_name']}) against "
+                    f"`{case['baseline_key']}` — FWHM: `{case['fwhm_agreement']}`, "
+                    f"EE: `{case['encircled_energy_agreement']}`"
+                )
+                for case in reference["weak_cases"]
+            ]
+        )
     else:
         lines.append("- No weak reference-agreement cases were recorded.")
     return "\n".join(lines)
@@ -350,7 +359,9 @@ def run_validation_campaign(
             if records
             else 0.0
         ),
-        "filters_covered": sorted({str(record.get("filter_name", "unknown")) for record in records}),
+        "filters_covered": sorted(
+            {str(record.get("filter_name", "unknown")) for record in records}
+        ),
         "filters_without_reference": reference_summary["filters_without_reference"],
         "baseline_keys": reference_summary["baseline_keys"],
     }
@@ -368,7 +379,10 @@ def run_validation_campaign(
         _write_csv(output_dir / "benchmark_table.csv", records)
         _write_json(output_dir / "cross_observation_consistency.json", consistency)
         _write_json(output_dir / "reference_summary.json", reference_summary)
-        _write_markdown(output_dir / "validation_campaign.md", render_validation_campaign_markdown(payload))
+        _write_markdown(
+            output_dir / "validation_campaign.md",
+            render_validation_campaign_markdown(payload),
+        )
 
     return payload
 

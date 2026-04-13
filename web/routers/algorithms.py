@@ -22,13 +22,13 @@ from web.schemas import (
 )
 from web.services.algorithm_service import (
     compare_algorithms,
-    list_benchmark_cases,
     list_algorithms_with_defaults,
+    list_benchmark_cases,
     list_comparison_plots,
     list_job_artifacts,
     list_job_plots,
-    run_algorithm_benchmark,
     run_algorithm,
+    run_algorithm_benchmark,
 )
 from web.services.data_service import resolve_fits_path
 
