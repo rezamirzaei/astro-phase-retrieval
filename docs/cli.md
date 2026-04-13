@@ -62,6 +62,7 @@ output directory:
 
 - `evaluation_<algorithm>.json`
 - `evaluation_<algorithm>.md`
+- `reference_validation_<algorithm>.json` when a supported HST/JWST baseline is available
 
 ---
 
@@ -89,6 +90,10 @@ When saving is enabled, `compare` also writes:
 - `algorithm_dashboard.png`
 - `strehl_rms_comparison.png`
 
+When a curated external baseline is available, the comparison report also
+records the matched citation metadata and per-algorithm reference-validation
+summaries.
+
 ---
 
 ## `benchmark` — deterministic synthetic validation
@@ -113,7 +118,7 @@ phase-retrieval benchmark \
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--algorithms` | `er,gs,hio,raar,wf,dr,admm,fista,sparse_pr` | Comma-separated algorithm keys |
-| `--cases` | all built-in cases | Comma-separated benchmark case keys (`clean-low`, `clean-hst`, `poisson-hst`, `noisy-high`) |
+| `--cases` | all built-in cases | Comma-separated benchmark case keys (`clean-low`, `clean-hst`, `poisson-hst`, `noisy-high`, `miscentered-hst`, `background-hst`, `broadband-hst`) |
 | `-n` / `--iterations` | `40` | Maximum iterations per run |
 | `--beta` | `0.9` | Feedback parameter β |
 | `--seed` | `42` | Random seed for algorithm reproducibility |
@@ -122,6 +127,8 @@ phase-retrieval benchmark \
 
 Benchmark runs also write visual comparison artifacts:
 
+- `benchmark_study.json`
+- `benchmark_study.csv`
 - `benchmark_leaderboard.png`
 - `benchmark_case_heatmap.png`
 
@@ -137,6 +144,9 @@ phase-retrieval download --list
 
 # Download HST WFC3/UVIS F606W white-dwarf standard star
 phase-retrieval download --preset hst-wfc3-uvis-f606w --data-dir data/
+
+# Download JWST NIRCam F200W standard-star data
+phase-retrieval download --preset jwst-nircam-f200w --data-dir data/
 ```
 
 ---
@@ -176,4 +186,3 @@ The first positional argument is treated as a COD preset key (e.g. `nacl`,
 | `0`  | Success |
 | `1`  | Runtime error (e.g. no FITS file found) |
 | `2`  | Argument parsing error |
-

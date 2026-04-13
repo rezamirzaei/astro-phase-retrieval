@@ -38,6 +38,8 @@ Each benchmark exports:
 
 - `benchmark_results.json` — per-case/per-algorithm raw measurements
 - `benchmark_summary.csv` — aggregate ranking table
+- `benchmark_study.json` / `benchmark_study.csv` — convergence, robustness,
+  and failure-mode summaries across case families
 - `benchmark_report.md` — human-readable summary
 - `benchmark_leaderboard.png` — ranked aggregate score chart
 - `benchmark_case_heatmap.png` — per-case comparison heatmap
@@ -54,7 +56,10 @@ Saved artifacts include:
 - `provenance.json` — source filename, checksum, selected header values,
   preprocessing history, pupil summary, and algorithm configuration
 - `metrics.json` — SSIM, radial-profile error, encircled-energy error,
-  convergence summary, and Zernike coefficients
+  convergence summary, Zernike coefficients, and optional reference-baseline
+  comparisons
+- `reference_validation.json` — curated external HST/JWST baseline comparison
+  when a supported detector/filter match is available
 - `evaluation_report.json` / `evaluation_report.md` — paper-style narrative
   summary of one run
 
@@ -79,8 +84,25 @@ The validation workflow deliberately mixes image-space and optics-aware metrics:
 - **RMS phase error** — compact summary of recovered wavefront strength
 - **Convergence summary** — initial/final cost, improvement ratio, monotonicity
 - **Zernike decomposition** — interpretable wavefront-mode summary
+- **Reference FWHM / encircled-energy comparison** — deviation from curated
+  STScI HST/JWST instrument-baseline values when a supported match exists
 
 No single metric is treated as definitive; the intended use is triangulation.
+
+## External Reference Baselines
+
+For selected real-data configurations, the repository now compares observed and
+reconstructed PSFs against curated STScI handbook or JWST documentation values.
+The current curated set is intentionally narrow and evidence-based:
+
+- HST WFC3/UVIS F606W
+- HST ACS/WFC F814W
+- JWST NIRCam F200W
+- JWST NIRCam F356W
+
+These checks are meant to answer a modest question: **is the PSF grossly
+inconsistent with trusted instrument-scale behavior?** They are not proof of
+uniquely correct phase recovery.
 
 ## Interpreting Results
 
@@ -91,6 +113,7 @@ A strong reconstruction typically combines:
 - low encircled-energy error
 - stable convergence with non-trivial cost improvement
 - plausible dominant Zernike terms
+- reasonable agreement with curated external baseline values when available
 
 For real observations, this should be interpreted as **measurement-consistent**
 reconstruction quality, not direct proof of uniquely correct phase recovery.
@@ -104,6 +127,7 @@ A result is considered reproducible when the following artifacts are preserved:
 - `provenance.json`
 - `metrics.json`
 - the evaluation report (`.json` + `.md`)
+- `reference_validation.json` when present
 - benchmark plots/tables for algorithm-comparison studies
 
 ## Limitations
@@ -112,5 +136,4 @@ This validation layer improves traceability and comparison, but it does **not**
 replace external scientific validation against mission pipelines, laboratory
 wavefront truth, or specialized crystallography packages. It is best viewed as a
 transparent and reproducible internal validation framework.
-
 

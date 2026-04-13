@@ -136,6 +136,24 @@ def _load_psf_and_pupil(args: argparse.Namespace, config: Any) -> Any:
         fits_path = cached[0]
 
     psf_data = load_psf_from_fits(fits_path, config.data, config.pupil)
+    calibration = psf_data.metadata.get("calibration", {})
+    suggested_pupil = calibration.get("suggested_pupil", {})
+    if suggested_pupil:
+        config.pupil = config.pupil.model_copy(
+            update={
+                "telescope": suggested_pupil.get("telescope", config.pupil.telescope),
+                "pixel_scale_arcsec": suggested_pupil.get(
+                    "pixel_scale_arcsec", config.pupil.pixel_scale_arcsec
+                ),
+                "wavelength_m": suggested_pupil.get("wavelength_m", config.pupil.wavelength_m),
+            }
+        )
+        config.data = config.data.model_copy(
+            update={
+                "detector": psf_data.metadata.get("detector", config.data.detector),
+                "filter_name": psf_data.filter_name,
+            }
+        )
     psf_image = prepare_psf_for_retrieval(psf_data, config.pupil.grid_size)
     config = _sync_pupil_to_image(config, (psf_image.shape[0], psf_image.shape[1]))
     pupil = build_pupil(config.pupil)
@@ -146,6 +164,10 @@ def _load_psf_and_pupil(args: argparse.Namespace, config: Any) -> Any:
         filter_name=psf_data.filter_name,
         telescope=psf_data.telescope,
         obs_id=psf_data.obs_id,
+        metadata={
+            **psf_data.metadata,
+            "prepared_grid_size": int(psf_image.shape[0]),
+        },
     )
     return psf_resized, pupil, config
 
@@ -217,6 +239,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
     )
     from src.reporting import build_evaluation_payload, write_evaluation_report
     from src.uncertainty import run_uncertainty_analysis
+    from src.validation import compare_against_reference
 
     config = default_hst_config()
     config.output_dir = Path(args.output_dir)
@@ -285,6 +308,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
         "elapsed_seconds": result.elapsed_seconds,
         "timestamp": result.timestamp.isoformat(),
     }
+    reference_validation = compare_against_reference(
+        observed_psf=psf_resized.image,
+        reconstructed_psf=result.reconstructed_psf,
+        pixel_scale_arcsec=psf_resized.pixel_scale_arcsec,
+        telescope=psf_resized.telescope,
+        detector=str(psf_resized.metadata.get("detector", "")),
+        filter_name=psf_resized.filter_name,
+    )
 
     output_format = getattr(args, "output_format", "text")
     quiet = getattr(args, "quiet", False)
@@ -308,6 +339,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
         (config.output_dir / f"uncertainty_{alg_name.value}.json").write_text(
             json.dumps(uncertainty_summary, indent=2)
         )
+    if reference_validation:
+        (config.output_dir / f"reference_validation_{alg_name.value}.json").write_text(
+            json.dumps(reference_validation, indent=2)
+        )
     evaluation_payload = build_evaluation_payload(
         psf_metadata={**psf_resized.metadata, "obs_id": psf_resized.obs_id},
         algorithm_name=alg_name.value,
@@ -328,6 +363,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             "wavelength_m": pupil.wavelength_m,
             "bandwidth_fraction": pupil.bandwidth_fraction,
             "spectral_samples": pupil.spectral_samples,
+            "spectral_weighting": pupil.spectral_weighting,
             "field_defocus_waves": pupil.field_defocus_waves,
             "detector_sigma_pixels": pupil.detector_sigma_pixels,
             "jitter_sigma_pixels": pupil.jitter_sigma_pixels,
@@ -337,6 +373,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             **summary,
             "convergence": convergence,
             "uncertainty": uncertainty_summary,
+            "reference_validation": reference_validation,
         },
         zernike_coefficients=zernike_coeffs,
     )
@@ -371,6 +408,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
         default_hst_config,
     )
     from src.reporting import build_comparison_payload, write_comparison_report
+    from src.validation import compare_against_reference
 
     config = default_hst_config()
     config.output_dir = Path(args.output_dir)
@@ -416,7 +454,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
         else:
             result = AlgorithmRegistry.create(alg_cfg, pupil).run(psf_resized)
 
-        summary = {
+        summary: dict[str, Any] = {
             "algorithm": result.algorithm.value,
             "n_iterations": result.n_iterations,
             "converged": result.converged,
@@ -434,6 +472,14 @@ def _cmd_compare(args: argparse.Namespace) -> None:
             "elapsed_seconds": result.elapsed_seconds,
             "timestamp": result.timestamp.isoformat(),
         }
+        summary["reference_validation"] = compare_against_reference(
+            observed_psf=psf_resized.image,
+            reconstructed_psf=result.reconstructed_psf,
+            pixel_scale_arcsec=psf_resized.pixel_scale_arcsec,
+            telescope=psf_resized.telescope,
+            detector=str(psf_resized.metadata.get("detector", "")),
+            filter_name=psf_resized.filter_name,
+        )
         results_summary.append(summary)
         plot_results[alg_name.value.upper()] = result
 
@@ -533,6 +579,8 @@ def _cmd_benchmark(args: argparse.Namespace) -> None:
     print(f"📁 {Path(args.output_dir) / 'benchmark_results.json'}")
     print(f"📁 {Path(args.output_dir) / 'benchmark_summary.csv'}")
     print(f"📁 {Path(args.output_dir) / 'benchmark_report.md'}")
+    print(f"📁 {Path(args.output_dir) / 'benchmark_study.json'}")
+    print(f"📁 {Path(args.output_dir) / 'benchmark_study.csv'}")
     print(f"📁 {Path(args.output_dir) / 'benchmark_leaderboard.png'}")
     print(f"📁 {Path(args.output_dir) / 'benchmark_case_heatmap.png'}")
 

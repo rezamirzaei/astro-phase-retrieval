@@ -165,6 +165,7 @@ class TestDownloaderHelpers:
         assert isinstance(presets, dict)
         assert len(presets) > 0
         assert "hst-wfc3-uvis-f606w" in presets
+        assert "jwst-nircam-f200w" in presets
 
     def test_list_cached_fits_empty_dir(self, tmp_path) -> None:
         assert list_cached_fits(tmp_path) == []
@@ -559,7 +560,7 @@ class TestLoadPSFFromFits:
         assert psf.image.shape == (64, 64)
         assert psf.image.sum() == pytest.approx(1.0, abs=1e-10)
         assert psf.filter_name == "F606W"
-        assert psf.telescope == "generic_circular"
+        assert psf.telescope == "hst"
 
     def test_wavelength_from_header(self, tmp_path) -> None:
         fpath = tmp_path / "test.fits"
@@ -607,6 +608,7 @@ class TestLoadPSFFromFits:
         assert psf.metadata["background_level"] == pytest.approx(3.0, abs=0.5)
         assert "local_flux_centroid_refinement" in psf.metadata["preprocessing"]
         assert "subpixel_recentering" in psf.metadata["preprocessing"]
+        assert psf.metadata["calibration"]["preset"] == "hst-wfc3-uvis"
 
     def test_quadratic_peak_centroid_method_is_recorded(self, tmp_path) -> None:
         y, x = np.mgrid[:96, :96]
@@ -651,6 +653,24 @@ class TestLoadPSFFromFits:
         assert quality_mask["masked_pixels"] >= 1
         assert quality_mask["hot_pixels"] >= 1 or quality_mask["saturated_pixels"] >= 1
         assert "quality_mask_repair" in psf.metadata["preprocessing"]
+
+    def test_calibration_preset_updates_pixel_scale(self, tmp_path) -> None:
+        fpath = tmp_path / "jwst.fits"
+        image = np.zeros((128, 128), dtype=np.float64)
+        image[64, 64] = 1.0
+        primary = pyfits.PrimaryHDU()
+        primary.header["FILTER"] = "F200W"
+        primary.header["INSTRUME"] = "NIRCam"
+        primary.header["DETECTOR"] = "NIRCam"
+        sci = pyfits.ImageHDU(data=image, name="SCI")
+        pyfits.HDUList([primary, sci]).writeto(fpath, overwrite=True)
+
+        data_cfg = DataConfig(data_dir=tmp_path, cutout_size=64)
+        pupil_cfg = PupilConfig(grid_size=64)
+        psf = load_psf_from_fits(fpath, data_cfg, pupil_cfg)
+
+        assert psf.pixel_scale_arcsec == pytest.approx(0.031)
+        assert psf.metadata["calibration"]["preset"] == "jwst-nircam-sw"
 
     def test_dq_mask_is_used_when_available(self, tmp_path) -> None:
         image = np.zeros((128, 128), dtype=np.float64)

@@ -455,7 +455,18 @@ def plot_radial_profile(
 
     obs = psf.image / max(psf.image.sum(), 1e-30)
     rec = result.reconstructed_psf / max(result.reconstructed_psf.sum(), 1e-30)
-    perfect_psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+    perfect_psf = forward_model(
+        pupil.amplitude,
+        np.zeros_like(pupil.amplitude),
+        wavelength_m=pupil.wavelength_m,
+        bandwidth_fraction=pupil.bandwidth_fraction,
+        spectral_samples=pupil.spectral_samples,
+        spectral_weighting=pupil.spectral_weighting,
+        field_defocus_waves=pupil.field_defocus_waves,
+        detector_sigma_pixels=pupil.detector_sigma_pixels,
+        jitter_sigma_pixels=pupil.jitter_sigma_pixels,
+        pixel_integration_width=pupil.pixel_integration_width,
+    )
     perfect_psf = perfect_psf / max(perfect_psf.sum(), 1e-30)
 
     fig, ax = plt.subplots(figsize=(9, 5.5))
@@ -576,7 +587,18 @@ def plot_encircled_energy(
 
     obs = psf.image / max(psf.image.sum(), 1e-30)
     rec = result.reconstructed_psf / max(result.reconstructed_psf.sum(), 1e-30)
-    perfect_psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+    perfect_psf = forward_model(
+        pupil.amplitude,
+        np.zeros_like(pupil.amplitude),
+        wavelength_m=pupil.wavelength_m,
+        bandwidth_fraction=pupil.bandwidth_fraction,
+        spectral_samples=pupil.spectral_samples,
+        spectral_weighting=pupil.spectral_weighting,
+        field_defocus_waves=pupil.field_defocus_waves,
+        detector_sigma_pixels=pupil.detector_sigma_pixels,
+        jitter_sigma_pixels=pupil.jitter_sigma_pixels,
+        pixel_integration_width=pupil.pixel_integration_width,
+    )
     perfect_psf = perfect_psf / max(perfect_psf.sum(), 1e-30)
 
     fig, ax = plt.subplots(figsize=(9, 5.5))
@@ -678,7 +700,18 @@ def plot_algorithm_dashboard(
         axes = axes.reshape(4, 1)
 
     obs_n = psf.image / max(psf.image.sum(), 1e-30)
-    perfect_psf = forward_model(pupil.amplitude, np.zeros_like(pupil.amplitude))
+    perfect_psf = forward_model(
+        pupil.amplitude,
+        np.zeros_like(pupil.amplitude),
+        wavelength_m=pupil.wavelength_m,
+        bandwidth_fraction=pupil.bandwidth_fraction,
+        spectral_samples=pupil.spectral_samples,
+        spectral_weighting=pupil.spectral_weighting,
+        field_defocus_waves=pupil.field_defocus_waves,
+        detector_sigma_pixels=pupil.detector_sigma_pixels,
+        jitter_sigma_pixels=pupil.jitter_sigma_pixels,
+        pixel_integration_width=pupil.pixel_integration_width,
+    )
     perfect_psf = perfect_psf / max(perfect_psf.sum(), 1e-30)
     r_obs, prof_obs = _azimuthal_average(obs_n)
     r_perf, prof_perf = _azimuthal_average(perfect_psf)

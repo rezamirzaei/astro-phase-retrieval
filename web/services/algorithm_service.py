@@ -8,24 +8,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import matplotlib
-import numpy as np
 from matplotlib import pyplot as plt
 from sqlalchemy.orm import Session
 
 from src.algorithms.registry import AlgorithmRegistry
-from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
 from src.metrics.quality import zernike_decomposition
 from src.models.config import (
     AlgorithmConfig,
     AlgorithmName,
     BetaSchedule,
-    DataConfig,
     NoiseModel,
-    PupilConfig,
-    TelescopeType,
+    default_hst_config,
 )
 from src.models.optics import PSFData, PupilModel
-from src.optics.pupils import build_pupil
+from src.pipeline import RetrievalPipeline
 from src.visualization.plots import (
     plot_algorithm_comparison,
     plot_convergence,
@@ -144,54 +140,30 @@ ALGORITHM_DEFAULTS: dict[str, AlgorithmDefaults] = {
 # ---------------------------------------------------------------------------
 
 
-def _load_psf(fits_path: Path, grid_size: int) -> tuple[PSFData, PupilModel]:
-    """Load a FITS / ``.npy`` file and build a matching pupil."""
-    pupil_cfg = PupilConfig(telescope=TelescopeType.HST, grid_size=grid_size)
+def _build_algorithm_config(job: Job) -> AlgorithmConfig:
+    """Create the validated shared algorithm config from a web job row."""
+    cfg_raw: dict[str, object] = json.loads(job.config_json)
+    _g = cfg_raw.get
+    return AlgorithmConfig(
+        name=AlgorithmName(job.algorithm),
+        max_iterations=int(str(_g("max_iterations", 300))),
+        beta=float(str(_g("beta", 0.9))),
+        beta_schedule=BetaSchedule(str(_g("beta_schedule", "constant"))),
+        momentum=float(str(_g("momentum", 0.0))),
+        tv_weight=float(str(_g("tv_weight", 0.0))),
+        noise_model=NoiseModel(str(_g("noise_model", "gaussian"))),
+        random_seed=42,
+    )
 
-    if fits_path.suffix == ".npy":
-        psf_image: np.ndarray = np.load(str(fits_path)).astype(np.float64)
-        total = float(psf_image.sum())
-        if total > 0:
-            psf_image = psf_image / total
-        # Resize to grid_size if needed
-        if psf_image.shape[0] != grid_size:
-            from src.data.loader import prepare_psf_for_retrieval as _resize
 
-            tmp = PSFData(
-                image=psf_image,
-                pixel_scale_arcsec=pupil_cfg.pixel_scale_arcsec,
-                wavelength_m=pupil_cfg.wavelength_m,
-                filter_name="SYNTH",
-                telescope="hst",
-                obs_id=fits_path.stem,
-            )
-            psf_image = _resize(tmp, grid_size)
-        psf_data = PSFData(
-            image=psf_image,
-            pixel_scale_arcsec=pupil_cfg.pixel_scale_arcsec,
-            wavelength_m=pupil_cfg.wavelength_m,
-            filter_name="SYNTH",
-            telescope="hst",
-            obs_id=fits_path.stem,
-        )
-    else:
-        data_cfg = DataConfig(filter_name="F606W")
-        psf_data = load_psf_from_fits(fits_path, data_cfg, pupil_cfg)
-        psf_image = prepare_psf_for_retrieval(psf_data, grid_size)
-        psf_data = PSFData(
-            image=psf_image,
-            pixel_scale_arcsec=psf_data.pixel_scale_arcsec,
-            wavelength_m=psf_data.wavelength_m,
-            filter_name=psf_data.filter_name,
-            telescope=psf_data.telescope,
-            obs_id=psf_data.obs_id,
-        )
-
-    actual_grid = psf_data.image.shape[0]
-    if actual_grid != pupil_cfg.grid_size:
-        pupil_cfg = pupil_cfg.model_copy(update={"grid_size": actual_grid})
-    pupil = build_pupil(pupil_cfg)
-    return psf_data, pupil
+def _build_pipeline(grid_size: int, output_dir: Path) -> RetrievalPipeline:
+    """Construct the shared retrieval pipeline used by the web application."""
+    config = default_hst_config()
+    data_cfg = config.data.model_copy(update={"cutout_size": grid_size})
+    pupil_cfg = config.pupil.model_copy(update={"grid_size": grid_size})
+    return RetrievalPipeline(
+        config.model_copy(update={"data": data_cfg, "pupil": pupil_cfg, "output_dir": output_dir})
+    )
 
 
 def _generate_plots(
@@ -268,49 +240,27 @@ def run_algorithm(
         job.status = "running"
         db.commit()
 
-        psf_data, pupil = _load_psf(fits_path, grid_size)
-
-        cfg_raw: dict[str, object] = json.loads(job.config_json)
-        _g = cfg_raw.get
-        alg_cfg = AlgorithmConfig(
-            name=AlgorithmName(job.algorithm),
-            max_iterations=int(str(_g("max_iterations", 300))),
-            beta=float(str(_g("beta", 0.9))),
-            beta_schedule=BetaSchedule(str(_g("beta_schedule", "constant"))),
-            momentum=float(str(_g("momentum", 0.0))),
-            tv_weight=float(str(_g("tv_weight", 0.0))),
-            noise_model=NoiseModel(str(_g("noise_model", "gaussian"))),
-            random_seed=42,
-        )
-
-        retriever = AlgorithmRegistry.create(alg_cfg, pupil)
-        result = retriever.run(psf_data)
-
         out_dir = settings.output_dir / str(job.id)
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        # Persist config snapshot for full reproducibility
-        (out_dir / "config.json").write_text(
-            json.dumps(
-                {
-                    "algorithm": job.algorithm,
-                    "fits_filename": job.fits_filename,
-                    "grid_size": grid_size,
-                    **cfg_raw,
-                },
-                indent=2,
-            )
+        pipeline = _build_pipeline(grid_size, out_dir)
+        pipeline_result = pipeline.run_from_file(
+            fits_path,
+            algorithm_config=_build_algorithm_config(job),
+            output_dir=out_dir,
         )
-
-        _generate_plots(psf_data, pupil, result, out_dir)
+        _generate_plots(
+            pipeline_result.psf_data,
+            pipeline_result.pupil,
+            pipeline_result.result,
+            out_dir,
+        )
 
         job.status = "completed"
-        job.strehl_ratio = result.strehl_ratio
-        job.rms_phase_rad = result.rms_phase_rad
-        job.n_iterations = result.n_iterations
-        job.elapsed_seconds = result.elapsed_seconds
-        job.converged = result.converged
-        job.cost_history_json = json.dumps(result.cost_history)
+        job.strehl_ratio = pipeline_result.result.strehl_ratio
+        job.rms_phase_rad = pipeline_result.result.rms_phase_rad
+        job.n_iterations = pipeline_result.result.n_iterations
+        job.elapsed_seconds = pipeline_result.result.elapsed_seconds
+        job.converged = pipeline_result.result.converged
+        job.cost_history_json = json.dumps(pipeline_result.result.cost_history)
         job.output_dir = str(out_dir)
         job.completed_at = datetime.now(UTC)
         db.commit()
@@ -319,10 +269,10 @@ def run_algorithm(
             "Job %d completed: alg=%s strehl=%.4f rms=%.4f iter=%d time=%.2fs",
             job.id,
             job.algorithm,
-            result.strehl_ratio,
-            result.rms_phase_rad,
-            result.n_iterations,
-            result.elapsed_seconds,
+            pipeline_result.result.strehl_ratio,
+            pipeline_result.result.rms_phase_rad,
+            pipeline_result.result.n_iterations,
+            pipeline_result.result.elapsed_seconds,
         )
     except Exception as exc:
         job.status = "failed"
@@ -365,6 +315,7 @@ def compare_algorithms(
     phase_results: dict[str, PhaseRetrievalResult] = {}
     psf_data: PSFData | None = None
     pupil: PupilModel | None = None
+    base_pipeline = _build_pipeline(grid_size, settings.output_dir)
 
     for key in resolved_algorithm_keys:
         job = Job(
@@ -381,7 +332,7 @@ def compare_algorithms(
             db.commit()
 
             if psf_data is None:
-                psf_data, pupil = _load_psf(fits_path, grid_size)
+                psf_data, pupil = base_pipeline.load_inputs_from_file(fits_path)
             if psf_data is None or pupil is None:  # should never happen, but guards against mypy
                 raise RuntimeError("PSF / pupil failed to load")
 
@@ -390,11 +341,16 @@ def compare_algorithms(
                 max_iterations=max_iterations,
                 random_seed=42,
             )
-            retriever = AlgorithmRegistry.create(alg_cfg, pupil)
-            result = retriever.run(psf_data)
+            out_dir = settings.output_dir / str(job.id)
+            pipeline_result = base_pipeline.run_from_psf(
+                psf_data,
+                pupil,
+                algorithm_config=alg_cfg,
+                output_dir=out_dir,
+            )
+            result = pipeline_result.result
             phase_results[key.upper()] = result
 
-            out_dir = settings.output_dir / str(job.id)
             _generate_plots(psf_data, pupil, result, out_dir)
 
             job.status = "completed"
@@ -458,6 +414,22 @@ def list_job_plots(job: Job) -> list[str]:
     if not out.exists():
         return []
     return sorted(p.name for p in out.glob("*.png"))
+
+
+def list_job_artifacts(job: Job) -> list[str]:
+    """Return saved non-plot artifacts for a completed job."""
+    if not job.output_dir:
+        return []
+    out = Path(job.output_dir)
+    if not out.exists():
+        return []
+    return sorted(
+        p.name
+        for p in out.iterdir()
+        if p.is_file()
+        and p.suffix.lower() in {".json", ".csv", ".md"}
+        and p.name != "metadata.json"
+    )
 
 
 def list_comparison_plots(job_id: int) -> list[PlotReference]:

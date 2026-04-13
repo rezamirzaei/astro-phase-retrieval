@@ -103,6 +103,11 @@ def _validated_claims(
         )
     if "quality_mask" in psf_metadata:
         claims.append("Real-data preprocessing includes explicit quality-mask diagnostics.")
+    if metrics.get("reference_validation"):
+        claims.append(
+            "Selected instrument/filter combinations can be compared against "
+            "curated STScI reference baselines."
+        )
     return claims
 
 
@@ -178,6 +183,7 @@ def build_evaluation_payload(
         "preprocessing_recorded": bool(psf_metadata.get("preprocessing")),
         "quality_mask_recorded": "quality_mask" in psf_metadata,
         "uncertainty_recorded": bool(metrics.get("uncertainty")),
+        "reference_baseline_recorded": bool(metrics.get("reference_validation")),
         "limitations_count": len(limitations),
     }
     validated_claims = _validated_claims(
@@ -212,6 +218,7 @@ def render_evaluation_markdown(payload: dict[str, Any]) -> str:
     interpretation = payload["interpretation"]
     evidence = payload["evidence"]
     uncertainty = metrics.get("uncertainty", {})
+    reference_validation = metrics.get("reference_validation", {})
 
     observation_id = source.get("header", {}).get(
         "ROOTNAME",
@@ -282,6 +289,7 @@ def render_evaluation_markdown(payload: dict[str, Any]) -> str:
         f"- Preprocessing provenance recorded: `{evidence['preprocessing_recorded']}`",
         f"- Quality mask metadata recorded: `{evidence['quality_mask_recorded']}`",
         f"- Uncertainty summary recorded: `{evidence['uncertainty_recorded']}`",
+        f"- External reference baseline recorded: `{evidence['reference_baseline_recorded']}`",
         "",
         "## Dominant Zernike Terms",
         "",
@@ -316,6 +324,36 @@ def render_evaluation_markdown(payload: dict[str, Any]) -> str:
                 f"- RMS phase 95% CI: `{rms_ci}`",
             ]
         )
+    if reference_validation:
+        baseline = reference_validation.get("baseline", {})
+        observed = reference_validation.get("observed", {})
+        reconstructed = reference_validation.get("reconstructed", {})
+        deviations = reference_validation.get("deviations", {})
+        lines.extend(
+            [
+                "",
+                "## External Reference Baseline",
+                "",
+                f"- Baseline key: `{baseline.get('key', 'unknown')}`",
+                (
+                    f"- Citation: [{baseline.get('citation_title', 'reference')}]"
+                    f"({baseline.get('citation_url', '')})"
+                ),
+                f"- Notes: {baseline.get('notes', 'n/a')}",
+            ]
+        )
+        if observed:
+            lines.append(
+                f"- Observed FWHM / EE: `{observed.get('fwhm_arcsec', 'n/a')}` arcsec, "
+                f"`{observed.get('encircled_energy_fraction', 'n/a')}`"
+            )
+        if reconstructed:
+            lines.append(
+                f"- Reconstructed FWHM / EE: `{reconstructed.get('fwhm_arcsec', 'n/a')}` arcsec, "
+                f"`{reconstructed.get('encircled_energy_fraction', 'n/a')}`"
+            )
+        if deviations:
+            lines.append(f"- Deviations: `{deviations}`")
     lines.extend(
         [
             "",
@@ -383,6 +421,14 @@ def build_comparison_payload(
         "ranked_results": ranked,
         "best_algorithm": ranked[0]["algorithm"] if ranked else None,
         "artifacts": artifacts or {},
+        "reference_baseline": next(
+            (
+                row.get("reference_validation", {})
+                for row in ranked
+                if row.get("reference_validation")
+            ),
+            {},
+        ),
         "limitations": [
             "Algorithm ranking is based on internal image-fidelity metrics and does "
             "not by itself establish scientific correctness on real telescope data."
@@ -427,6 +473,20 @@ def render_comparison_markdown(payload: dict[str, Any]) -> str:
             for idx, row in enumerate(payload["ranked_results"], start=1)
         ]
     )
+    if payload.get("reference_baseline"):
+        baseline = payload["reference_baseline"].get("baseline", {})
+        lines.extend(
+            [
+                "",
+                "## External Reference Baseline",
+                "",
+                f"- Baseline key: `{baseline.get('key', 'unknown')}`",
+                (
+                    f"- Citation: [{baseline.get('citation_title', 'reference')}]"
+                    f"({baseline.get('citation_url', '')})"
+                ),
+            ]
+        )
     if payload.get("artifacts"):
         lines.extend(
             [

@@ -21,10 +21,14 @@ class TestPipelineOutputs:
             image=psf_data.image,
             pixel_scale_arcsec=psf_data.pixel_scale_arcsec,
             wavelength_m=psf_data.wavelength_m,
-            filter_name=psf_data.filter_name,
-            telescope=psf_data.telescope,
+            filter_name="F606W",
+            telescope="hst",
             obs_id=psf_data.obs_id,
-            metadata={"source_kind": "synthetic-test", "case": "unit"},
+            metadata={
+                "source_kind": "synthetic-test",
+                "case": "unit",
+                "detector": "WFC3/UVIS",
+            },
         )
 
         result = RetrievalPipeline(config).run_from_psf(psf_with_metadata, pupil)
@@ -40,6 +44,7 @@ class TestPipelineOutputs:
             "metrics.json",
             "provenance.json",
             "uncertainty.json",
+            "reference_validation.json",
             "evaluation_report.json",
             "evaluation_report.md",
         ):
@@ -50,10 +55,12 @@ class TestPipelineOutputs:
         assert "radial_profile_error" in metrics
         assert "encircled_energy_error" in metrics
         assert "convergence" in metrics
+        assert "reference_validation" in metrics
 
         provenance = json.loads((out_dir / "provenance.json").read_text())
         assert provenance["psf"]["source_kind"] == "synthetic-test"
         assert provenance["algorithm"]["name"] == config.algorithm.name.value
+        assert provenance["reference_validation_available"] is True
 
         evaluation = json.loads((out_dir / "evaluation_report.json").read_text())
         assert evaluation["algorithm"] == config.algorithm.name.value
@@ -63,9 +70,11 @@ class TestPipelineOutputs:
         assert "validated_claims" in evaluation
         assert "experimental_features" in evaluation
         assert evaluation["metrics"]["uncertainty"]["n_samples"] == 3
+        assert "reference_validation" in evaluation["metrics"]
         markdown = (out_dir / "evaluation_report.md").read_text()
         assert "## Quantitative Results" in markdown
         assert "## Evidence" in markdown
         assert "## Limitations" in markdown
         assert "## Uncertainty Summary" in markdown
+        assert "## External Reference Baseline" in markdown
         assert "## Supported Claims" in markdown

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.fft import fft2, fftshift, ifft2, ifftshift
-from scipy.ndimage import gaussian_filter, uniform_filter  # type: ignore[import-untyped]
 
 
 def _normalise_psf(psf: np.ndarray) -> np.ndarray:
@@ -22,17 +21,23 @@ def _apply_detector_effects(
     jitter_sigma_pixels: float = 0.0,
     pixel_integration_width: float = 1.0,
 ) -> np.ndarray:
-    """Apply simple detector-aware focal-plane effects to an intensity PSF."""
+    """Apply detector transfer effects using a simple OTF/MTF model."""
     result = psf.astype(np.float64, copy=True)
+    ny, nx = result.shape
+    fy = np.fft.fftfreq(ny)
+    fx = np.fft.fftfreq(nx)
+    fx_grid, fy_grid = np.meshgrid(fx, fy)
 
-    if pixel_integration_width > 1.0:
-        result = uniform_filter(result, size=float(pixel_integration_width), mode="nearest")
-
+    pixel_mtf = np.sinc(fx_grid * pixel_integration_width) * np.sinc(
+        fy_grid * pixel_integration_width
+    )
     blur_sigma = float(detector_sigma_pixels) + float(jitter_sigma_pixels)
-    if blur_sigma > 0:
-        result = gaussian_filter(result, sigma=blur_sigma, mode="nearest")
+    blur_mtf = np.exp(-2.0 * np.pi**2 * blur_sigma**2 * (fx_grid**2 + fy_grid**2))
 
-    return _normalise_psf(result)
+    spectrum = fft2(ifftshift(result))
+    filtered = np.real(fftshift(ifft2(spectrum * pixel_mtf * blur_mtf)))
+    filtered[filtered < 0] = 0.0
+    return _normalise_psf(filtered)
 
 
 def _spectral_grid(
@@ -40,8 +45,9 @@ def _spectral_grid(
     wavelength_m: float,
     bandwidth_fraction: float,
     spectral_samples: int,
+    spectral_weighting: str = "delta",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return wavelength samples and normalized weights for simple band averaging."""
+    """Return wavelength samples and normalized weights for band averaging."""
     if spectral_samples <= 1 or bandwidth_fraction <= 0:
         return np.array([wavelength_m], dtype=np.float64), np.array([1.0], dtype=np.float64)
 
@@ -53,10 +59,13 @@ def _spectral_grid(
         dtype=np.float64,
     )
     wavelengths = np.clip(wavelengths, 1e-12, None)
-    centre = (spectral_samples - 1) / 2.0
-    sigma = max(spectral_samples / 4.0, 1e-12)
-    weights = np.exp(-0.5 * ((np.arange(spectral_samples, dtype=np.float64) - centre) / sigma) ** 2)
-    weights /= weights.sum()
+    if spectral_weighting == "uniform":
+        weights = np.ones(spectral_samples, dtype=np.float64)
+    else:
+        centre = wavelength_m
+        sigma_m = max((bandwidth_fraction * wavelength_m) / 2.355, 1e-12)
+        weights = np.exp(-0.5 * ((wavelengths - centre) / sigma_m) ** 2)
+    weights = weights / weights.sum()
     return wavelengths, weights
 
 
@@ -99,6 +108,7 @@ def forward_model(
     wavelength_m: float = 606e-9,
     bandwidth_fraction: float = 0.0,
     spectral_samples: int = 1,
+    spectral_weighting: str = "delta",
     field_defocus_waves: float = 0.0,
     detector_sigma_pixels: float = 0.0,
     jitter_sigma_pixels: float = 0.0,
@@ -109,6 +119,7 @@ def forward_model(
         wavelength_m=wavelength_m,
         bandwidth_fraction=bandwidth_fraction,
         spectral_samples=spectral_samples,
+        spectral_weighting=spectral_weighting,
     )
 
     psf_accum = np.zeros_like(amplitude, dtype=np.float64)
@@ -134,12 +145,13 @@ def add_defocus(
     pupil_amplitude: np.ndarray,
     defocus_waves: float,
 ) -> np.ndarray:
-    """Add a known defocus aberration to a phase map."""
+    """Add a Zernike-like defocus aberration to a phase map."""
     n = phase.shape[0]
     y, x = np.mgrid[-1 : 1 : complex(0, n), -1 : 1 : complex(0, n)]  # type: ignore[misc]
-    rho2 = x**2 + y**2
-    defocus_rad = 2 * np.pi * defocus_waves * rho2
-    mask = pupil_amplitude > 0
+    rho = np.sqrt(x**2 + y**2)
+    defocus_zernike = 2.0 * rho**2 - 1.0
+    mask = (pupil_amplitude > 0) & (rho <= 1.0)
+    defocus_rad = np.pi * defocus_waves * defocus_zernike
     result = phase.copy()
     result[mask] += defocus_rad[mask]
     return result

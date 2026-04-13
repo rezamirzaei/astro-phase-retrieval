@@ -115,6 +115,7 @@ def generate_synthetic_psf(
         wavelength_m=pupil.wavelength_m,
         bandwidth_fraction=pupil.bandwidth_fraction,
         spectral_samples=pupil.spectral_samples,
+        spectral_weighting=pupil.spectral_weighting,
         field_defocus_waves=pupil.field_defocus_waves,
         detector_sigma_pixels=pupil.detector_sigma_pixels,
         jitter_sigma_pixels=pupil.jitter_sigma_pixels,

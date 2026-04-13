@@ -81,6 +81,24 @@ _CURATED_OBS: dict[str, dict] = {
         dataproduct_type="image",
         description="HST ACS/WFC F814W — WD standard GRW+70D5824",
     ),
+    "jwst-nircam-f200w": dict(
+        target_name="P330-E",
+        instrument_name="NIRCam",
+        filters="F200W",
+        obs_collection="JWST",
+        calib_level=3,
+        dataproduct_type="image",
+        description="JWST NIRCam F200W — photometric standard P330-E",
+    ),
+    "jwst-nircam-f356w": dict(
+        target_name="P330-E",
+        instrument_name="NIRCam",
+        filters="F356W",
+        obs_collection="JWST",
+        calib_level=3,
+        dataproduct_type="image",
+        description="JWST NIRCam F356W — photometric standard P330-E",
+    ),
 }
 
 
@@ -100,6 +118,8 @@ FILTER_WAVELENGTH_M: dict[str, float] = {
     "F775W": 775e-9,
     "F814W": 814e-9,
     "F850LP": 905e-9,
+    "F200W": 2.00e-6,
+    "F356W": 3.56e-6,
 }
 
 
@@ -126,7 +146,8 @@ def search_and_download(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Build a curated-key guess
-    key_guess = f"hst-{cfg.detector.lower().replace('/', '-')}-{cfg.filter_name.lower()}"
+    prefix = "jwst" if cfg.detector == "NIRCam" else "hst"
+    key_guess = f"{prefix}-{cfg.detector.lower().replace('/', '-')}-{cfg.filter_name.lower()}"
     curated = _CURATED_OBS.get(key_guess)
 
     if curated is not None:
@@ -143,7 +164,7 @@ def search_and_download(
         obs_table = Observations.query_criteria(
             instrument_name=cfg.detector,
             filters=cfg.filter_name,
-            obs_collection="HST",
+            obs_collection="JWST" if cfg.detector == "NIRCam" else "HST",
             dataproduct_type="image",
         )
 
@@ -185,7 +206,7 @@ def search_and_download(
     # Filter for calibrated individual exposures
     filtered = Observations.filter_products(
         products,
-        productSubGroupDescription=["FLT", "FLC", "CAL"],
+        productSubGroupDescription=["FLT", "FLC", "CAL", "I2D", "RATE"],
         extension="fits",
     )
 

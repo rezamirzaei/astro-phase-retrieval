@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -11,13 +12,143 @@ from astropy.io import fits
 from scipy.ndimage import median_filter  # type: ignore[import-untyped]
 from scipy.ndimage import shift as ndimage_shift
 
-from src.models.config import DataConfig, PupilConfig
+from src.models.config import DataConfig, PupilConfig, TelescopeType
 from src.models.optics import PSFData
 
 logger = logging.getLogger(__name__)
 
 # Guard limit: refuse to open FITS files larger than 2 GiB to prevent OOM
 _MAX_FITS_BYTES: int = 2 * 1024**3
+
+
+@dataclass(frozen=True, slots=True)
+class _CalibrationPreset:
+    key: str
+    telescope: TelescopeType
+    detector: str
+    pixel_scale_arcsec: float
+    default_centroid_method: str
+    default_saturation_percentile: float
+    default_hot_pixel_sigma: float
+    dq_bad_values: tuple[int, ...]
+    header_keys: tuple[str, ...]
+
+
+_CALIBRATION_PRESETS: dict[str, _CalibrationPreset] = {
+    "hst-wfc3-uvis": _CalibrationPreset(
+        key="hst-wfc3-uvis",
+        telescope=TelescopeType.HST,
+        detector="WFC3/UVIS",
+        pixel_scale_arcsec=0.0395,
+        default_centroid_method="moments",
+        default_saturation_percentile=99.97,
+        default_hot_pixel_sigma=7.0,
+        dq_bad_values=(1, 4, 16, 32, 64, 256, 512, 1024, 2048, 4096),
+        header_keys=(
+            "TELESCOP",
+            "INSTRUME",
+            "DETECTOR",
+            "FILTER",
+            "FILTER1",
+            "FILTER2",
+            "ROOTNAME",
+            "TARGNAME",
+            "EXPTIME",
+            "DATE-OBS",
+            "BUNIT",
+            "APERTURE",
+            "SUBARRAY",
+            "PHOTFLAM",
+            "PHOTPLAM",
+            "PCTECORR",
+            "DQICORR",
+            "DARKCORR",
+            "FLATCORR",
+        ),
+    ),
+    "hst-acs-wfc": _CalibrationPreset(
+        key="hst-acs-wfc",
+        telescope=TelescopeType.HST,
+        detector="ACS/WFC",
+        pixel_scale_arcsec=0.05,
+        default_centroid_method="moments",
+        default_saturation_percentile=99.98,
+        default_hot_pixel_sigma=7.0,
+        dq_bad_values=(1, 4, 16, 32, 64, 256, 512, 1024, 2048, 4096),
+        header_keys=(
+            "TELESCOP",
+            "INSTRUME",
+            "DETECTOR",
+            "FILTER",
+            "ROOTNAME",
+            "TARGNAME",
+            "EXPTIME",
+            "DATE-OBS",
+            "BUNIT",
+            "APERTURE",
+            "SUBARRAY",
+            "PFLTFILE",
+            "DFLTFILE",
+            "FLSHCORR",
+            "DARKCORR",
+            "FLATCORR",
+        ),
+    ),
+    "jwst-nircam-sw": _CalibrationPreset(
+        key="jwst-nircam-sw",
+        telescope=TelescopeType.JWST,
+        detector="NIRCam",
+        pixel_scale_arcsec=0.031,
+        default_centroid_method="quadratic_peak",
+        default_saturation_percentile=99.9,
+        default_hot_pixel_sigma=6.0,
+        dq_bad_values=(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048),
+        header_keys=(
+            "TELESCOP",
+            "INSTRUME",
+            "DETECTOR",
+            "FILTER",
+            "OBS_ID",
+            "TARGNAME",
+            "EXPTIME",
+            "DATE-OBS",
+            "BUNIT",
+            "SUBARRAY",
+            "PUPIL",
+            "CHANNEL",
+            "MODULE",
+            "CRDS_CTX",
+            "CAL_VER",
+        ),
+    ),
+    "jwst-nircam-lw": _CalibrationPreset(
+        key="jwst-nircam-lw",
+        telescope=TelescopeType.JWST,
+        detector="NIRCam",
+        pixel_scale_arcsec=0.063,
+        default_centroid_method="quadratic_peak",
+        default_saturation_percentile=99.9,
+        default_hot_pixel_sigma=6.0,
+        dq_bad_values=(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048),
+        header_keys=(
+            "TELESCOP",
+            "INSTRUME",
+            "DETECTOR",
+            "FILTER",
+            "OBS_ID",
+            "TARGNAME",
+            "EXPTIME",
+            "DATE-OBS",
+            "BUNIT",
+            "SUBARRAY",
+            "PUPIL",
+            "CHANNEL",
+            "MODULE",
+            "CRDS_CTX",
+            "CAL_VER",
+        ),
+    ),
+}
 
 
 def _file_sha256(filepath: Path) -> str:
@@ -120,7 +251,12 @@ def find_brightest_source(image: np.ndarray, *, border: int = 50) -> tuple[int, 
     return int(idx[0]), int(idx[1])
 
 
-def load_fits_dq_mask(filepath: Path, image_shape: tuple[int, int]) -> np.ndarray | None:
+def load_fits_dq_mask(
+    filepath: Path,
+    image_shape: tuple[int, int],
+    *,
+    bad_values: tuple[int, ...] | None = None,
+) -> np.ndarray | None:
     """Load a FITS data-quality mask when a matching DQ extension exists."""
     with fits.open(filepath) as hdul:
         for hdu in hdul:
@@ -129,7 +265,26 @@ def load_fits_dq_mask(filepath: Path, image_shape: tuple[int, int]) -> np.ndarra
                 continue
             dq = np.asarray(hdu.data)
             if dq.ndim == 2 and dq.shape == image_shape:
-                return dq != 0
+                if bad_values is None:
+                    return np.asarray(dq != 0, dtype=bool)
+                mask = np.zeros_like(dq, dtype=bool)
+                dq_i64 = dq.astype(np.int64, copy=False)
+                for value in bad_values:
+                    mask |= (dq_i64 & int(value)) != 0
+                return mask
+    return None
+
+
+def load_fits_error_image(filepath: Path, image_shape: tuple[int, int]) -> np.ndarray | None:
+    """Load a FITS uncertainty image when an ERR extension exists."""
+    with fits.open(filepath) as hdul:
+        for hdu in hdul:
+            extname = str(hdu.header.get("EXTNAME", "")).upper()
+            if "ERR" not in extname or hdu.data is None:
+                continue
+            err = np.asarray(hdu.data, dtype=np.float64)
+            if err.ndim == 2 and err.shape == image_shape:
+                return err
     return None
 
 
@@ -364,6 +519,24 @@ def load_psf_from_fits(
     """
     image, header = load_fits_image(filepath)
     logger.info("Loaded %s — shape %s", filepath.name, image.shape)
+    filter_name = _header_filter(header, data_cfg.filter_name)
+    image_shape = (int(image.shape[0]), int(image.shape[1]))
+    preset = _resolve_calibration_preset(header, data_cfg, filter_name)
+    centroid_method = _effective_data_setting(
+        current_value=data_cfg.centroid_method,
+        default_value=DataConfig().centroid_method,
+        preset_value=preset.default_centroid_method,
+    )
+    saturation_percentile = _effective_data_setting(
+        current_value=data_cfg.saturation_percentile,
+        default_value=DataConfig().saturation_percentile,
+        preset_value=preset.default_saturation_percentile,
+    )
+    hot_pixel_sigma = _effective_data_setting(
+        current_value=data_cfg.hot_pixel_sigma,
+        default_value=DataConfig().hot_pixel_sigma,
+        preset_value=preset.default_hot_pixel_sigma,
+    )
 
     # Background subtraction
     background_level = estimate_background_level(image, percentile=data_cfg.background_percentile)
@@ -376,7 +549,7 @@ def load_psf_from_fits(
         image,
         center,
         window_radius=max(2, data_cfg.centroid_window_size // 2),
-        method=data_cfg.centroid_method,
+        method=str(centroid_method),
     )
     logger.info(
         "Brightest source at row=%d, col=%d; refined centroid row=%.3f, col=%.3f",
@@ -396,12 +569,13 @@ def load_psf_from_fits(
 
     quality_mask, quality_info = build_quality_mask(
         cutout,
-        saturation_percentile=data_cfg.saturation_percentile,
-        hot_pixel_sigma=data_cfg.hot_pixel_sigma,
+        saturation_percentile=float(saturation_percentile),
+        hot_pixel_sigma=float(hot_pixel_sigma),
     )
     dq_cutout = None
+    err_cutout = None
     if data_cfg.use_dq_mask:
-        dq_mask = load_fits_dq_mask(filepath, image.shape)
+        dq_mask = load_fits_dq_mask(filepath, image_shape, bad_values=preset.dq_bad_values)
         if dq_mask is not None:
             dq_cutout = extract_psf_cutout(
                 dq_mask.astype(np.float64),
@@ -409,6 +583,13 @@ def load_psf_from_fits(
                 half,
             ) > 0
             quality_mask |= dq_cutout
+    err_image = load_fits_error_image(filepath, image_shape)
+    if err_image is not None:
+        err_cutout = extract_psf_cutout(
+            err_image,
+            (int(round(refined_center[0])), int(round(refined_center[1]))),
+            half,
+        )
     cutout = apply_quality_mask(cutout, quality_mask)
 
     recenter_shift = (0.0, 0.0)
@@ -425,33 +606,24 @@ def load_psf_from_fits(
 
     header_subset = {
         key: str(header[key])
-        for key in (
-            "ROOTNAME",
-            "FILTER",
-            "FILTER1",
-            "FILTER2",
-            "INSTRUME",
-            "DETECTOR",
-            "TARGNAME",
-            "EXPTIME",
-            "DATE-OBS",
-        )
+        for key in preset.header_keys
         if key in header and header[key] not in (None, "")
     }
 
     return PSFData(
         image=cutout,
-        pixel_scale_arcsec=pupil_cfg.pixel_scale_arcsec,
+        pixel_scale_arcsec=preset.pixel_scale_arcsec,
         wavelength_m=_header_wavelength(header, pupil_cfg.wavelength_m),
-        filter_name=_header_filter(header, data_cfg.filter_name),
-        telescope=str(pupil_cfg.telescope.value),
-        obs_id=header.get("ROOTNAME", filepath.stem),
+        filter_name=filter_name,
+        telescope=str(preset.telescope.value),
+        obs_id=header.get("ROOTNAME", header.get("OBS_ID", filepath.stem)),
         metadata={
             "source_kind": "fits",
             "source_path": str(filepath),
             "source_filename": filepath.name,
             "source_sha256": _file_sha256(filepath),
             "file_size_bytes": file_size,
+            "detector": preset.detector,
             "background_level": background_level,
             "background_percentile": float(data_cfg.background_percentile),
             "brightest_source_center_rowcol": [int(center[0]), int(center[1])],
@@ -459,7 +631,7 @@ def load_psf_from_fits(
             "cutout_size": int(data_cfg.cutout_size),
             "prepared_shape": [int(cutout.shape[0]), int(cutout.shape[1])],
             "centroid_window_size": int(data_cfg.centroid_window_size),
-            "centroid_method": data_cfg.centroid_method,
+            "centroid_method": str(centroid_method),
             "recenter_psf": bool(data_cfg.recenter_psf),
             "recenter_shift_rowcol": [float(recenter_shift[0]), float(recenter_shift[1])],
             "quality_mask": {
@@ -470,15 +642,28 @@ def load_psf_from_fits(
                 "hot_pixels": int(quality_info["hot_pixels"]),
                 "dq_pixels": int(np.count_nonzero(dq_cutout)) if dq_cutout is not None else 0,
                 "saturation_level": float(quality_info.get("saturation_level", 0.0)),
-                "hot_pixel_sigma": float(
-                    quality_info.get("hot_pixel_sigma", data_cfg.hot_pixel_sigma)
-                ),
+                "hot_pixel_sigma": float(quality_info.get("hot_pixel_sigma", hot_pixel_sigma)),
+            },
+            "calibration": {
+                "preset": preset.key,
+                "dq_bad_values": list(preset.dq_bad_values),
+                "error_extension_present": err_cutout is not None,
+                "error_mean": float(np.mean(err_cutout)) if err_cutout is not None else None,
+                "error_std": float(np.std(err_cutout)) if err_cutout is not None else None,
+                "header_keys_recorded": list(header_subset.keys()),
+                "suggested_pupil": {
+                    "telescope": preset.telescope.value,
+                    "pixel_scale_arcsec": preset.pixel_scale_arcsec,
+                    "wavelength_m": _header_wavelength(header, pupil_cfg.wavelength_m),
+                },
             },
             "preprocessing": [
+                f"calibration_preset_{preset.key}",
                 f"background_subtraction_edge_percentile_{data_cfg.background_percentile:g}",
                 "nan_to_num",
                 "brightest_source_detection",
                 "local_flux_centroid_refinement",
+                f"local_flux_centroid_refinement_{centroid_method}",
                 "brightest_source_cutout",
                 "dq_mask_repair" if dq_cutout is not None else "dq_mask_unavailable",
                 "quality_mask_repair",
@@ -509,6 +694,40 @@ def _header_wavelength(header: dict, fallback: float) -> float:
 
     filt = _header_filter(header, "")
     return FILTER_WAVELENGTH_M.get(filt, fallback)
+
+
+def _resolve_calibration_preset(
+    header: dict,
+    data_cfg: DataConfig,
+    filter_name: str,
+) -> _CalibrationPreset:
+    if data_cfg.calibration_preset != "auto":
+        preset = _CALIBRATION_PRESETS.get(data_cfg.calibration_preset)
+        if preset is not None:
+            return preset
+
+    detector = str(header.get("DETECTOR", data_cfg.detector)).upper()
+    instrument = str(header.get("INSTRUME", "")).upper()
+    wavelength = _header_wavelength(header, 0.0)
+    filter_upper = filter_name.upper()
+
+    if "ACS" in instrument or detector == "ACS/WFC":
+        return _CALIBRATION_PRESETS["hst-acs-wfc"]
+    if detector == "NIRCAM" or instrument == "NIRCAM" or filter_upper in {"F200W", "F356W"}:
+        key = "jwst-nircam-lw" if wavelength >= 2.4e-6 else "jwst-nircam-sw"
+        return _CALIBRATION_PRESETS[key]
+    return _CALIBRATION_PRESETS["hst-wfc3-uvis"]
+
+
+def _effective_data_setting(
+    *,
+    current_value: float | str,
+    default_value: float | str,
+    preset_value: float | str,
+) -> float | str:
+    if current_value == default_value:
+        return preset_value
+    return current_value
 
 
 def prepare_psf_for_retrieval(

@@ -75,7 +75,29 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -e ".[dev]"
-      - run: mypy src/ --ignore-missing-imports
+      - run: mypy src/ web/ --ignore-missing-imports
+
+  build:
+    name: Build & Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Build wheel and sdist
+        run: |
+          pip install -e ".[dev]"
+          python -m build
+      - name: Install built wheel
+        run: |
+          pip uninstall -y phase-retrieval || true
+          pip install dist/*.whl
+      - name: CLI smoke test
+        run: |
+          phase-retrieval --help
+          phase-retrieval benchmark --algorithms er --cases clean-low --iterations 2 --quiet --output-dir smoke-benchmark
 
   docs:
     name: Build Docs

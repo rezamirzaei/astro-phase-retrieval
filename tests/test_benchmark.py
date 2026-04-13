@@ -25,19 +25,25 @@ class TestBenchmark:
         json_path = tmp_path / "benchmark_results.json"
         csv_path = tmp_path / "benchmark_summary.csv"
         md_path = tmp_path / "benchmark_report.md"
+        study_json = tmp_path / "benchmark_study.json"
+        study_csv = tmp_path / "benchmark_study.csv"
         leaderboard_png = tmp_path / "benchmark_leaderboard.png"
         heatmap_png = tmp_path / "benchmark_case_heatmap.png"
         assert json_path.exists()
         assert csv_path.exists()
         assert md_path.exists()
+        assert study_json.exists()
+        assert study_csv.exists()
         assert leaderboard_png.exists()
         assert heatmap_png.exists()
 
         payload = json.loads(json_path.read_text())
         assert payload["cases"][0]["key"] == "clean-low"
         assert {row["algorithm"] for row in payload["aggregate"]} == {"er", "hio"}
+        assert payload["study"][0]["algorithm"] in {"er", "hio"}
         assert "leaderboard_plot" in payload["artifacts"]
         assert "heatmap_plot" in payload["artifacts"]
+        assert "study_json" in payload["artifacts"]
         assert "center_offset_pixels" in payload["cases"][0]
 
     def test_markdown_contains_ranking(self, tmp_path) -> None:
@@ -51,6 +57,7 @@ class TestBenchmark:
         markdown = summary.to_markdown()
         assert "# Phase Retrieval Benchmark Report" in markdown
         assert "Aggregate ranking" in markdown
+        assert "Convergence and Failure-Mode Study" in markdown
         assert "Limits" in markdown
         assert "er" in markdown
 

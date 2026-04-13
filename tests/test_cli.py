@@ -59,10 +59,17 @@ class TestCLI:
         fake_fits = tmp_path / "fake.fits"
         fake_fits.touch()
         out_dir = tmp_path / "out"
+        reference_psf = psf_data.model_copy(
+            update={
+                "filter_name": "F606W",
+                "telescope": "hst",
+                "metadata": {"detector": "WFC3/UVIS"},
+            }
+        )
 
         with (
-            patch("src.data.loader.load_psf_from_fits", return_value=psf_data),
-            patch("src.data.loader.prepare_psf_for_retrieval", return_value=psf_data.image),
+            patch("src.data.loader.load_psf_from_fits", return_value=reference_psf),
+            patch("src.data.loader.prepare_psf_for_retrieval", return_value=reference_psf.image),
         ):
             main(
                 [
@@ -85,6 +92,7 @@ class TestCLI:
         assert result_file.exists(), "result_er.json was not written"
         assert (out_dir / "evaluation_er.json").exists()
         assert (out_dir / "evaluation_er.md").exists()
+        assert (out_dir / "reference_validation_er.json").exists()
         result_data = json.loads(result_file.read_text())
         for key in ("algorithm", "strehl_ratio", "rms_phase_rad", "n_iterations", "converged"):
             assert key in result_data, f"Missing key '{key}' in result JSON"
@@ -228,6 +236,7 @@ class TestCLI:
         comparison_payload = json.loads((out_dir / "comparison_report.json").read_text())
         assert "artifacts" in comparison_payload
         assert "algorithm_comparison_plot" in comparison_payload["artifacts"]
+        assert "reference_baseline" in comparison_payload
 
     def test_run_auto_discovered_fits(self, tmp_path, psf_data, capsys) -> None:
         """When no --fits is given, should auto-discover cached FITS."""

@@ -21,6 +21,7 @@ from web.services.algorithm_service import (
     compare_algorithms,
     list_algorithms_with_defaults,
     list_comparison_plots,
+    list_job_artifacts,
     list_job_plots,
     run_algorithm,
 )
@@ -69,6 +70,7 @@ async def run_single(body: AlgorithmRunRequest, user: CurrentUser, db: DbSession
     plots = list_job_plots(job)
     resp = JobResponse.model_validate(job)
     resp.plots = plots
+    resp.artifacts = list_job_artifacts(job)
     return resp
 
 
@@ -95,6 +97,7 @@ async def compare(body: CompareRequest, user: CurrentUser, db: DbSession) -> Com
     for j in jobs:
         resp = JobResponse.model_validate(j)
         resp.plots = list_job_plots(j)
+        resp.artifacts = list_job_artifacts(j)
         results.append(resp)
 
     comparison_plots = list_comparison_plots(jobs[0].id) if jobs else []

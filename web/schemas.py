@@ -150,6 +150,7 @@ class JobResponse(BaseModel):
     completed_at: datetime | None = None
     error_message: str | None = None
     plots: list[str] = Field(default_factory=list)
+    artifacts: list[str] = Field(default_factory=list)
 
 
 class PlotReference(BaseModel):

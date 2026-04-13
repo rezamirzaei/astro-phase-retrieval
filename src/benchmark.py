@@ -59,6 +59,7 @@ class BenchmarkSummary:
     cases: list[BenchmarkCase]
     records: list[dict[str, Any]]
     aggregate: list[dict[str, Any]]
+    study: list[dict[str, Any]] = field(default_factory=list)
     output_dir: Path | None = None
     artifacts: dict[str, str] = field(default_factory=dict)
 
@@ -88,6 +89,7 @@ class BenchmarkSummary:
             ],
             "records": self.records,
             "aggregate": self.aggregate,
+            "study": self.study,
             "artifacts": self.artifacts,
         }
 
@@ -140,6 +142,29 @@ class BenchmarkSummary:
                 f"{row['mean_phase_rms_error_rad']:.4f} | {row['mean_radial_profile_error']:.4f} | "
                 f"{row['mean_encircled_energy_error']:.4f} | {row['converged_fraction']:.2f} | "
                 f"{row['mean_elapsed_seconds']:.3f} |"
+            )
+        if self.study:
+            lines.extend(
+                [
+                    "",
+                    "## Convergence and Failure-Mode Study",
+                    "",
+                    (
+                        "| Algorithm | Clean score | Stress score | Robustness drop | "
+                        "Failure rate | Worst case |"
+                    ),
+                    "|-----------|------------:|-------------:|----------------:|-------------:|-----------|",
+                ]
+            )
+            lines.extend(
+                [
+                    (
+                        f"| {row['algorithm']} | {row['clean_mean_score']:.4f} | "
+                        f"{row['stress_mean_score']:.4f} | {row['robustness_drop']:.4f} | "
+                        f"{row['failure_rate']:.2f} | {row['worst_case']} |"
+                    )
+                    for row in self.study
+                ]
             )
         lines.extend(
             [
@@ -317,6 +342,69 @@ def _aggregate_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(summary, key=lambda row: (-float(row["mean_score"]), str(row["algorithm"])))
 
 
+def _case_family(case_key: str) -> str:
+    if case_key.startswith("clean"):
+        return "clean"
+    if "miscentered" in case_key or "background" in case_key:
+        return "perturbation"
+    if "broadband" in case_key:
+        return "model_mismatch"
+    return "noise"
+
+
+def _build_benchmark_study(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        grouped.setdefault(str(record["algorithm"]), []).append(record)
+
+    study_rows: list[dict[str, Any]] = []
+    for algorithm, rows in grouped.items():
+        clean_scores = [
+            float(row["score"]) for row in rows if _case_family(str(row["case"])) == "clean"
+        ]
+        stress_scores = [
+            float(row["score"]) for row in rows if _case_family(str(row["case"])) != "clean"
+        ]
+        failure_rate = float(
+            np.mean(
+                [
+                    1.0
+                    if (
+                        not bool(row["converged"])
+                        or float(row["convergence_improvement_ratio"]) < 0.05
+                    )
+                    else 0.0
+                    for row in rows
+                ]
+            )
+        )
+        worst_case_row = min(rows, key=lambda row: float(row["score"]))
+        clean_mean = (
+            float(np.mean(clean_scores))
+            if clean_scores
+            else float(np.mean([float(row["score"]) for row in rows]))
+        )
+        stress_mean = float(np.mean(stress_scores)) if stress_scores else clean_mean
+        study_rows.append(
+            {
+                "algorithm": algorithm,
+                "clean_mean_score": clean_mean,
+                "stress_mean_score": stress_mean,
+                "robustness_drop": max(0.0, clean_mean - stress_mean),
+                "failure_rate": failure_rate,
+                "convergence_stability": float(
+                    np.mean([float(row["convergence_monotonic_fraction"]) for row in rows])
+                ),
+                "worst_case": str(worst_case_row["case"]),
+            }
+        )
+
+    return sorted(
+        study_rows,
+        key=lambda row: (float(row["failure_rate"]), -float(row["stress_mean_score"])),
+    )
+
+
 def _write_reports(summary: BenchmarkSummary, output_dir: Path) -> None:
     """Persist JSON, CSV, and Markdown benchmark reports."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -326,12 +414,16 @@ def _write_reports(summary: BenchmarkSummary, output_dir: Path) -> None:
     report_md = output_dir / "benchmark_report.md"
     leaderboard_png = output_dir / "benchmark_leaderboard.png"
     heatmap_png = output_dir / "benchmark_case_heatmap.png"
+    study_json = output_dir / "benchmark_study.json"
+    study_csv = output_dir / "benchmark_study.csv"
 
     summary.artifacts.update(
         {
             "results_json": str(results_json),
             "summary_csv": str(summary_csv),
             "report_markdown": str(report_md),
+            "study_json": str(study_json),
+            "study_csv": str(study_csv),
             "leaderboard_plot": str(leaderboard_png),
             "heatmap_plot": str(heatmap_png),
         }
@@ -359,6 +451,23 @@ def _write_reports(summary: BenchmarkSummary, output_dir: Path) -> None:
         )
         writer.writeheader()
         writer.writerows(summary.aggregate)
+
+    study_json.write_text(json.dumps(summary.study, indent=2), encoding="utf-8")
+    with study_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "algorithm",
+                "clean_mean_score",
+                "stress_mean_score",
+                "robustness_drop",
+                "failure_rate",
+                "convergence_stability",
+                "worst_case",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(summary.study)
 
     report_md.write_text(summary.to_markdown(), encoding="utf-8")
 
@@ -468,10 +577,12 @@ def run_benchmark(
             records.append(record)
 
     aggregate = _aggregate_records(records)
+    study = _build_benchmark_study(records)
     summary = BenchmarkSummary(
         cases=selected_cases,
         records=records,
         aggregate=aggregate,
+        study=study,
         output_dir=output_dir,
     )
     if output_dir is not None:

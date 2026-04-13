@@ -42,6 +42,7 @@ from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 from src.optics.pupils import build_pupil
 from src.reporting import build_evaluation_payload, write_evaluation_report
 from src.uncertainty import run_uncertainty_analysis
+from src.validation import compare_against_reference
 
 logger = logging.getLogger(__name__)
 
@@ -185,13 +186,17 @@ class RetrievalPipeline:
         Handles PSF loading, pupil construction, grid synchronisation,
         algorithm execution, and output generation.
         """
-        from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
-
         alg_cfg = algorithm_config or self.config.algorithm
         out_dir = output_dir or self.config.output_dir
+        psf_data, pupil = self.load_inputs_from_file(fits_path)
+        return self.run_from_psf(psf_data, pupil, alg_cfg, out_dir)
+
+    def load_inputs_from_file(self, fits_path: Path) -> tuple[PSFData, PupilModel]:
+        """Load and preprocess a PSF file, then build a matching pupil model."""
+        from src.data.loader import load_psf_from_fits, prepare_psf_for_retrieval
+
         grid_size = self.config.pupil.grid_size
 
-        # ── Load PSF ──────────────────────────────────────────────────
         if fits_path.suffix == ".npy":
             psf_image = np.load(str(fits_path)).astype(np.float64)
             original_shape = list(psf_image.shape)
@@ -232,23 +237,22 @@ class RetrievalPipeline:
                 },
             )
         else:
-            psf_data = load_psf_from_fits(fits_path, self.config.data, self.config.pupil)
-            psf_image = prepare_psf_for_retrieval(psf_data, grid_size)
+            raw_psf = load_psf_from_fits(fits_path, self.config.data, self.config.pupil)
+            psf_image = prepare_psf_for_retrieval(raw_psf, grid_size)
             psf_data = PSFData(
                 image=psf_image,
-                pixel_scale_arcsec=psf_data.pixel_scale_arcsec,
-                wavelength_m=psf_data.wavelength_m,
-                filter_name=psf_data.filter_name,
-                telescope=psf_data.telescope,
-                obs_id=psf_data.obs_id,
+                pixel_scale_arcsec=raw_psf.pixel_scale_arcsec,
+                wavelength_m=raw_psf.wavelength_m,
+                filter_name=raw_psf.filter_name,
+                telescope=raw_psf.telescope,
+                obs_id=raw_psf.obs_id,
                 metadata={
-                    **psf_data.metadata,
+                    **raw_psf.metadata,
                     "prepared_grid_size": grid_size,
                     "prepared_shape": [int(psf_image.shape[0]), int(psf_image.shape[1])],
                 },
             )
 
-        # ── Sync pupil grid to actual image size ──────────────────────
         actual_grid = psf_data.image.shape[0]
         pupil_cfg = self.config.pupil
         if actual_grid != pupil_cfg.grid_size:
@@ -260,8 +264,7 @@ class RetrievalPipeline:
             )
             pupil_cfg = pupil_cfg.model_copy(update={"grid_size": actual_grid})
         pupil = build_pupil(pupil_cfg)
-
-        return self.run_from_psf(psf_data, pupil, alg_cfg, out_dir)
+        return psf_data, pupil
 
     @staticmethod
     def _save_outputs(pipeline_result: PipelineResult, out_dir: Path) -> None:
@@ -308,6 +311,16 @@ class RetrievalPipeline:
             "convergence": pipeline_result.convergence_summary,
             "zernike_coefficients": pipeline_result.zernike_coefficients,
         }
+        reference_validation = compare_against_reference(
+            observed_psf=pipeline_result.psf_data.image,
+            reconstructed_psf=r.reconstructed_psf,
+            pixel_scale_arcsec=pipeline_result.psf_data.pixel_scale_arcsec,
+            telescope=pipeline_result.psf_data.telescope,
+            detector=str(pipeline_result.psf_data.metadata.get("detector", "")),
+            filter_name=pipeline_result.psf_data.filter_name,
+        )
+        if reference_validation:
+            metrics["reference_validation"] = reference_validation
         if pipeline_result.uncertainty_summary:
             metrics["uncertainty"] = pipeline_result.uncertainty_summary
         (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
@@ -316,8 +329,25 @@ class RetrievalPipeline:
             (out_dir / "uncertainty.json").write_text(
                 json.dumps(pipeline_result.uncertainty_summary, indent=2)
             )
+        if reference_validation:
+            (out_dir / "reference_validation.json").write_text(
+                json.dumps(reference_validation, indent=2)
+            )
 
-        provenance = {
+        pupil_summary: dict[str, Any] = {
+            "grid_size": pipeline_result.pupil.grid_size,
+            "support_pixels": int(np.sum(pipeline_result.pupil.amplitude > 0)),
+            "approximate_model": True,
+            "wavelength_m": pipeline_result.pupil.wavelength_m,
+            "bandwidth_fraction": pipeline_result.pupil.bandwidth_fraction,
+            "spectral_samples": pipeline_result.pupil.spectral_samples,
+            "spectral_weighting": pipeline_result.pupil.spectral_weighting,
+            "field_defocus_waves": pipeline_result.pupil.field_defocus_waves,
+            "detector_sigma_pixels": pipeline_result.pupil.detector_sigma_pixels,
+            "jitter_sigma_pixels": pipeline_result.pupil.jitter_sigma_pixels,
+            "pixel_integration_width": pipeline_result.pupil.pixel_integration_width,
+        }
+        provenance: dict[str, Any] = {
             "psf": pipeline_result.psf_data.metadata,
             "algorithm": {
                 "name": cfg.name.value,
@@ -330,18 +360,8 @@ class RetrievalPipeline:
                 "n_starts": cfg.n_starts,
                 "random_seed": cfg.random_seed,
             },
-            "pupil": {
-                "grid_size": pipeline_result.pupil.grid_size,
-                "support_pixels": int(np.sum(pipeline_result.pupil.amplitude > 0)),
-                "approximate_model": True,
-                "wavelength_m": pipeline_result.pupil.wavelength_m,
-                "bandwidth_fraction": pipeline_result.pupil.bandwidth_fraction,
-                "spectral_samples": pipeline_result.pupil.spectral_samples,
-                "field_defocus_waves": pipeline_result.pupil.field_defocus_waves,
-                "detector_sigma_pixels": pipeline_result.pupil.detector_sigma_pixels,
-                "jitter_sigma_pixels": pipeline_result.pupil.jitter_sigma_pixels,
-                "pixel_integration_width": pipeline_result.pupil.pixel_integration_width,
-            },
+            "pupil": pupil_summary,
+            "reference_validation_available": bool(reference_validation),
         }
         (out_dir / "provenance.json").write_text(json.dumps(provenance, indent=2))
 
@@ -352,11 +372,12 @@ class RetrievalPipeline:
             },
             algorithm_name=cfg.name.value,
             algorithm_config=config_data,
-            pupil_summary=provenance["pupil"],
+            pupil_summary=pupil_summary,
             metrics={
                 **summary,
                 "convergence": pipeline_result.convergence_summary,
                 "uncertainty": pipeline_result.uncertainty_summary,
+                "reference_validation": reference_validation,
             },
             zernike_coefficients=pipeline_result.zernike_coefficients,
         )

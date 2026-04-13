@@ -145,6 +145,10 @@ class DataConfig(BaseModel):
         le=50.0,
         description="MAD-based sigma threshold used to flag isolated hot pixels in PSF cutouts",
     )
+    calibration_preset: str = Field(
+        default="auto",
+        description="Instrument-specific preprocessing preset (`auto` infers from FITS headers)",
+    )
 
     @field_validator("cutout_size")
     @classmethod
@@ -187,6 +191,10 @@ class PupilConfig(BaseModel):
         ge=1,
         le=15,
         description="Number of wavelength samples for polychromatic averaging",
+    )
+    spectral_weighting: Literal["delta", "gaussian", "uniform"] = Field(
+        default="delta",
+        description="Spectral weighting model used for broadband forward propagation",
     )
     field_defocus_waves: float = Field(
         default=0.0,
@@ -594,6 +602,33 @@ def default_hst_config() -> PipelineConfig:
             spider_width=0.0254,
             n_spiders=4,
             pixel_scale_arcsec=0.04,
+            spectral_weighting="gaussian",
+        ),
+        algorithm=AlgorithmConfig(
+            name=AlgorithmName.HYBRID_INPUT_OUTPUT,
+            max_iterations=500,
+            beta=0.9,
+        ),
+    )
+
+
+def default_jwst_config() -> PipelineConfig:
+    """Return a sensible default config for JWST/NIRCam phase retrieval."""
+    return PipelineConfig(
+        data=DataConfig(
+            detector="NIRCam",
+            filter_name="F200W",
+            cutout_size=128,
+        ),
+        pupil=PupilConfig(
+            telescope=TelescopeType.JWST,
+            grid_size=256,
+            primary_radius=3.25,
+            secondary_radius=0.74,
+            spider_width=0.025,
+            n_spiders=3,
+            pixel_scale_arcsec=0.031,
+            spectral_weighting="gaussian",
         ),
         algorithm=AlgorithmConfig(
             name=AlgorithmName.HYBRID_INPUT_OUTPUT,

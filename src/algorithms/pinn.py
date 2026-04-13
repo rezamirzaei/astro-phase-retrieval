@@ -257,9 +257,31 @@ class PINNPhaseRetriever(PhaseRetriever):
         # =====================================================================
         elapsed = time.perf_counter() - t0
         best_phase[~support_np] = 0.0
-        recon_psf = forward_model(self.pupil.amplitude, best_phase)
+        recon_psf = forward_model(
+            self.pupil.amplitude,
+            best_phase,
+            wavelength_m=self.pupil.wavelength_m,
+            bandwidth_fraction=self.pupil.bandwidth_fraction,
+            spectral_samples=self.pupil.spectral_samples,
+            spectral_weighting=self.pupil.spectral_weighting,
+            field_defocus_waves=self.pupil.field_defocus_waves,
+            detector_sigma_pixels=self.pupil.detector_sigma_pixels,
+            jitter_sigma_pixels=self.pupil.jitter_sigma_pixels,
+            pixel_integration_width=self.pupil.pixel_integration_width,
+        )
         rms = compute_rms_phase(best_phase, support_np)
-        strehl = compute_strehl_ratio(recon_psf, self.pupil.amplitude)
+        strehl = compute_strehl_ratio(
+            recon_psf,
+            self.pupil.amplitude,
+            wavelength_m=self.pupil.wavelength_m,
+            bandwidth_fraction=self.pupil.bandwidth_fraction,
+            spectral_samples=self.pupil.spectral_samples,
+            spectral_weighting=self.pupil.spectral_weighting,
+            field_defocus_waves=self.pupil.field_defocus_waves,
+            detector_sigma_pixels=self.pupil.detector_sigma_pixels,
+            jitter_sigma_pixels=self.pupil.jitter_sigma_pixels,
+            pixel_integration_width=self.pupil.pixel_integration_width,
+        )
         neural_improved = warm_objective is None or best_loss + 1e-12 < warm_objective
         fallback_used = warm_result is not None and not neural_improved
 

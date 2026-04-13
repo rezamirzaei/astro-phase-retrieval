@@ -15,7 +15,7 @@ from web.config import settings
 from web.dependencies import CurrentUser, DbSession
 from web.models import Job
 from web.schemas import DashboardStats, JobResponse
-from web.services.algorithm_service import list_job_plots
+from web.services.algorithm_service import list_job_artifacts, list_job_plots
 
 router = APIRouter(prefix="/api/results", tags=["results"])
 
@@ -43,6 +43,7 @@ def list_results(
     for j in rows:
         resp = JobResponse.model_validate(j)
         resp.plots = list_job_plots(j)
+        resp.artifacts = list_job_artifacts(j)
         out.append(resp)
     return out
 
@@ -64,6 +65,7 @@ def dashboard(user: CurrentUser, db: DbSession) -> DashboardStats:
     for j in recent:
         resp = JobResponse.model_validate(j)
         resp.plots = list_job_plots(j)
+        resp.artifacts = list_job_artifacts(j)
         recent_responses.append(resp)
 
     return DashboardStats(
@@ -83,6 +85,7 @@ def get_result(job_id: int, user: CurrentUser, db: DbSession) -> JobResponse:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Result not found")
     resp = JobResponse.model_validate(job)
     resp.plots = list_job_plots(job)
+    resp.artifacts = list_job_artifacts(job)
     return resp
 
 
@@ -109,13 +112,13 @@ def get_plot(job_id: int, plot_name: str, user: CurrentUser, db: DbSession) -> F
 
 @router.get("/{job_id}/export")
 async def export_result(job_id: int, user: CurrentUser, db: DbSession) -> StreamingResponse:
-    """Download a ZIP archive of all plots + config.json for a completed job.
+    """Download a ZIP archive of saved plots and reproducibility artifacts.
 
     Returns a ``application/zip`` stream containing:
 
-    * ``config.json``   — full algorithm config snapshot
-    * ``*.png``         — all generated plot files
-    * ``metadata.json`` — job metrics (Strehl, RMS, converged, …)
+    * saved plot PNGs
+    * shared pipeline artifacts (config, metrics, provenance, evaluation, tables)
+    * ``metadata.json`` summary for the web job itself
 
     This enables one-click reproducibility: you have everything needed to
     re-run the retrieval with identical settings.
@@ -135,11 +138,14 @@ async def export_result(job_id: int, user: CurrentUser, db: DbSession) -> Stream
     def _build_zip() -> io.BytesIO:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for png in sorted(out_dir.glob("*.png")):
-                zf.write(png, arcname=png.name)
-            config_file = out_dir / "config.json"
-            if config_file.exists():
-                zf.write(config_file, arcname="config.json")
+            for artifact in sorted(out_dir.iterdir()):
+                if artifact.is_file():
+                    zf.write(artifact, arcname=artifact.name)
+            comparison_dir = settings.output_dir / "compare" / str(job_id)
+            if comparison_dir.exists():
+                for comparison_file in sorted(comparison_dir.glob("*")):
+                    if comparison_file.is_file():
+                        zf.write(comparison_file, arcname=f"compare/{comparison_file.name}")
             metadata = {
                 "job_id": job.id,
                 "algorithm": job.algorithm,

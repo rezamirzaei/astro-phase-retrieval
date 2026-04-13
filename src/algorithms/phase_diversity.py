@@ -78,6 +78,7 @@ class PhaseDiversity(PhaseRetriever):
             wavelength_m=self.pupil.wavelength_m,
             bandwidth_fraction=self.pupil.bandwidth_fraction,
             spectral_samples=self.pupil.spectral_samples,
+            spectral_weighting=self.pupil.spectral_weighting,
             field_defocus_waves=self.pupil.field_defocus_waves,
             detector_sigma_pixels=self.pupil.detector_sigma_pixels,
             jitter_sigma_pixels=self.pupil.jitter_sigma_pixels,

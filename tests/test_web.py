@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
+
 import pytest
 
 fastapi = pytest.importorskip("fastapi", reason="web extras not installed")
@@ -292,6 +295,8 @@ class TestAlgorithms:
         assert j["status"] == "completed"
         assert j["strehl_ratio"] is not None
         assert len(j["plots"]) > 0
+        assert "metrics.json" in j["artifacts"]
+        assert "evaluation_report.json" in j["artifacts"]
 
     def test_run_missing_file(self, client: TestClient) -> None:
         headers = _register_and_login(client)
@@ -365,6 +370,14 @@ class TestResults:
             )
             assert plot_resp.status_code == 200
             assert plot_resp.headers["content-type"] == "image/png"
+
+        export_resp = client.get(f"/api/results/{job_id}/export", headers=headers)
+        assert export_resp.status_code == 200
+        with zipfile.ZipFile(io.BytesIO(export_resp.content)) as archive:
+            exported = set(archive.namelist())
+        assert "metrics.json" in exported
+        assert "provenance.json" in exported
+        assert "evaluation_report.json" in exported
 
         # Delete
         del_resp = client.delete(f"/api/results/{job_id}", headers=headers)

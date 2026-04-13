@@ -1,7 +1,7 @@
 [project]
 name = "phase-retrieval"
 version = "2.3.0"
-description = "Production-ready phase retrieval with state-of-the-art algorithms for real-world HST/JWST astronomical wavefront sensing and X-ray crystallography"
+description = "Research-grade phase retrieval toolkit for HST/JWST wavefront sensing and X-ray crystallography"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 authors = [{name = "Reza Mirzaeifard"}]

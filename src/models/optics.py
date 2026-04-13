@@ -67,6 +67,7 @@ class PupilModel(NumpyModel):
     wavelength_m: float = Field(default=606e-9, gt=0)
     bandwidth_fraction: float = Field(default=0.0, ge=0.0)
     spectral_samples: int = Field(default=1, ge=1)
+    spectral_weighting: str = Field(default="delta")
     field_defocus_waves: float = Field(default=0.0)
     detector_sigma_pixels: float = Field(default=0.0, ge=0.0)
     jitter_sigma_pixels: float = Field(default=0.0, ge=0.0)

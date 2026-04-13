@@ -132,6 +132,7 @@ Many algorithms can use these built-in enhancements:
 | **Poisson Noise Model** | `--noise-model poisson` | Maximum-likelihood projection for photon-limited data |
 | **Multi-Start** | `--n-starts 5` | Multiple random restarts, returns best result |
 | **Uncertainty Ensemble** | `--uncertainty-samples 8` | Perturbation-based confidence intervals for saved metrics |
+| **Reference Baseline Check** | automatic on supported filters | Compare observed/reconstructed PSFs against curated STScI HST/JWST references |
 
 ## Quality Metrics
 
@@ -226,6 +227,11 @@ The repository includes deterministic synthetic benchmarks, perturbation cases
 Those artifacts provide **internal validation evidence** for software quality
 and comparative behavior.
 
+For supported real-data configurations, runs also record **external
+reference-baseline checks** against curated STScI HST/JWST PSF documentation
+values. These serve as transparent sanity checks rather than end-to-end mission
+validation.
+
 They do **not** by themselves prove instrument-grade scientific validity on real
 HST/JWST data. Real-data conclusions should still be treated as model-dependent
 and preprocessing-sensitive unless validated against trusted external baselines.
@@ -236,9 +242,10 @@ and preprocessing-sensitive unless validated against trusted external baselines.
 - deterministic synthetic benchmarking with known-truth phase
 - preprocessing provenance and quality-mask diagnostics
 - perturbation-based confidence intervals for reported metrics
+- curated external reference-baseline checks for selected HST/JWST detector + filter pairs
 
 **Still experimental / approximate**
-- simple polychromatic forward modeling
+- simple broadband spectral weighting and detector-transfer modeling
 - field-dependent defocus hooks
 - scientific interpretation of real-data reconstructions without external baselines
 
@@ -259,6 +266,7 @@ This writes three reports:
 
 - `benchmark_results.json` — full per-case metrics and rankings
 - `benchmark_summary.csv` — aggregate per-algorithm table for spreadsheets/CI
+- `benchmark_study.json` / `benchmark_study.csv` — convergence, robustness-drop, and failure-mode summaries
 - `benchmark_report.md` — human-readable experiment summary
 
 and two visual comparison artifacts:
@@ -271,6 +279,7 @@ Regular pipeline runs now also persist richer output manifests:
 - `config.json` — algorithm configuration snapshot
 - `result.json` — top-level run summary
 - `metrics.json` — SSIM, radial-profile error, encircled-energy error, convergence summary, Zernike terms
+- `reference_validation.json` — curated STScI baseline comparison when supported
 - `provenance.json` — source file metadata, preprocessing steps, and pupil/algorithm provenance
 - `evaluation_report.json` / `evaluation_report.md` — paper-style single-run evaluation summary
 

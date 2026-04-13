@@ -34,5 +34,7 @@ __all__ = [
     "models",
     "optics",
     "pipeline",
+    "studies",
+    "validation",
     "visualization",
 ]
