@@ -81,7 +81,9 @@ import { ApiService, ArtifactContent, JobResponse } from '../core/api.service';
         @for (p of job()!.plots; track p) {
           <mat-card>
             @if (plotUrls()[p]) {
-              <img [src]="plotUrls()[p]" [alt]="p" class="plot-img">
+              <button class="plot-button" type="button" (click)="openZoom(p)">
+                <img [src]="plotUrls()[p]" [alt]="p" class="plot-img">
+              </button>
             } @else {
               <mat-card-content><p class="text-center text-muted">Loading figure…</p></mat-card-content>
             }
@@ -89,6 +91,18 @@ import { ApiService, ArtifactContent, JobResponse } from '../core/api.service';
           </mat-card>
         }
       </div>
+
+      @if (zoomedPlotName() && zoomedPlotUrl()) {
+        <div class="zoom-overlay" (click)="closeZoom()">
+          <div class="zoom-dialog" (click)="$event.stopPropagation()">
+            <div class="zoom-header">
+              <strong>{{ zoomedPlotName() }}</strong>
+              <button mat-stroked-button type="button" (click)="closeZoom()">Close</button>
+            </div>
+            <img [src]="zoomedPlotUrl()!" [alt]="zoomedPlotName()!" class="zoom-img">
+          </div>
+        </div>
+      }
 
       <h3>Artifacts</h3>
       @if (job()!.artifacts.length === 0) {
@@ -104,12 +118,52 @@ import { ApiService, ArtifactContent, JobResponse } from '../core/api.service';
       <p class="text-muted">Loading…</p>
     }
   `,
+  styles: [`
+    .plot-button {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      width: 100%;
+      cursor: zoom-in;
+    }
+    .zoom-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      z-index: 1000;
+    }
+    .zoom-dialog {
+      background: #fff;
+      border-radius: 8px;
+      max-width: min(1200px, 100%);
+      max-height: 100%;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .zoom-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .zoom-img {
+      max-width: 100%;
+      max-height: calc(100vh - 160px);
+      object-fit: contain;
+    }
+  `],
 })
 export class ResultDetailComponent implements OnInit, OnDestroy {
   api = inject(ApiService);
   private route = inject(ActivatedRoute);
   job = signal<JobResponse | null>(null);
   plotUrls = signal<Record<string, string>>({});
+  zoomedPlotName = signal<string | null>(null);
   evaluationReport = signal<Record<string, unknown> | null>(null);
   referenceValidation = signal<Record<string, unknown> | null>(null);
   provenance = signal<Record<string, unknown> | null>(null);
@@ -149,6 +203,19 @@ export class ResultDetailComponent implements OnInit, OnDestroy {
     return Array.isArray(value) ? value.map(item => String(item)) : [];
   }
 
+  zoomedPlotUrl(): string | null {
+    const plotName = this.zoomedPlotName();
+    return plotName ? this.plotUrls()[plotName] ?? null : null;
+  }
+
+  openZoom(plotName: string): void {
+    this.zoomedPlotName.set(plotName);
+  }
+
+  closeZoom(): void {
+    this.zoomedPlotName.set(null);
+  }
+
   private loadPlots(job: JobResponse): void {
     this.revokePlotUrls();
     for (const plotName of job.plots) {
@@ -182,6 +249,7 @@ export class ResultDetailComponent implements OnInit, OnDestroy {
   }
 
   private revokePlotUrls(): void {
+    this.closeZoom();
     for (const url of Object.values(this.plotUrls())) {
       URL.revokeObjectURL(url);
     }

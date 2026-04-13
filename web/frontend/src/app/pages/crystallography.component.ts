@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -116,7 +116,11 @@ import { ApiService, CodPreset, CifFile, CrystJobResponse } from '../core/api.se
           </div>
           <div class="plots-grid">
             @for (plot of result()!.plots; track plot) {
-              <img [src]="api.crystPlotUrl(result()!.id, plot)" [alt]="plot" class="plot-img">
+              @if (plotUrls()[plot]) {
+                <img [src]="plotUrls()[plot]" [alt]="plot" class="plot-img">
+              } @else {
+                <div class="plot-placeholder">Loading {{ plot }}…</div>
+              }
             }
           </div>
         </mat-card-content>
@@ -156,13 +160,14 @@ import { ApiService, CodPreset, CifFile, CrystJobResponse } from '../core/api.se
     .metrics { display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }
     .plots-grid { display: flex; flex-wrap: wrap; gap: 12px; }
     .plot-img { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; }
+    .plot-placeholder { min-width: 180px; min-height: 120px; display: grid; place-items: center; border: 1px dashed #ccc; border-radius: 4px; color: #777; }
     .compare-table { width: 100%; border-collapse: collapse; }
     .compare-table th, .compare-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
     .compare-table th { background: #f5f5f5; font-weight: 600; }
     .result-card { border-left: 4px solid #4575b4; }
   `],
 })
-export class CrystallographyComponent {
+export class CrystallographyComponent implements OnDestroy {
   api = inject(ApiService);
 
   presets = signal<CodPreset[]>([]);
@@ -171,6 +176,7 @@ export class CrystallographyComponent {
   loading = signal(false);
   result = signal<CrystJobResponse | null>(null);
   compareResults = signal<CrystJobResponse[]>([]);
+  plotUrls = signal<Record<string, string>>({});
 
   algorithm = 'hio';
   gridSize = 128;
@@ -180,6 +186,10 @@ export class CrystallographyComponent {
   constructor() {
     this.api.getCodPresets().subscribe(p => this.presets.set(p));
     this.loadCifFiles();
+  }
+
+  ngOnDestroy(): void {
+    this.revokePlotUrls();
   }
 
   loadCifFiles(): void {
@@ -204,7 +214,11 @@ export class CrystallographyComponent {
       beta: this.beta,
       grid_size: this.gridSize,
     }).subscribe({
-      next: r => { this.result.set(r); this.loading.set(false); },
+      next: r => {
+        this.result.set(r);
+        this.loadPlots(r);
+        this.loading.set(false);
+      },
       error: () => this.loading.set(false),
     });
   }
@@ -220,5 +234,24 @@ export class CrystallographyComponent {
       next: r => { this.compareResults.set(r.results); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
+  }
+
+  private loadPlots(job: CrystJobResponse): void {
+    this.revokePlotUrls();
+    for (const plotName of job.plots) {
+      this.api.getCrystPlot(job.id, plotName).subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          this.plotUrls.update((urls) => ({ ...urls, [plotName]: url }));
+        },
+      });
+    }
+  }
+
+  private revokePlotUrls(): void {
+    for (const url of Object.values(this.plotUrls())) {
+      URL.revokeObjectURL(url);
+    }
+    this.plotUrls.set({});
   }
 }
