@@ -144,8 +144,22 @@ class AlgorithmParams(BaseModel):
 class AlgorithmRunRequest(AlgorithmParams):
     """POST /api/algorithms/run body."""
 
-    fits_filename: str
-    algorithm: AlgorithmName
+    fits_filename: str = Field(..., examples=["test_synth_64.npy"])
+    algorithm: AlgorithmName = Field(..., examples=["raar"])
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "fits_filename": "test_synth_64.npy",
+                    "algorithm": "raar",
+                    "max_iterations": 300,
+                    "beta": 0.9,
+                    "grid_size": 128,
+                }
+            ]
+        }
+    )
 
 
 class AlgorithmDefaults(AlgorithmParams):
@@ -237,14 +251,14 @@ class FitsFileInfo(BaseModel):
 class SyntheticRequest(BaseModel):
     """POST /api/data/synthetic body."""
 
-    name: str = Field(default="synthetic", max_length=100)
+    name: str = Field(default="synthetic", max_length=100, examples=["my_psf"])
     grid_size: int = Field(default=128, ge=64, le=512)
     aberration_rms: float = Field(default=0.5, ge=0.1, le=3.0)
     n_zernike: int = Field(default=15, ge=3, le=50)
-    telescope: TelescopeType = Field(default=TelescopeType.HST)
-    filter_name: str = Field(default="F606W")
-    photon_count: float = Field(default=0.0, ge=0.0)
-    read_noise_std: float = Field(default=0.0, ge=0.0)
+    telescope: TelescopeType = Field(default=TelescopeType.HST, examples=["hst", "jwst"])
+    filter_name: str = Field(default="F606W", examples=["F606W", "F814W"])
+    photon_count: float = Field(default=0.0, ge=0.0, description="Total photon count (0 = noiseless)")
+    read_noise_std: float = Field(default=0.0, ge=0.0, description="Gaussian read noise σ")
     center_offset_row_pixels: float = Field(default=0.0, ge=-8.0, le=8.0)
     center_offset_col_pixels: float = Field(default=0.0, ge=-8.0, le=8.0)
     background_level: float = Field(default=0.0, ge=0.0)
@@ -369,7 +383,7 @@ class CifFileInfo(BaseModel):
 class CrystallographyRunRequest(BaseModel):
     """POST /api/crystallography/run body."""
 
-    cif_filename: str
+    cif_filename: str = Field(..., examples=["test_nacl.cif"])
     algorithm: AlgorithmName = AlgorithmName.HYBRID_INPUT_OUTPUT
     max_iterations: int = Field(default=500, ge=1, le=10_000)
     beta: float = Field(default=0.9, gt=0, le=1.0)

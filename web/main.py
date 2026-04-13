@@ -23,6 +23,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from web.config import settings
@@ -250,6 +251,29 @@ async def add_security_headers(request: Request, call_next) -> Response:  # type
     if "/api/auth/" in request.url.path:
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+# ---------------------------------------------------------------------------
+# Global exception handler — catch-all for unhandled errors
+# ---------------------------------------------------------------------------
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Return a clean JSON 500 for any unhandled exception.
+
+    Prevents stack-trace leakage to the client while logging full details
+    server-side for debugging.
+    """
+    rid = getattr(request.state, "request_id", "unknown")
+    logger.exception("Unhandled exception [rid=%s]: %s", rid, exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "request_id": rid,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

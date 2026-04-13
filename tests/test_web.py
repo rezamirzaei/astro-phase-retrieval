@@ -1,4 +1,6 @@
-"""End-to-end tests for the web API — auth, data, algorithms, results, explain."""
+"""End-to-end tests for the web API — auth, data, algorithms, results, explain,
+middleware, upload, jobs, batch export.
+"""
 
 from __future__ import annotations
 
@@ -570,3 +572,265 @@ class TestStudies:
         assert md_resp.status_code == 200
         assert md_resp.json()["format"] == "markdown"
         assert "Validation Campaign Report" in md_resp.json()["content"]
+
+
+# ---------------------------------------------------------------------------
+# Middleware tests
+# ---------------------------------------------------------------------------
+
+
+class TestMiddleware:
+    def test_request_id_header_returned(self, client: TestClient) -> None:
+        """Every response must include an X-Request-ID header."""
+        resp = client.get("/api/health")
+        assert "X-Request-ID" in resp.headers
+        assert len(resp.headers["X-Request-ID"]) > 0
+
+    def test_request_id_propagated(self, client: TestClient) -> None:
+        """If the client sends X-Request-ID, the server should echo it."""
+        custom_id = "my-trace-id-12345"
+        resp = client.get("/api/health", headers={"X-Request-ID": custom_id})
+        assert resp.headers["X-Request-ID"] == custom_id
+
+    def test_security_headers_present(self, client: TestClient) -> None:
+        """Full set of security headers on every response."""
+        resp = client.get("/api/version")
+        assert resp.headers["X-Content-Type-Options"] == "nosniff"
+        assert resp.headers["X-Frame-Options"] == "DENY"
+        assert resp.headers["X-XSS-Protection"] == "1; mode=block"
+        assert "strict-origin" in resp.headers.get("Referrer-Policy", "")
+        assert "camera=()" in resp.headers.get("Permissions-Policy", "")
+        assert "max-age=" in resp.headers.get("Strict-Transport-Security", "")
+
+    def test_cors_expose_request_id(self, client: TestClient) -> None:
+        """CORS headers should expose X-Request-ID for browser clients."""
+        resp = client.options(
+            "/api/health",
+            headers={
+                "Origin": "http://localhost:4532",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        # The CORS middleware should expose our custom header
+        expose = resp.headers.get("Access-Control-Expose-Headers", "")
+        # Note: options may not include expose headers, but GET should
+        get_resp = client.get(
+            "/api/health",
+            headers={"Origin": "http://localhost:4532"},
+        )
+        expose_get = get_resp.headers.get("Access-Control-Expose-Headers", "")
+        assert "X-Request-ID" in expose_get or "X-Request-ID" in expose
+
+
+# ---------------------------------------------------------------------------
+# File upload tests
+# ---------------------------------------------------------------------------
+
+
+class TestUpload:
+    def test_upload_npy_file(self, client: TestClient) -> None:
+        """Upload a .npy file and verify it appears in the file list."""
+        import numpy as np
+
+        headers = _register_and_login(client)
+        # Create a small .npy file in memory
+        buf = io.BytesIO()
+        np.save(buf, np.zeros((64, 64)))
+        buf.seek(0)
+
+        resp = client.post(
+            "/api/data/upload",
+            files={"file": ("upload_test.npy", buf, "application/octet-stream")},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["filename"] == "upload_test.npy"
+        assert body["size_bytes"] > 0
+        assert "Upload successful" in body["message"] or "uploads" in body["message"]
+
+    def test_upload_rejected_bad_extension(self, client: TestClient) -> None:
+        """Uploads with unsupported extensions must be rejected."""
+        headers = _register_and_login(client)
+        buf = io.BytesIO(b"not a real file")
+        resp = client.post(
+            "/api/data/upload",
+            files={"file": ("bad.txt", buf, "text/plain")},
+            headers=headers,
+        )
+        assert resp.status_code == 422
+        assert "Unsupported" in resp.json()["detail"]
+
+    def test_upload_cif_file(self, client: TestClient) -> None:
+        """Upload a .cif file to crystallography endpoint."""
+        headers = _register_and_login(client)
+        buf = io.BytesIO(b"data_test\n_cell_length_a 5.64\n")
+        resp = client.post(
+            "/api/crystallography/upload",
+            files={"file": ("test_upload.cif", buf, "application/octet-stream")},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["filename"] == "test_upload.cif"
+
+    def test_upload_cif_rejected_bad_extension(self, client: TestClient) -> None:
+        """Non-CIF files must be rejected by the crystallography upload."""
+        headers = _register_and_login(client)
+        buf = io.BytesIO(b"not a cif")
+        resp = client.post(
+            "/api/crystallography/upload",
+            files={"file": ("bad.xyz", buf, "application/octet-stream")},
+            headers=headers,
+        )
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Background job tests
+# ---------------------------------------------------------------------------
+
+
+class TestBackgroundJobs:
+    def test_list_jobs_empty(self, client: TestClient) -> None:
+        """Job list is empty initially."""
+        headers = _register_and_login(client)
+        resp = client.get("/api/jobs/", headers=headers)
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_poll_nonexistent_job(self, client: TestClient) -> None:
+        """Polling a non-existent job returns 404."""
+        headers = _register_and_login(client)
+        resp = client.get("/api/jobs/nonexistent123", headers=headers)
+        assert resp.status_code == 404
+
+    def test_cancel_nonexistent_job(self, client: TestClient) -> None:
+        """Cancelling a non-existent job returns 404."""
+        headers = _register_and_login(client)
+        resp = client.post("/api/jobs/nonexistent123/cancel", headers=headers)
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Batch export tests
+# ---------------------------------------------------------------------------
+
+
+class TestBatchExport:
+    def test_batch_export(self, client: TestClient) -> None:
+        """Batch export combines multiple job outputs into a single ZIP."""
+        headers = _register_and_login(client)
+        # Generate data + run two jobs
+        client.post(
+            "/api/data/synthetic",
+            json={
+                "name": "batch_test",
+                "grid_size": 64,
+                "aberration_rms": 0.3,
+                "telescope": "hst",
+            },
+            headers=headers,
+        )
+        files = client.get("/api/data/fits", headers=headers).json()["items"]
+        fname = [f["filename"] for f in files if "batch_test" in f["filename"]][0]
+
+        # Run two algorithms
+        ids = []
+        for algo in ["er", "gs"]:
+            run_resp = client.post(
+                "/api/algorithms/run",
+                json={
+                    "fits_filename": fname,
+                    "algorithm": algo,
+                    "max_iterations": 5,
+                    "grid_size": 64,
+                },
+                headers=headers,
+            )
+            assert run_resp.status_code == 200
+            ids.append(run_resp.json()["id"])
+
+        # Batch export
+        resp = client.post(
+            "/api/results/export-batch",
+            json={"job_ids": ids},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/zip"
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as archive:
+            names = archive.namelist()
+        # Each job should have a metadata.json
+        assert any("metadata.json" in n for n in names)
+
+    def test_batch_export_empty(self, client: TestClient) -> None:
+        """Batch export with non-existent job IDs returns 404."""
+        headers = _register_and_login(client)
+        resp = client.post(
+            "/api/results/export-batch",
+            json={"job_ids": [99999]},
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Version endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestVersion:
+    def test_version_endpoint(self, client: TestClient) -> None:
+        resp = client.get("/api/version")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "api_version" in body
+        assert "python" in body
+
+    def test_health_includes_uptime(self, client: TestClient) -> None:
+        data = client.get("/api/health").json()
+        assert data["status"] == "ok"
+        assert data["uptime_seconds"] >= 0
+
+
+# ---------------------------------------------------------------------------
+# Pagination tests
+# ---------------------------------------------------------------------------
+
+
+class TestPagination:
+    def test_fits_pagination(self, client: TestClient) -> None:
+        """GET /api/data/fits supports skip/limit pagination."""
+        headers = _register_and_login(client)
+        # Create a few files
+        for i in range(3):
+            client.post(
+                "/api/data/synthetic",
+                json={
+                    "name": f"page_test_{i}",
+                    "grid_size": 64,
+                    "aberration_rms": 0.3,
+                    "telescope": "hst",
+                },
+                headers=headers,
+            )
+
+        # Request with limit=1
+        resp = client.get("/api/data/fits?skip=0&limit=1", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["items"]) <= 1
+        assert data["total"] >= 3
+        assert data["limit"] == 1
+
+    def test_results_pagination(self, client: TestClient) -> None:
+        """GET /api/results/ supports skip/limit pagination."""
+        headers = _register_and_login(client)
+        resp = client.get("/api/results/?skip=0&limit=10", headers=headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data
+        assert "total" in data
+        assert data["limit"] == 10
+

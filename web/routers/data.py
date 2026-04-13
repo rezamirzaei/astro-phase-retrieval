@@ -14,8 +14,6 @@ from web.services.data_service import generate_synthetic_psf, list_fits_files
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 
-# Maximum upload size: 100 MB
-_MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 _ALLOWED_EXTENSIONS = {".fits", ".fit", ".npy", ".npz"}
 
 
@@ -76,10 +74,11 @@ def get_fits_files(
 async def upload_file(file: UploadFile, _user: CurrentUser) -> UploadedFileResponse:
     """Upload a custom FITS or NPY file for analysis.
 
-    * Maximum file size: 100 MB
+    * Maximum file size: controlled by ``PR_UPLOAD_MAX_BYTES`` (default 100 MB)
     * Allowed extensions: ``.fits``, ``.fit``, ``.npy``, ``.npz``
     * Files are stored under ``data/uploads/``
     """
+    max_bytes = settings.upload_max_bytes
     if not file.filename:
         raise HTTPException(status_code=422, detail="No filename provided")
 
@@ -87,7 +86,7 @@ async def upload_file(file: UploadFile, _user: CurrentUser) -> UploadedFileRespo
     if ext not in _ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=422,
-            detail=f"Unsupported file type '{ext}'. Allowed: {_ALLOWED_EXTENSIONS}",
+            detail=f"Unsupported file type '{ext}'. Allowed: {sorted(_ALLOWED_EXTENSIONS)}",
         )
 
     upload_dir = settings.data_dir / "uploads"
@@ -99,11 +98,11 @@ async def upload_file(file: UploadFile, _user: CurrentUser) -> UploadedFileRespo
     with open(dest, "wb") as f:
         while chunk := await file.read(1024 * 64):
             total += len(chunk)
-            if total > _MAX_UPLOAD_BYTES:
+            if total > max_bytes:
                 dest.unlink(missing_ok=True)
                 raise HTTPException(
                     status_code=413,
-                    detail=f"File exceeds {_MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+                    detail=f"File exceeds {max_bytes // (1024 * 1024)} MB limit",
                 )
             f.write(chunk)
 
@@ -143,5 +142,7 @@ async def create_synthetic(body: SyntheticRequest, _user: CurrentUser) -> dict[s
         "filepath": str(path),
         "size_bytes": path.stat().st_size,
     }
+
+
 
 

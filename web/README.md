@@ -98,8 +98,9 @@ Frontend runs on http://localhost:4200 and proxies `/api` to :8000.
 ### Background Jobs (v3.0)
 | Method | Path                                  | Description                   |
 |--------|---------------------------------------|-------------------------------|
-| GET    | /api/v1/jobs/                         | List all tracked jobs          |
-| GET    | /api/v1/jobs/{job_id}                 | Poll job status + progress     |
+| GET    | /api/jobs/                            | List all tracked jobs          |
+| GET    | /api/jobs/{job_id}                    | Poll job status + progress     |
+| POST   | /api/jobs/{job_id}/cancel             | Cancel a queued/running job    |
 | WS     | /api/ws/jobs/{job_id}?token=JWT       | Real-time progress streaming   |
 
 ### Crystallography
@@ -108,6 +109,7 @@ Frontend runs on http://localhost:4200 and proxies `/api` to :8000.
 | GET    | /api/crystallography/presets          | List COD crystal presets       |
 | POST   | /api/crystallography/download/{key}   | Download CIF from COD          |
 | GET    | /api/crystallography/cif-files        | List available CIF files       |
+| POST   | /api/crystallography/upload           | Upload custom CIF file         |
 | POST   | /api/crystallography/simulate         | Simulate diffraction pattern   |
 | POST   | /api/crystallography/run              | Run crystallographic retrieval |
 | POST   | /api/crystallography/compare          | Compare algorithms on crystal  |

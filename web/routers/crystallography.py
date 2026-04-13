@@ -1,4 +1,4 @@
-"""Crystallography endpoints — COD data, diffraction, phase retrieval."""
+"""Crystallography endpoints — COD data, diffraction, phase retrieval, upload."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
 from web.concurrency import get_job_semaphore
@@ -21,6 +21,7 @@ from web.schemas import (
     CrystallographyJobResponse,
     CrystallographyRunRequest,
     SimulateDiffractionRequest,
+    UploadedFileResponse,
 )
 from web.services.crystallography_service import (
     compare_crystallography_algorithms,
@@ -195,3 +196,57 @@ def delete_crystallography_result(job_id: int, user: CurrentUser, db: DbSession)
         shutil.rmtree(job.output_dir, ignore_errors=True)
     db.delete(job)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# CIF upload
+# ---------------------------------------------------------------------------
+
+_ALLOWED_CIF_EXTENSIONS = {".cif"}
+
+
+@router.post(
+    "/upload",
+    response_model=UploadedFileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_cif(file: UploadFile, _user: CurrentUser) -> UploadedFileResponse:
+    """Upload a custom CIF file for crystallography analysis.
+
+    * Maximum file size: controlled by ``PR_UPLOAD_MAX_BYTES``
+    * Allowed extension: ``.cif``
+    * Files are stored under ``data/crystallography/``
+    """
+    max_bytes = settings.upload_max_bytes
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="No filename provided")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in _ALLOWED_CIF_EXTENSIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported file type '{ext}'. Only .cif files are allowed.",
+        )
+
+    cryst_dir = settings.data_dir / "crystallography"
+    cryst_dir.mkdir(parents=True, exist_ok=True)
+    dest = cryst_dir / file.filename
+
+    total = 0
+    with open(dest, "wb") as f:
+        while chunk := await file.read(1024 * 64):
+            total += len(chunk)
+            if total > max_bytes:
+                dest.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File exceeds {max_bytes // (1024 * 1024)} MB limit",
+                )
+            f.write(chunk)
+
+    return UploadedFileResponse(
+        filename=file.filename,
+        size_bytes=total,
+        message=f"Uploaded to crystallography/{file.filename}",
+    )
+

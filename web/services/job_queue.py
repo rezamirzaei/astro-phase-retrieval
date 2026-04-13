@@ -205,6 +205,30 @@ async def subscribe_progress(job_id: str) -> AsyncIterator[ProgressEvent]:
         yield event
 
 
+def cancel_job(job_id: str) -> bool:
+    """Mark a queued job as cancelled.  Returns ``True`` if state changed.
+
+    Only jobs in ``QUEUED`` or ``RUNNING`` state can be cancelled.
+    Running jobs will complete their current iteration but the result
+    is discarded.
+    """
+    job = _jobs.get(job_id)
+    if job is None:
+        return False
+    if job.state in (JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED):
+        return False
+    job.state = JobState.CANCELLED
+    job.completed_at = time.time()
+    # Push sentinel so WS consumers unblock
+    try:
+        loop = _get_loop()
+        loop.call_soon_threadsafe(job._queue.put_nowait, None)
+    except Exception:
+        pass
+    logger.info("Cancelled background job %s", job_id)
+    return True
+
+
 def list_active_jobs() -> list[dict[str, Any]]:
     """Return lightweight summaries of all tracked jobs."""
     return [
@@ -230,4 +254,5 @@ async def shutdown_pool(timeout: float = 10.0) -> None:
             job._queue.put_nowait(None)
         except asyncio.QueueFull:
             pass
+
 
