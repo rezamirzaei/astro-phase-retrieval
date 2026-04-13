@@ -171,9 +171,7 @@ class TestAuth:
         )
         for _ in range(5):
             client.post("/api/auth/login", json={"username": "rluser", "password": "wrong"})
-        resp = client.post(
-            "/api/auth/login", json={"username": "rluser", "password": "securepass"}
-        )
+        resp = client.post("/api/auth/login", json={"username": "rluser", "password": "securepass"})
         assert resp.status_code == 429
 
 

@@ -140,8 +140,12 @@ warn_unused_ignores = false
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["astroquery.*", "astropy.*", "skimage.*", "torch.*", "scipy.*", "jwt.*", "bcrypt.*"]
+module = ["astroquery.*", "astropy.*", "skimage.*", "torch.*", "scipy.*", "jwt.*", "bcrypt.*", "tifffile.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tifffile", "tifffile.*"]
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = ["tests.*", "main", "_diag", "_gen_notebook", "_test_synth", "web.alembic.*"]

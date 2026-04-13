@@ -39,9 +39,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Uses bcrypt's constant-time comparison to prevent timing attacks.
     """
     try:
-        ok: bool = bcrypt.checkpw(
-            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
-        )
+        ok: bool = bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
     except (ValueError, TypeError):
         ok = False
     if not ok:
@@ -65,9 +63,7 @@ def create_access_token(
     )
     to_encode["exp"] = int(expire.timestamp())
     to_encode["type"] = "access"
-    encoded: str = pyjwt.encode(
-        to_encode, settings.secret_key, algorithm=settings.jwt_algorithm
-    )
+    encoded: str = pyjwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
     return encoded
 
 
@@ -82,9 +78,7 @@ def create_refresh_token(
     )
     to_encode["exp"] = int(expire.timestamp())
     to_encode["type"] = "refresh"
-    encoded: str = pyjwt.encode(
-        to_encode, settings.secret_key, algorithm=settings.jwt_algorithm
-    )
+    encoded: str = pyjwt.encode(to_encode, settings.secret_key, algorithm=settings.jwt_algorithm)
     return encoded
 
 

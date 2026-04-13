@@ -141,6 +141,7 @@ async def add_security_headers(request: Request, call_next) -> Response:  # type
         response.headers["Cache-Control"] = "no-store"
     return response
 
+
 # Mount all routers
 app.include_router(auth.router)
 app.include_router(data.router)
