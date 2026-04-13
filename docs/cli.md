@@ -57,6 +57,12 @@ phase-retrieval run --algorithm hio --fits my.fits --output-format json --quiet
 | `-q` / `--quiet` | off | Suppress progress output |
 | `--seed` | `42` | Random seed for reproducibility |
 
+Single-run CLI execution now also writes paper-style evaluation artifacts to the
+output directory:
+
+- `evaluation_<algorithm>.json`
+- `evaluation_<algorithm>.md`
+
 ---
 
 ## `compare` — algorithm comparison
@@ -75,6 +81,13 @@ phase-retrieval compare --fits my.fits --iterations 100 --no-save
 
 Comparison runs now save the usual per-algorithm JSON summaries, while full
 pipeline runs also emit richer `metrics.json` and `provenance.json` manifests.
+When saving is enabled, `compare` also writes:
+
+- `comparison_report.json`
+- `comparison_report.md`
+- `algorithm_comparison.png`
+- `algorithm_dashboard.png`
+- `strehl_rms_comparison.png`
 
 ---
 
@@ -106,6 +119,11 @@ phase-retrieval benchmark \
 | `--seed` | `42` | Random seed for algorithm reproducibility |
 | `-o` / `--output-dir` | `outputs/benchmark` | Directory for `benchmark_results.json`, `benchmark_summary.csv`, `benchmark_report.md` |
 | `-q` / `--quiet` | off | Suppress stdout ranking table |
+
+Benchmark runs also write visual comparison artifacts:
+
+- `benchmark_leaderboard.png`
+- `benchmark_case_heatmap.png`
 
 ---
 

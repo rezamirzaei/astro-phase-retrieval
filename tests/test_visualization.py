@@ -18,6 +18,8 @@ from src.visualization.plots import (  # noqa: E402
     _azimuthal_average,
     plot_algorithm_comparison,
     plot_algorithm_dashboard,
+    plot_benchmark_case_heatmap,
+    plot_benchmark_leaderboard,
     plot_convergence,
     plot_encircled_energy,
     plot_multi_observation_grid,
@@ -243,6 +245,28 @@ class TestPlots:
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
+    def test_plot_benchmark_leaderboard(self) -> None:
+        fig = plot_benchmark_leaderboard(
+            [
+                {"algorithm": "er", "mean_score": 0.8, "mean_ssim": 0.97},
+                {"algorithm": "hio", "mean_score": 0.75, "mean_ssim": 0.95},
+            ]
+        )
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_benchmark_case_heatmap(self) -> None:
+        fig = plot_benchmark_case_heatmap(
+            [
+                {"case": "clean-low", "algorithm": "er", "score": 0.81},
+                {"case": "clean-low", "algorithm": "hio", "score": 0.79},
+                {"case": "poisson-hst", "algorithm": "er", "score": 0.60},
+                {"case": "poisson-hst", "algorithm": "hio", "score": 0.66},
+            ]
+        )
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
     def test_plot_multi_observation_grid(self, observations) -> None:
         fig = plot_multi_observation_grid(observations)
         assert isinstance(fig, plt.Figure)
@@ -295,11 +319,12 @@ class TestEdgeCases:
     def test_recovered_phase_zero(self, pupil: PupilModel, support: np.ndarray) -> None:
         """Zero phase everywhere → vmax==0, should hit the guard."""
         n = pupil.grid_size
+        uniform_psf = np.full((n, n), 1.0 / float(n * n), dtype=np.float64)
         result = PhaseRetrievalResult(
             algorithm=AlgorithmName.ERROR_REDUCTION,
             recovered_phase=np.zeros((n, n)),
             recovered_amplitude=pupil.amplitude,
-            reconstructed_psf=np.ones((n, n)) / (n * n),
+            reconstructed_psf=uniform_psf,
             cost_history=[1.0],
             n_iterations=1,
             strehl_ratio=1.0,
@@ -331,7 +356,7 @@ class TestEdgeCases:
     def test_psf_residual_zero(self, pupil: PupilModel) -> None:
         """Identical PSFs → zero residual → vmax==0 guard."""
         n = pupil.grid_size
-        img = np.ones((n, n)) / (n * n)
+        img = np.full((n, n), 1.0 / float(n * n), dtype=np.float64)
         psf = PSFData(
             image=img,
             pixel_scale_arcsec=0.04,
@@ -357,7 +382,7 @@ class TestEdgeCases:
     def test_psf_comparison_zero_residual(self, pupil: PupilModel) -> None:
         """Identical PSFs → zero residual in comparison view."""
         n = pupil.grid_size
-        img = np.ones((n, n)) / (n * n)
+        img = np.full((n, n), 1.0 / float(n * n), dtype=np.float64)
         psf = PSFData(
             image=img,
             pixel_scale_arcsec=0.04,
@@ -379,3 +404,13 @@ class TestEdgeCases:
         fig = plot_psf_comparison(psf, result)
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
+
+    def test_benchmark_plots_empty(self) -> None:
+        fig = plot_benchmark_leaderboard([])
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+        fig = plot_benchmark_case_heatmap([])
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+

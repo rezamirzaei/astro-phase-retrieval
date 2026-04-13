@@ -39,6 +39,7 @@ from src.metrics.quality import (
 from src.models.config import AlgorithmConfig, PipelineConfig
 from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 from src.optics.pupils import build_pupil
+from src.reporting import build_evaluation_payload, write_evaluation_report
 
 logger = logging.getLogger(__name__)
 
@@ -307,5 +308,21 @@ class RetrievalPipeline:
             },
         }
         (out_dir / "provenance.json").write_text(json.dumps(provenance, indent=2))
+
+        evaluation_payload = build_evaluation_payload(
+            psf_metadata={
+                **pipeline_result.psf_data.metadata,
+                "obs_id": pipeline_result.psf_data.obs_id,
+            },
+            algorithm_name=cfg.name.value,
+            algorithm_config=config_data,
+            pupil_summary=provenance["pupil"],
+            metrics={
+                **summary,
+                "convergence": pipeline_result.convergence_summary,
+            },
+            zernike_coefficients=pipeline_result.zernike_coefficients,
+        )
+        write_evaluation_report(evaluation_payload, out_dir)
 
         logger.info("Saved outputs to %s", out_dir)

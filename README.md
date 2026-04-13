@@ -232,12 +232,34 @@ This writes three reports:
 - `benchmark_summary.csv` — aggregate per-algorithm table for spreadsheets/CI
 - `benchmark_report.md` — human-readable experiment summary
 
+and two visual comparison artifacts:
+
+- `benchmark_leaderboard.png` — ranked aggregate-score comparison plot
+- `benchmark_case_heatmap.png` — per-case performance heatmap across algorithms
+
 Regular pipeline runs now also persist richer output manifests:
 
 - `config.json` — algorithm configuration snapshot
 - `result.json` — top-level run summary
 - `metrics.json` — SSIM, radial-profile error, encircled-energy error, convergence summary, Zernike terms
 - `provenance.json` — source file metadata, preprocessing steps, and pupil/algorithm provenance
+- `evaluation_report.json` / `evaluation_report.md` — paper-style single-run evaluation summary
+
+For CLI `run`, the same evaluation artifacts are written as:
+
+- `evaluation_<algorithm>.json`
+- `evaluation_<algorithm>.md`
+
+For CLI `compare`, aggregate comparison reports are also written:
+
+- `comparison_report.json`
+- `comparison_report.md`
+
+and real-data comparison plots are exported when saving is enabled:
+
+- `algorithm_comparison.png`
+- `algorithm_dashboard.png`
+- `strehl_rms_comparison.png`
 
 ## References
 

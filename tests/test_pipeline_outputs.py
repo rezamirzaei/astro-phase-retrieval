@@ -33,7 +33,14 @@ class TestPipelineOutputs:
         assert "improvement_ratio" in result.convergence_summary
 
         out_dir = config.output_dir
-        for name in ("config.json", "result.json", "metrics.json", "provenance.json"):
+        for name in (
+            "config.json",
+            "result.json",
+            "metrics.json",
+            "provenance.json",
+            "evaluation_report.json",
+            "evaluation_report.md",
+        ):
             assert (out_dir / name).exists(), f"Missing output file: {name}"
 
         metrics = json.loads((out_dir / "metrics.json").read_text())
@@ -45,4 +52,11 @@ class TestPipelineOutputs:
         provenance = json.loads((out_dir / "provenance.json").read_text())
         assert provenance["psf"]["source_kind"] == "synthetic-test"
         assert provenance["algorithm"]["name"] == config.algorithm.name.value
+
+        evaluation = json.loads((out_dir / "evaluation_report.json").read_text())
+        assert evaluation["algorithm"] == config.algorithm.name.value
+        assert "metrics" in evaluation
+        markdown = (out_dir / "evaluation_report.md").read_text()
+        assert "## Quantitative Results" in markdown
+
 

@@ -9,6 +9,7 @@ real-world HST/JWST astronomical wavefront sensing and X-ray crystallography.
    :caption: User Guide
 
    cli
+   validation
 
 .. toctree::
    :maxdepth: 2
@@ -20,6 +21,8 @@ real-world HST/JWST astronomical wavefront sensing and X-ray crystallography.
    api/crystallography
    api/metrics
    api/models
+   api/reporting
+   api/benchmark
    api/visualization
 
 .. toctree::

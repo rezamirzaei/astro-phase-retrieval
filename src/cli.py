@@ -150,6 +150,50 @@ def _load_psf_and_pupil(args: argparse.Namespace, config: Any) -> Any:
     return psf_resized, pupil, config
 
 
+def _save_compare_plots(
+    *,
+    psf_data: Any,
+    pupil: Any,
+    results: dict[str, Any],
+    output_dir: Path,
+) -> dict[str, str]:
+    """Save standard comparison plots for a multi-algorithm run."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from src.visualization.plots import (
+        plot_algorithm_comparison,
+        plot_algorithm_dashboard,
+        plot_strehl_rms_bar,
+        save_figure,
+    )
+
+    support = pupil.amplitude > 0
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    artifacts = {
+        "algorithm_comparison_plot": str(output_dir / "algorithm_comparison.png"),
+        "algorithm_dashboard_plot": str(output_dir / "algorithm_dashboard.png"),
+        "strehl_rms_plot": str(output_dir / "strehl_rms_comparison.png"),
+    }
+
+    fig = plot_algorithm_comparison(results, support)
+    save_figure(fig, artifacts["algorithm_comparison_plot"])
+    plt.close(fig)
+
+    fig = plot_algorithm_dashboard(psf_data, results, support, pupil)
+    save_figure(fig, artifacts["algorithm_dashboard_plot"])
+    plt.close(fig)
+
+    fig = plot_strehl_rms_bar(results)
+    save_figure(fig, artifacts["strehl_rms_plot"])
+    plt.close(fig)
+
+    return artifacts
+
+
 # ── run ───────────────────────────────────────────────────────────────────
 
 
@@ -157,6 +201,13 @@ def _cmd_run(args: argparse.Namespace) -> None:
     """Run a single phase-retrieval algorithm on a FITS file."""
     from src.algorithms.multi_start import multi_start_run
     from src.algorithms.registry import AlgorithmRegistry
+    from src.metrics.quality import (
+        compute_encircled_energy_error,
+        compute_radial_profile_error,
+        compute_ssim,
+        summarise_convergence,
+        zernike_decomposition,
+    )
     from src.models.config import (
         AlgorithmConfig,
         AlgorithmName,
@@ -164,6 +215,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         NoiseModel,
         default_hst_config,
     )
+    from src.reporting import build_evaluation_payload, write_evaluation_report
 
     config = default_hst_config()
     config.output_dir = Path(args.output_dir)
@@ -189,12 +241,22 @@ def _cmd_run(args: argparse.Namespace) -> None:
         retriever = AlgorithmRegistry.create(alg_cfg, pupil)
         result = retriever.run(psf_resized)
 
+    support = pupil.amplitude > 0
+    zernike_coeffs = zernike_decomposition(result.recovered_phase, support)
+    ssim = compute_ssim(psf_resized.image, result.reconstructed_psf)
+    radial_profile_error = compute_radial_profile_error(psf_resized.image, result.reconstructed_psf)
+    encircled_energy_error = compute_encircled_energy_error(psf_resized.image, result.reconstructed_psf)
+    convergence = summarise_convergence(result.cost_history)
+
     summary = {
         "algorithm": result.algorithm.value,
         "n_iterations": result.n_iterations,
         "converged": result.converged,
         "strehl_ratio": result.strehl_ratio,
         "rms_phase_rad": result.rms_phase_rad,
+        "ssim": ssim,
+        "radial_profile_error": radial_profile_error,
+        "encircled_energy_error": encircled_energy_error,
         "elapsed_seconds": result.elapsed_seconds,
         "timestamp": result.timestamp.isoformat(),
     }
@@ -217,8 +279,38 @@ def _cmd_run(args: argparse.Namespace) -> None:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     out_path = config.output_dir / f"result_{alg_name.value}.json"
     out_path.write_text(json.dumps(summary, indent=2))
+    evaluation_payload = build_evaluation_payload(
+        psf_metadata={**psf_resized.metadata, "obs_id": psf_resized.obs_id},
+        algorithm_name=alg_name.value,
+        algorithm_config={
+            "max_iterations": alg_cfg.max_iterations,
+            "beta": alg_cfg.beta,
+            "beta_schedule": alg_cfg.beta_schedule.value,
+            "momentum": alg_cfg.momentum,
+            "tv_weight": alg_cfg.tv_weight,
+            "noise_model": alg_cfg.noise_model.value,
+            "n_starts": alg_cfg.n_starts,
+            "random_seed": alg_cfg.random_seed,
+        },
+        pupil_summary={
+            "grid_size": pupil.grid_size,
+            "support_pixels": int((pupil.amplitude > 0).sum()),
+        },
+        metrics={
+            **summary,
+            "convergence": convergence,
+        },
+        zernike_coefficients=zernike_coeffs,
+    )
+    report_paths = write_evaluation_report(
+        evaluation_payload,
+        config.output_dir,
+        stem=f"evaluation_{alg_name.value}",
+    )
     if not quiet and output_format != "json":
         print(f"📁 {out_path}")
+        print(f"📁 {report_paths['json']}")
+        print(f"📁 {report_paths['markdown']}")
 
 
 # ── compare ───────────────────────────────────────────────────────────────
@@ -228,6 +320,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
     """Run all algorithms and print a comparison table."""
     from src.algorithms.multi_start import multi_start_run
     from src.algorithms.registry import AlgorithmRegistry
+    from src.metrics.quality import compute_encircled_energy_error, compute_radial_profile_error, compute_ssim
     from src.models.config import (
         AlgorithmConfig,
         AlgorithmName,
@@ -235,6 +328,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
         NoiseModel,
         default_hst_config,
     )
+    from src.reporting import build_comparison_payload, write_comparison_report
 
     config = default_hst_config()
     config.output_dir = Path(args.output_dir)
@@ -261,6 +355,7 @@ def _cmd_compare(args: argparse.Namespace) -> None:
         print("-" * 50)
 
     results_summary = []
+    plot_results: dict[str, Any] = {}
     for alg_name in algorithms:
         n_iter = args.iterations
         alg_cfg = AlgorithmConfig(
@@ -285,10 +380,17 @@ def _cmd_compare(args: argparse.Namespace) -> None:
             "converged": result.converged,
             "strehl_ratio": result.strehl_ratio,
             "rms_phase_rad": result.rms_phase_rad,
+            "ssim": compute_ssim(psf_resized.image, result.reconstructed_psf),
+            "radial_profile_error": compute_radial_profile_error(psf_resized.image, result.reconstructed_psf),
+            "encircled_energy_error": compute_encircled_energy_error(
+                psf_resized.image,
+                result.reconstructed_psf,
+            ),
             "elapsed_seconds": result.elapsed_seconds,
             "timestamp": result.timestamp.isoformat(),
         }
         results_summary.append(summary)
+        plot_results[alg_name.value.upper()] = result
 
         if not quiet:
             print(
@@ -305,6 +407,25 @@ def _cmd_compare(args: argparse.Namespace) -> None:
             out_path.write_text(json.dumps(summary, indent=2))
             if not quiet:
                 print(f"  📁 {out_path}")
+
+    if save and results_summary:
+        plot_artifacts = _save_compare_plots(
+            psf_data=psf_resized,
+            pupil=pupil,
+            results=plot_results,
+            output_dir=config.output_dir,
+        )
+        comparison_payload = build_comparison_payload(
+            source_metadata={**psf_resized.metadata, "obs_id": psf_resized.obs_id},
+            summaries=results_summary,
+            artifacts=plot_artifacts,
+        )
+        report_paths = write_comparison_report(comparison_payload, config.output_dir)
+        if not quiet:
+            print(f"📁 {report_paths['json']}")
+            print(f"📁 {report_paths['markdown']}")
+            for path in plot_artifacts.values():
+                print(f"📁 {path}")
 
 
 # ── download ──────────────────────────────────────────────────────────────
@@ -367,6 +488,8 @@ def _cmd_benchmark(args: argparse.Namespace) -> None:
     print(f"📁 {Path(args.output_dir) / 'benchmark_results.json'}")
     print(f"📁 {Path(args.output_dir) / 'benchmark_summary.csv'}")
     print(f"📁 {Path(args.output_dir) / 'benchmark_report.md'}")
+    print(f"📁 {Path(args.output_dir) / 'benchmark_leaderboard.png'}")
+    print(f"📁 {Path(args.output_dir) / 'benchmark_case_heatmap.png'}")
 
 
 def _add_common_algo_args(parser: argparse.ArgumentParser) -> None:

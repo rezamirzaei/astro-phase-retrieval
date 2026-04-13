@@ -83,6 +83,8 @@ class TestCLI:
         # Verify that the JSON result file exists and has the expected keys
         result_file = out_dir / "result_er.json"
         assert result_file.exists(), "result_er.json was not written"
+        assert (out_dir / "evaluation_er.json").exists()
+        assert (out_dir / "evaluation_er.md").exists()
         result_data = json.loads(result_file.read_text())
         for key in ("algorithm", "strehl_ratio", "rms_phase_rad", "n_iterations", "converged"):
             assert key in result_data, f"Missing key '{key}' in result JSON"
@@ -120,6 +122,7 @@ class TestCLI:
         assert "✅" not in captured.out
         # JSON file still written
         assert (out_dir / "result_er.json").exists()
+        assert (out_dir / "evaluation_er.json").exists()
 
     def test_run_output_format_json(self, tmp_path, psf_data, capsys) -> None:
         """--output-format json prints a JSON object to stdout."""
@@ -188,6 +191,14 @@ class TestCLI:
             data = json.loads(jf.read_text())
             assert "algorithm" in data
             assert "strehl_ratio" in data
+        assert (out_dir / "comparison_report.json").exists()
+        assert (out_dir / "comparison_report.md").exists()
+        assert (out_dir / "algorithm_comparison.png").exists()
+        assert (out_dir / "algorithm_dashboard.png").exists()
+        assert (out_dir / "strehl_rms_comparison.png").exists()
+        comparison_payload = json.loads((out_dir / "comparison_report.json").read_text())
+        assert "artifacts" in comparison_payload
+        assert "algorithm_comparison_plot" in comparison_payload["artifacts"]
 
     def test_run_auto_discovered_fits(self, tmp_path, psf_data, capsys) -> None:
         """When no --fits is given, should auto-discover cached FITS."""
@@ -394,6 +405,8 @@ class TestCLI:
         assert (tmp_path / "bench" / "benchmark_results.json").exists()
         assert (tmp_path / "bench" / "benchmark_summary.csv").exists()
         assert (tmp_path / "bench" / "benchmark_report.md").exists()
+        assert (tmp_path / "bench" / "benchmark_leaderboard.png").exists()
+        assert (tmp_path / "bench" / "benchmark_case_heatmap.png").exists()
 
 
 class TestSyncPupilToImage:

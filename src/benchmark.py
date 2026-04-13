@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,11 @@ from src.metrics.quality import (
     summarise_convergence,
 )
 from src.models.config import AlgorithmConfig, AlgorithmName, TelescopeType
+from src.visualization.plots import (
+    plot_benchmark_case_heatmap,
+    plot_benchmark_leaderboard,
+    save_figure,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +55,7 @@ class BenchmarkSummary:
     records: list[dict[str, Any]]
     aggregate: list[dict[str, Any]]
     output_dir: Path | None = None
+    artifacts: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable representation of the benchmark."""
@@ -69,6 +75,7 @@ class BenchmarkSummary:
             ],
             "records": self.records,
             "aggregate": self.aggregate,
+            "artifacts": self.artifacts,
         }
 
     def to_markdown(self) -> str:
@@ -244,12 +251,28 @@ def _write_reports(summary: BenchmarkSummary, output_dir: Path) -> None:
     """Persist JSON, CSV, and Markdown benchmark reports."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    (output_dir / "benchmark_results.json").write_text(
+    results_json = output_dir / "benchmark_results.json"
+    summary_csv = output_dir / "benchmark_summary.csv"
+    report_md = output_dir / "benchmark_report.md"
+    leaderboard_png = output_dir / "benchmark_leaderboard.png"
+    heatmap_png = output_dir / "benchmark_case_heatmap.png"
+
+    summary.artifacts.update(
+        {
+            "results_json": str(results_json),
+            "summary_csv": str(summary_csv),
+            "report_markdown": str(report_md),
+            "leaderboard_plot": str(leaderboard_png),
+            "heatmap_plot": str(heatmap_png),
+        }
+    )
+
+    results_json.write_text(
         json.dumps(summary.to_dict(), indent=2),
         encoding="utf-8",
     )
 
-    with (output_dir / "benchmark_summary.csv").open("w", newline="", encoding="utf-8") as handle:
+    with summary_csv.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
             fieldnames=[
@@ -267,7 +290,17 @@ def _write_reports(summary: BenchmarkSummary, output_dir: Path) -> None:
         writer.writeheader()
         writer.writerows(summary.aggregate)
 
-    (output_dir / "benchmark_report.md").write_text(summary.to_markdown(), encoding="utf-8")
+    report_md.write_text(summary.to_markdown(), encoding="utf-8")
+
+    fig = plot_benchmark_leaderboard(summary.aggregate)
+    save_figure(fig, leaderboard_png)
+    import matplotlib.pyplot as plt
+
+    plt.close(fig)
+
+    fig = plot_benchmark_case_heatmap(summary.records, metric="score")
+    save_figure(fig, heatmap_png)
+    plt.close(fig)
 
 
 def run_benchmark(
@@ -353,4 +386,5 @@ def run_benchmark(
     if output_dir is not None:
         _write_reports(summary, output_dir)
     return summary
+
 

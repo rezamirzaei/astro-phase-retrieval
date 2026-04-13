@@ -859,6 +859,88 @@ def plot_strehl_rms_bar(
     return fig
 
 
+def plot_benchmark_leaderboard(aggregate: list[dict[str, Any]]) -> plt.Figure:
+    """Horizontal bar chart of aggregate benchmark scores by algorithm."""
+    set_style()
+    if not aggregate:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No benchmark data", ha="center", va="center", transform=ax.transAxes)
+        ax.axis("off")
+        fig.tight_layout()
+        return fig
+
+    algorithms = [str(row["algorithm"]).upper() for row in aggregate]
+    scores = [float(row["mean_score"]) for row in aggregate]
+    ssim = [float(row["mean_ssim"]) for row in aggregate]
+
+    fig, ax = plt.subplots(figsize=(10, max(4.5, 0.7 * len(aggregate) + 1.5)))
+    y = np.arange(len(aggregate))
+    bars = ax.barh(y, scores, color=[_PALETTE[i % len(_PALETTE)] for i in range(len(aggregate))])
+    ax.set_yticks(y)
+    ax.set_yticklabels(algorithms, color="black")
+    ax.set_xlabel("Aggregate benchmark score")
+    ax.set_title("Benchmark Leaderboard", color="black", fontweight="bold")
+    ax.set_xlim(0, 1.0)
+    ax.invert_yaxis()
+    ax.grid(True, axis="x", alpha=0.3)
+
+    for bar, score, ssim_value in zip(bars, scores, ssim, strict=False):
+        ax.text(
+            min(score + 0.015, 0.98),
+            bar.get_y() + bar.get_height() / 2,
+            f"score={score:.3f}  SSIM={ssim_value:.3f}",
+            va="center",
+            fontsize=9,
+            color="black",
+        )
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_benchmark_case_heatmap(
+    records: list[dict[str, Any]],
+    *,
+    metric: str = "score",
+) -> plt.Figure:
+    """Heatmap of benchmark performance by case and algorithm."""
+    set_style()
+    if not records:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "No benchmark data", ha="center", va="center", transform=ax.transAxes)
+        ax.axis("off")
+        fig.tight_layout()
+        return fig
+
+    cases = sorted({str(row["case"]) for row in records})
+    algorithms = sorted({str(row["algorithm"]).upper() for row in records})
+    matrix = np.full((len(cases), len(algorithms)), np.nan, dtype=np.float64)
+
+    case_idx = {name: idx for idx, name in enumerate(cases)}
+    alg_idx = {name: idx for idx, name in enumerate(algorithms)}
+    for row in records:
+        matrix[case_idx[str(row["case"])] , alg_idx[str(row["algorithm"]).upper()]] = float(row[metric])
+
+    fig, ax = plt.subplots(figsize=(1.2 * len(algorithms) + 4, 0.8 * len(cases) + 3))
+    im = ax.imshow(matrix, cmap="viridis", aspect="auto")
+    ax.set_xticks(np.arange(len(algorithms)))
+    ax.set_xticklabels(algorithms, rotation=45, ha="right", color="black")
+    ax.set_yticks(np.arange(len(cases)))
+    ax.set_yticklabels(cases, color="black")
+    ax.set_xlabel("Algorithm")
+    ax.set_ylabel("Benchmark case")
+    ax.set_title(f"Benchmark Heatmap — {metric.replace('_', ' ').title()}", color="black", fontweight="bold")
+
+    for i in range(len(cases)):
+        for j in range(len(algorithms)):
+            if np.isfinite(matrix[i, j]):
+                ax.text(j, i, f"{matrix[i, j]:.2f}", ha="center", va="center", color="white", fontsize=8)
+
+    fig.colorbar(im, ax=ax, shrink=0.85, label=metric.replace("_", " "))
+    fig.tight_layout()
+    return fig
+
+
 # ---------------------------------------------------------------------------
 # PINN benchmark
 # ---------------------------------------------------------------------------
