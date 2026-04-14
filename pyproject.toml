@@ -82,10 +82,7 @@ exclude = [
     "/data",
     "/outputs",
     "/notebooks/outputs",
-    "/main.py",
-    "/_diag.py",
-    "/_gen_notebook.py",
-    "/_test_synth.py",
+    "/scripts",
 ]
 
 [tool.ruff]
@@ -105,10 +102,11 @@ ignore = [
 known-first-party = ["src", "web", "phase_retrieval"]
 
 [tool.ruff.lint.per-file-ignores]
-"main.py" = ["E402"]
-"_gen_notebook.py" = ["E501"]
-"_diag.py" = ["E402", "E501"]
-"_test_synth.py" = ["E402"]
+"scripts/main.py" = ["E402"]
+"scripts/_gen_notebook.py" = ["E501"]
+"scripts/_gen_notebook_cryst.py" = ["E501"]
+"scripts/_diag.py" = ["E402", "E501"]
+"scripts/_test_synth.py" = ["E402"]
 "notebooks/*" = ["E402", "E501"]
 # Uppercase variable names (N806) are standard math notation in algorithm/optics code
 "src/algorithms/*.py" = ["N806", "N803"]
@@ -149,7 +147,7 @@ module = ["tifffile", "tifffile.*"]
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
-module = ["tests.*", "main", "_diag", "_gen_notebook", "_test_synth", "web.alembic.*"]
+module = ["tests.*", "scripts.*", "web.alembic.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 

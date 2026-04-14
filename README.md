@@ -169,7 +169,7 @@ For backwards compatibility, the in-repository `src` package still works when ru
 ### As a script (PyCharm / Jupyter-style)
 
 ```bash
-python main.py
+python scripts/main.py
 ```
 
 ### Via the CLI

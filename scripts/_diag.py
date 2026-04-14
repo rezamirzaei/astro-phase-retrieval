@@ -1,4 +1,5 @@
 """Deep diagnostic: run all algorithms, check convergence, generate comparison figures."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -59,9 +60,11 @@ for alg in algorithms:
     phase = res.recovered_phase
     recon = res.reconstructed_psf
     corr = np.corrcoef(psf_image.ravel(), recon.ravel())[0, 1]
-    print(f"  {alg.value.upper():5s}: Strehl={res.strehl_ratio:.4f}  RMS={res.rms_phase_rad:.4f}  "
-          f"phase_std={phase[support].std():.4f}  recon_corr={corr:.4f}  "
-          f"cost[0]={res.cost_history[0]:.4f}  cost[-1]={res.cost_history[-1]:.6f}")
+    print(
+        f"  {alg.value.upper():5s}: Strehl={res.strehl_ratio:.4f}  RMS={res.rms_phase_rad:.4f}  "
+        f"phase_std={phase[support].std():.4f}  recon_corr={corr:.4f}  "
+        f"cost[0]={res.cost_history[0]:.4f}  cost[-1]={res.cost_history[-1]:.6f}"
+    )
 
 # ---------- Generate diagnostic figure ----------
 print("\n=== Generating diagnostic figures ===")
@@ -86,15 +89,20 @@ for row_idx, (name, res) in enumerate(results.items()):
 
     # Col 1: Reconstructed PSF (log)
     ax = axes[row_idx, 1]
-    im = ax.imshow(np.log10(recon + 1e-12), cmap="inferno", origin="lower",
-                   vmin=np.log10(psf_image.max()) - 4)
+    im = ax.imshow(
+        np.log10(recon + 1e-12), cmap="inferno", origin="lower", vmin=np.log10(psf_image.max()) - 4
+    )
     ax.set_title(f"{name}: Reconstructed PSF (log)")
     plt.colorbar(im, ax=ax)
 
     # Col 2: Observed PSF (log)
     ax = axes[row_idx, 2]
-    im = ax.imshow(np.log10(psf_image + 1e-12), cmap="inferno", origin="lower",
-                   vmin=np.log10(psf_image.max()) - 4)
+    im = ax.imshow(
+        np.log10(psf_image + 1e-12),
+        cmap="inferno",
+        origin="lower",
+        vmin=np.log10(psf_image.max()) - 4,
+    )
     ax.set_title(f"{name}: Observed PSF (log)")
     plt.colorbar(im, ax=ax)
 
@@ -143,8 +151,9 @@ fig.suptitle("RAAR Phase Retrieval — Recovered Wavefront & PSF", fontsize=15, 
 
 # Observed PSF
 ax = axes[0]
-im = ax.imshow(np.log10(psf_image + 1e-12), cmap="inferno", origin="lower",
-               vmin=np.log10(psf_image.max()) - 4)
+im = ax.imshow(
+    np.log10(psf_image + 1e-12), cmap="inferno", origin="lower", vmin=np.log10(psf_image.max()) - 4
+)
 ax.set_title("Observed PSF (log scale)")
 plt.colorbar(im, ax=ax, shrink=0.8)
 
@@ -159,8 +168,9 @@ plt.colorbar(im, ax=ax, shrink=0.8, label="rad")
 # Reconstructed PSF
 ax = axes[2]
 recon_raar = raar.reconstructed_psf
-im = ax.imshow(np.log10(recon_raar + 1e-12), cmap="inferno", origin="lower",
-               vmin=np.log10(psf_image.max()) - 4)
+im = ax.imshow(
+    np.log10(recon_raar + 1e-12), cmap="inferno", origin="lower", vmin=np.log10(psf_image.max()) - 4
+)
 ax.set_title(f"Reconstructed PSF (log)\nStrehl = {raar.strehl_ratio:.3f}")
 plt.colorbar(im, ax=ax, shrink=0.8)
 
@@ -182,4 +192,3 @@ plt.close(fig)
 print("  Saved: outputs/summary_raar.png")
 
 print("\nDone!")
-

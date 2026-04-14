@@ -1,9 +1,10 @@
 """Test RAAR on a known synthetic problem to validate the algorithm."""
+
 import numpy as np
 from numpy.fft import fft2, fftshift, ifft2, ifftshift
 
 n = 128
-y, x = np.mgrid[-1:1:n*1j, -1:1:n*1j]  # type: ignore[misc]
+y, x = np.mgrid[-1 : 1 : n * 1j, -1 : 1 : n * 1j]  # type: ignore[misc]
 r = np.sqrt(x**2 + y**2)
 pupil_amp = np.where(r < 0.9, 1.0, 0.0).astype(np.float64)
 support = pupil_amp > 0
@@ -15,7 +16,7 @@ true_phase[~support] = 0.0
 # Observed PSF (noiseless)
 g_true = pupil_amp * np.exp(1j * true_phase)
 G_true = fftshift(fft2(ifftshift(g_true)))
-obs_psf = np.abs(G_true)**2
+obs_psf = np.abs(G_true) ** 2
 obs_psf = obs_psf / obs_psf.sum()
 target_amp = np.sqrt(obs_psf)
 
@@ -29,11 +30,11 @@ for _i in range(300):
     G = fftshift(fft2(ifftshift(g)))
     modelled = np.abs(G)
     scale = target_amp.sum() / max(modelled.sum(), 1e-30)
-    costs_raar.append(float(np.sum((target_amp - modelled * scale)**2)))
+    costs_raar.append(float(np.sum((target_amp - modelled * scale) ** 2)))
 
     G_proj = target_amp * np.exp(1j * np.angle(G))
-    p_f_g = fftshift(ifft2(ifftshift(G_proj)))     # P_F(g)
-    r_f_g = 2.0 * p_f_g - g                         # R_F(g)
+    p_f_g = fftshift(ifft2(ifftshift(G_proj)))  # P_F(g)
+    r_f_g = 2.0 * p_f_g - g  # R_F(g)
 
     # P_S(R_F(g))
     p_s_rf = np.zeros_like(r_f_g)
@@ -52,7 +53,7 @@ tp = true_phase[support] - true_phase[support].mean()
 print("=== RAAR (synthetic) ===")
 print(f"  cost[0]={costs_raar[0]:.6f}  cost[-1]={costs_raar[-1]:.6f}")
 print(f"  cost decreasing: {costs_raar[-1] < costs_raar[0]}")
-print(f"  residual vs truth: {np.sqrt(np.mean((fp - tp)**2)):.4f} rad")
+print(f"  residual vs truth: {np.sqrt(np.mean((fp - tp) ** 2)):.4f} rad")
 print(f"  correlation w/ truth: {np.corrcoef(fp, tp)[0, 1]:.4f}")
 
 # --------------- ER ---------------
@@ -64,7 +65,7 @@ for _i in range(300):
     G = fftshift(fft2(ifftshift(g)))
     modelled = np.abs(G)
     scale = target_amp.sum() / max(modelled.sum(), 1e-30)
-    costs_er.append(float(np.sum((target_amp - modelled * scale)**2)))
+    costs_er.append(float(np.sum((target_amp - modelled * scale) ** 2)))
     G_prime = target_amp * np.exp(1j * np.angle(G))
     g_prime = fftshift(ifft2(ifftshift(G_prime)))
     g_new = np.zeros_like(g_prime)
@@ -77,7 +78,7 @@ fp = final_phase_er[support] - final_phase_er[support].mean()
 print("\n=== ER (synthetic) ===")
 print(f"  cost[0]={costs_er[0]:.6f}  cost[-1]={costs_er[-1]:.6f}")
 print(f"  cost decreasing: {costs_er[-1] < costs_er[0]}")
-print(f"  residual vs truth: {np.sqrt(np.mean((fp - tp)**2)):.4f} rad")
+print(f"  residual vs truth: {np.sqrt(np.mean((fp - tp) ** 2)):.4f} rad")
 print(f"  correlation w/ truth: {np.corrcoef(fp, tp)[0, 1]:.4f}")
 
 # Also check: is the cost metric itself sensible?
@@ -85,7 +86,5 @@ print(f"  correlation w/ truth: {np.corrcoef(fp, tp)[0, 1]:.4f}")
 G_perfect = fftshift(fft2(ifftshift(g_true)))
 modelled_perfect = np.abs(G_perfect)
 scale_p = target_amp.sum() / max(modelled_perfect.sum(), 1e-30)
-perfect_cost = float(np.sum((target_amp - modelled_perfect * scale_p)**2))
+perfect_cost = float(np.sum((target_amp - modelled_perfect * scale_p) ** 2))
 print(f"\n=== Perfect reconstruction cost: {perfect_cost:.10f} ===")
-
-

@@ -38,8 +38,7 @@ data/mastDownload/
 notebooks/data/
 
 # --- Outputs (regenerable) ---
-outputs/*.png
-outputs/*.json
+outputs/
 notebooks/outputs/
 
 # --- OS ---

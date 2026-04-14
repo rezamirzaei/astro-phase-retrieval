@@ -288,16 +288,20 @@ for fp in all_fits:
             obs_id=psf_i.obs_id,
         )
         alg_cfg = AlgorithmConfig(
-            name=AlgorithmName.RAAR, max_iterations=500,
-            beta=0.9, random_seed=42,
+            name=AlgorithmName.RAAR,
+            max_iterations=500,
+            beta=0.9,
+            random_seed=42,
         )
         res_i = AlgorithmRegistry.create(alg_cfg, pupil).run(psf_i_resized)
-        observations.append({
-            "label": f"{psf_i.obs_id}\n{psf_i.filter_name}",
-            "psf": psf_i_resized,
-            "result": res_i,
-            "support": support,
-        })
+        observations.append(
+            {
+                "label": f"{psf_i.obs_id}\n{psf_i.filter_name}",
+                "psf": psf_i_resized,
+                "result": res_i,
+                "support": support,
+            }
+        )
         print(f"  ✅ {fp.name:30s}  {psf_i.filter_name:6s}  Strehl={res_i.strehl_ratio:.4f}")
     except Exception as exc:
         print(f"  ⚠️  {fp.name}: {exc}")
