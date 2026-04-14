@@ -833,4 +833,3 @@ class TestPagination:
         assert "items" in data
         assert "total" in data
         assert data["limit"] == 10
-

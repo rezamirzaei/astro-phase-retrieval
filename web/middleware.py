@@ -113,4 +113,3 @@ class RequestLoggingMiddleware:
                     rid,
                     client_ip,
                 )
-

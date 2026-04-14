@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 
 def hash_password(password: str) -> str:
     """Return a bcrypt hash of *password*."""
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    hashed: str = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return hashed
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

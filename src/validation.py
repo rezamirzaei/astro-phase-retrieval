@@ -121,8 +121,7 @@ _REFERENCE_BASELINES: dict[str, InstrumentReferenceBaseline] = {
         citation_title="ACS Instrument Handbook: ACS Point Spread Functions",
         citation_url="https://hst-docs.stsci.edu/acsihb/chapter-5-imaging/5-6-acs-point-spread-functions",
         notes=(
-            "STScI ACS handbook field-center PSF-width and encircled-energy guidance "
-            "for F606W."
+            "STScI ACS handbook field-center PSF-width and encircled-energy guidance for F606W."
         ),
         fwhm_arcsec=0.085,
         encircled_energy_radius_arcsec=0.20,

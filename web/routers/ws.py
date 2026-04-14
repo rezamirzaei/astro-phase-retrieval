@@ -80,4 +80,3 @@ async def ws_job_progress(
         logger.exception("WS error for job %s", job_id)
         with contextlib.suppress(Exception):
             await websocket.close(code=1011, reason="Internal error")
-

@@ -150,6 +150,3 @@ async def create_synthetic(body: SyntheticRequest, _user: CurrentUser) -> dict[s
         "filepath": str(path),
         "size_bytes": path.stat().st_size,
     }
-
-
-

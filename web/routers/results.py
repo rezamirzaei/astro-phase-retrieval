@@ -296,9 +296,5 @@ async def export_batch(
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={
-            "Content-Disposition": 'attachment; filename="phase_retrieval_batch.zip"'
-        },
+        headers={"Content-Disposition": 'attachment; filename="phase_retrieval_batch.zip"'},
     )
-
-

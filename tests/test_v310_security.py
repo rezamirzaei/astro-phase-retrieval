@@ -273,5 +273,3 @@ class TestJobQueueHelpers:
 
         status = get_job_status("nonexistent")
         assert status["error"] == "not_found"
-
-

@@ -109,9 +109,7 @@ class PhaseRetriever(ABC):
         if energy_target > 0:
             target_amp *= np.sqrt((energy_pupil * (n**2)) / energy_target)  # type: ignore[operator]
         else:
-            logger.warning(
-                "PSF image has zero total energy — retrieval may not converge."
-            )
+            logger.warning("PSF image has zero total energy — retrieval may not converge.")
 
         # Initialise complex pupil field with known amplitude + random phase
         self._psf_image_for_init = psf_data.image

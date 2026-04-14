@@ -344,9 +344,7 @@ def _aggregate_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "mean_encircled_energy_error": float(
                     np.mean([float(r["encircled_energy_error"]) for r in rows])
                 ),
-                "mean_elapsed_seconds": float(
-                    np.mean([float(r["elapsed_seconds"]) for r in rows])
-                ),
+                "mean_elapsed_seconds": float(np.mean([float(r["elapsed_seconds"]) for r in rows])),
                 "converged_fraction": float(
                     np.mean([1.0 if bool(r["converged"]) else 0.0 for r in rows])
                 ),

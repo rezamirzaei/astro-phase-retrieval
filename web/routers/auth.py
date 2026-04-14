@@ -197,5 +197,3 @@ def change_password(
         current_user.id,
     )
     return {"access_token": access, "refresh_token": refresh_tok, "token_type": "bearer"}
-
-

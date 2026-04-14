@@ -98,9 +98,7 @@ class BackgroundJob:
 
     # The asyncio queue is created lazily via ``_ensure_queue`` so that the
     # dataclass can be safely instantiated outside an async context.
-    _queue: asyncio.Queue[ProgressEvent | None] | None = field(
-        default=None, repr=False
-    )
+    _queue: asyncio.Queue[ProgressEvent | None] | None = field(default=None, repr=False)
     _queue_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def _ensure_queue(self) -> asyncio.Queue[ProgressEvent | None]:
@@ -187,9 +185,7 @@ def submit_job(
     with _jobs_lock:
         _evict_stale_jobs()
         if len(_jobs) >= _MAX_TRACKED_JOBS:
-            raise RuntimeError(
-                f"Job queue capacity exceeded ({_MAX_TRACKED_JOBS} tracked jobs)"
-            )
+            raise RuntimeError(f"Job queue capacity exceeded ({_MAX_TRACKED_JOBS} tracked jobs)")
         _jobs[job_id] = job
 
     def _run() -> None:

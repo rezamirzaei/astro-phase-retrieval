@@ -310,9 +310,7 @@ def summarise_convergence(cost_history: list[float]) -> dict[str, float]:
     decreases = 0
     if len(cost_history) > 1:
         decreases = sum(
-            1
-            for prev, cur in zip(cost_history[:-1], cost_history[1:], strict=False)
-            if cur <= prev
+            1 for prev, cur in zip(cost_history[:-1], cost_history[1:], strict=False) if cur <= prev
         )
         monotonic_fraction = decreases / (len(cost_history) - 1)
     else:

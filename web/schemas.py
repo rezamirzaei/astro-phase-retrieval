@@ -49,6 +49,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     skip: int
     limit: int
 
+
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
@@ -487,5 +488,3 @@ class BackgroundJobResponse(BaseModel):
     job_id: str
     state: str = "queued"
     message: str = "Job submitted"
-
-

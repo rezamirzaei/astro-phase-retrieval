@@ -463,9 +463,7 @@ def run_algorithm_benchmark(
         if algorithm_keys
         else default_benchmark_algorithms()
     )
-    output_dir = settings.output_dir / "benchmarks" / (
-        datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-    )
+    output_dir = settings.output_dir / "benchmarks" / (datetime.now(UTC).strftime("%Y%m%dT%H%M%S"))
     summary = run_benchmark(
         algorithms=selected_algorithms,
         cases=selected_cases,

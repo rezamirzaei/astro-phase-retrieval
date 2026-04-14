@@ -94,9 +94,7 @@ def _validated_claims(
         "Internal synthetic and regression-style metrics support software comparison workflows.",
     ]
     if metrics.get("uncertainty"):
-        claims.append(
-            "Perturbation-based confidence intervals are available for reported metrics."
-        )
+        claims.append("Perturbation-based confidence intervals are available for reported metrics.")
     if data_regime == "synthetic":
         claims.append(
             "Synthetic runs can be compared against known-truth phase on benchmark cases."
@@ -455,10 +453,7 @@ def render_comparison_markdown(payload: dict[str, Any]) -> str:
         "",
         "## Results",
         "",
-        (
-            "| Rank | Algorithm | SSIM | Strehl | RMS phase (rad) | "
-            "Radial err | EE err | Time (s) |"
-        ),
+        ("| Rank | Algorithm | SSIM | Strehl | RMS phase (rad) | Radial err | EE err | Time (s) |"),
         "|-----:|-----------|-----:|-------:|----------------:|-----------:|-------:|---------:|",
     ]
     lines.extend(

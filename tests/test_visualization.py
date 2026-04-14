@@ -413,4 +413,3 @@ class TestEdgeCases:
         fig = plot_benchmark_case_heatmap([])
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
-

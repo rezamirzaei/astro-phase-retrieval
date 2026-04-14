@@ -92,7 +92,8 @@ class DataConfig(BaseModel):
     """Where to find / download the observation data."""
 
     data_dir: Path = Field(
-        default=Path("data"), description="Root directory for downloaded FITS files",
+        default=Path("data"),
+        description="Root directory for downloaded FITS files",
     )
     obs_id: str = Field(
         default="JDOX-HST-WFC3",
@@ -103,7 +104,10 @@ class DataConfig(BaseModel):
         description="Detector used for the observation",
     )
     cutout_size: int = Field(
-        default=128, ge=32, le=1024, description="PSF cutout half-width in pixels",
+        default=128,
+        ge=32,
+        le=1024,
+        description="PSF cutout half-width in pixels",
     )
     filter_name: str = Field(default="F606W", description="Optical filter bandpass name")
     background_percentile: float = Field(
@@ -172,17 +176,24 @@ class PupilConfig(BaseModel):
 
     telescope: TelescopeType = Field(default=TelescopeType.HST)
     grid_size: int = Field(
-        default=256, ge=64, le=2048, description="Pupil-plane grid side length (px)",
+        default=256,
+        ge=64,
+        le=2048,
+        description="Pupil-plane grid side length (px)",
     )
     primary_radius: float = Field(default=1.2, gt=0, description="Primary mirror radius (m)")
     secondary_radius: float = Field(
-        default=0.396, ge=0, description="Secondary mirror obstruction radius (m)",
+        default=0.396,
+        ge=0,
+        description="Secondary mirror obstruction radius (m)",
     )
     spider_width: float = Field(default=0.0254, ge=0, description="Spider vane width (m)")
     n_spiders: int = Field(default=4, ge=0, le=8, description="Number of spider vanes")
     wavelength_m: float = Field(default=606e-9, gt=0, description="Observation wavelength (m)")
     pixel_scale_arcsec: float = Field(
-        default=0.04, gt=0, description="Detector pixel scale (arcsec/px)",
+        default=0.04,
+        gt=0,
+        description="Detector pixel scale (arcsec/px)",
     )
     bandwidth_fraction: float = Field(
         default=0.0,
@@ -279,7 +290,9 @@ class AlgorithmConfig(BaseModel):
     name: AlgorithmName = Field(default=AlgorithmName.HYBRID_INPUT_OUTPUT)
     max_iterations: int = Field(default=300, ge=1, le=100_000)
     tolerance: float = Field(
-        default=1e-8, gt=0, description="Convergence tolerance on cost-function change",
+        default=1e-8,
+        gt=0,
+        description="Convergence tolerance on cost-function change",
     )
     beta: float = Field(default=0.9, gt=0, le=1.0, description="HIO / RAAR feedback parameter beta")
     beta_schedule: BetaSchedule = Field(
@@ -287,7 +300,10 @@ class AlgorithmConfig(BaseModel):
         description="Adaptive beta scheduling: constant, linear ramp-down, or cosine annealing",
     )
     beta_min: float = Field(
-        default=0.5, ge=0, le=1.0, description="Minimum beta for adaptive schedules",
+        default=0.5,
+        ge=0,
+        le=1.0,
+        description="Minimum beta for adaptive schedules",
     )
     defocus_waves: float = Field(
         default=1.0,
@@ -508,8 +524,7 @@ class AlgorithmConfig(BaseModel):
         # admm_rho only meaningful for ADMM
         if self.admm_rho != 1.0 and self.name != AlgorithmName.ADMM:
             _logger.warning(
-                "admm_rho=%s is set but algorithm is '%s' (not ADMM) "
-                "— parameter will be ignored.",
+                "admm_rho=%s is set but algorithm is '%s' (not ADMM) — parameter will be ignored.",
                 self.admm_rho,
                 self.name.value,
             )

@@ -577,11 +577,14 @@ def load_psf_from_fits(
     if data_cfg.use_dq_mask:
         dq_mask = load_fits_dq_mask(filepath, image_shape, bad_values=preset.dq_bad_values)
         if dq_mask is not None:
-            dq_cutout = extract_psf_cutout(
-                dq_mask.astype(np.float64),
-                (int(round(refined_center[0])), int(round(refined_center[1]))),
-                half,
-            ) > 0
+            dq_cutout = (
+                extract_psf_cutout(
+                    dq_mask.astype(np.float64),
+                    (int(round(refined_center[0])), int(round(refined_center[1]))),
+                    half,
+                )
+                > 0
+            )
             quality_mask |= dq_cutout
     err_image = load_fits_error_image(filepath, image_shape)
     if err_image is not None:

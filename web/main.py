@@ -92,6 +92,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Set matplotlib backend early, before any pyplot import, to avoid
     # thread-safety issues when called later from worker threads.
     import matplotlib
+
     matplotlib.use("Agg")
 
     Base.metadata.create_all(bind=engine)

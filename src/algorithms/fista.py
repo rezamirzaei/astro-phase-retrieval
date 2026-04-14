@@ -16,7 +16,7 @@ The FISTA update is:
     t_{k+1} = (1 + √(1 + 4·t_k²)) / 2
     y_{k+1} = g_k + (t_k − 1) / t_{k+1} · (g_k − g_{k-1})
 
-**Adaptive Lipschitz scheduling:**  The intensity loss f(g) = Σ(|Fg|² − y)²
+**Adaptive Lipschitz scheduling:**  The intensity loss f(g) = Σ(\|Fg\|² − y)²
 is quartic — not Lipschitz-smooth — so a fixed step-size L often leads to
 divergence or oscillation.  We use a time-increasing schedule:
 

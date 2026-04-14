@@ -150,12 +150,16 @@ def compare_crystallography_algorithms(
     algorithm_keys: list[str] | None = None,
 ) -> list[CrystallographyJob]:
     """Run multiple algorithms on the same crystallographic data."""
-    keys: list[str] = algorithm_keys if algorithm_keys is not None else [
-        AlgorithmName.ERROR_REDUCTION.value,
-        AlgorithmName.HYBRID_INPUT_OUTPUT.value,
-        AlgorithmName.RAAR.value,
-        AlgorithmName.WIRTINGER_FLOW.value,
-    ]
+    keys: list[str] = (
+        algorithm_keys
+        if algorithm_keys is not None
+        else [
+            AlgorithmName.ERROR_REDUCTION.value,
+            AlgorithmName.HYBRID_INPUT_OUTPUT.value,
+            AlgorithmName.RAAR.value,
+            AlgorithmName.WIRTINGER_FLOW.value,
+        ]
+    )
 
     crystal = parse_cif(cif_path)
     pattern = simulate_diffraction(crystal, grid_size=grid_size)

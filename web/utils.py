@@ -49,4 +49,3 @@ def assert_path_within(child: Path, parent: Path) -> Path:
             detail="Path traversal detected — access denied",
         )
     return resolved
-
