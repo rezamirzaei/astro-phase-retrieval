@@ -60,7 +60,7 @@ jobs:
         run: pytest --cov=src --cov=web --cov-report=term-missing --cov-report=xml --cov-fail-under=90 -ra
       - name: Upload coverage report
         if: matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         with:
           file: coverage.xml
           fail_ci_if_error: false
