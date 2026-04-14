@@ -56,7 +56,7 @@ async def download_preset(key: str, _user: CurrentUser) -> dict[str, str]:
 
         paths = await asyncio.to_thread(_dl, key, settings.data_dir)
         return {"status": "ok", "files": str([str(p) for p in paths])}
-    except Exception as exc:
+    except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -150,7 +150,6 @@ async def create_synthetic(body: SyntheticRequest, _user: CurrentUser) -> dict[s
         "filepath": str(path),
         "size_bytes": path.stat().st_size,
     }
-
 
 
 

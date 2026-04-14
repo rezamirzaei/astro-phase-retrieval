@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from typing import Any
 import matplotlib  # noqa: F401 — backend set during app lifespan
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 from sqlalchemy.orm import Session
 
 from src.data.crystallography import (
@@ -209,12 +211,10 @@ def compare_crystallography_algorithms(
     if len(cryst_results) >= 2:
         cmp_dir = settings.output_dir / "cryst_compare" / str(jobs[0].id)
         cmp_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            fig = plot_r_factor_comparison(cryst_results)
-            save_figure(fig, cmp_dir / "r_factor_comparison.png")
-            plt.close(fig)
-        except Exception:
-            logger.exception("Failed to create R-factor comparison plot")
+        _save_plot(
+            cmp_dir / "r_factor_comparison.png",
+            lambda: plot_r_factor_comparison(cryst_results),
+        )
 
     return jobs
 
@@ -226,41 +226,24 @@ def _generate_crystallography_plots(
 ) -> list[str]:
     """Generate plots for a crystallography run."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    names: list[str] = []
+    return [
+        _save_plot(output_dir / "diffraction.png", lambda: plot_diffraction_pattern(pattern)),
+        _save_plot(output_dir / "result.png", lambda: plot_crystallography_result(pattern, result)),
+        _save_plot(output_dir / "electron_density.png", lambda: plot_electron_density(result)),
+        _save_plot(output_dir / "summary.png", lambda: plot_crystal_summary(pattern, result)),
+    ]
 
+
+def _save_plot(path: Path, render: Callable[[], Figure]) -> str:
+    """Render and persist a plot, ensuring the figure is always closed."""
+    fig: Figure | None = None
     try:
-        fig = plot_diffraction_pattern(pattern)
-        save_figure(fig, output_dir / "diffraction.png")
-        plt.close(fig)
-        names.append("diffraction.png")
-    except Exception:
-        logger.exception("Failed to generate diffraction plot")
-
-    try:
-        fig = plot_crystallography_result(pattern, result)
-        save_figure(fig, output_dir / "result.png")
-        plt.close(fig)
-        names.append("result.png")
-    except Exception:
-        logger.exception("Failed to generate result plot")
-
-    try:
-        fig = plot_electron_density(result)
-        save_figure(fig, output_dir / "electron_density.png")
-        plt.close(fig)
-        names.append("electron_density.png")
-    except Exception:
-        logger.exception("Failed to generate electron density plot")
-
-    try:
-        fig = plot_crystal_summary(pattern, result)
-        save_figure(fig, output_dir / "summary.png")
-        plt.close(fig)
-        names.append("summary.png")
-    except Exception:
-        logger.exception("Failed to generate summary plot")
-
-    return names
+        fig = render()
+        save_figure(fig, path)
+    finally:
+        if fig is not None:
+            plt.close(fig)
+    return path.name
 
 
 def list_crystallography_job_plots(job: CrystallographyJob) -> list[str]:

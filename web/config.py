@@ -1,9 +1,9 @@
 """Application settings — loaded from environment or ``.env`` file.
 
 All sensitive values **must** be supplied via environment variables in
-production.  Set ``PR_SECRET_KEY`` and ``PR_ADMIN_PASSWORD`` before starting
-the server.  The defaults here are intentionally weak and will trigger a
-``ValueError`` when the application starts in non-development mode.
+production.  Set ``PR_SECRET_KEY`` before starting the server, and set
+``PR_ADMIN_PASSWORD`` only when you intentionally want startup to seed a local
+admin account.
 
 Example ``.env``::
 
@@ -39,11 +39,11 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15  # short-lived access tokens
     refresh_token_expire_days: int = 7  # long-lived refresh tokens
 
-    # Admin seed account (created on first startup if the users table is empty)
-    admin_password: str = Field(
-        default="admin123",
+    # Admin seed account (optional; created on first startup when configured)
+    admin_password: str | None = Field(
+        default=None,
         min_length=8,
-        description="Seed admin password.  Set PR_ADMIN_PASSWORD in production.",
+        description="Optional admin seed password. Set PR_ADMIN_PASSWORD to enable seeding.",
     )
 
     # Paths
@@ -78,8 +78,10 @@ class Settings(BaseSettings):
 
     @field_validator("admin_password")
     @classmethod
-    def _warn_insecure_admin(cls, v: str) -> str:
-        if v == "admin123" and os.getenv("PR_ENV", "dev") == "prod":
+    def _warn_insecure_admin(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if os.getenv("PR_ENV", "dev") == "prod" and v == "admin123":
             raise ValueError("PR_ADMIN_PASSWORD must be set to a strong value in production.")
         return v
 

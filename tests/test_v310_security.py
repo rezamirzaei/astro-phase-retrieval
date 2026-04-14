@@ -207,6 +207,26 @@ class TestSecurityHeaders:
 
 
 # ---------------------------------------------------------------------------
+# web/config.py — secure defaults and production validation
+# ---------------------------------------------------------------------------
+
+
+class TestSettingsHardening:
+    def test_admin_seed_is_disabled_by_default(self) -> None:
+        from web.config import Settings
+
+        settings = Settings(_env_file=None, secret_key="x" * 32)
+        assert settings.admin_password is None
+
+    def test_insecure_admin_password_rejected_in_prod(self, monkeypatch) -> None:
+        from web.config import Settings
+
+        monkeypatch.setenv("PR_ENV", "prod")
+        with pytest.raises(ValueError):
+            Settings(_env_file=None, secret_key="x" * 32, admin_password="admin123")
+
+
+# ---------------------------------------------------------------------------
 # Upload path traversal
 # ---------------------------------------------------------------------------
 
@@ -253,6 +273,5 @@ class TestJobQueueHelpers:
 
         status = get_job_status("nonexistent")
         assert status["error"] == "not_found"
-
 
 

@@ -56,7 +56,7 @@ async def download_cod_preset(key: str, _user: CurrentUser) -> dict[str, str]:
     try:
         path = await asyncio.to_thread(_dl, key, settings.data_dir)
         return {"status": "ok", "file": str(path)}
-    except Exception as exc:
+    except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -255,4 +255,3 @@ async def upload_cif(file: UploadFile, _user: CurrentUser) -> UploadedFileRespon
         size_bytes=total,
         message=f"Uploaded to crystallography/{safe_name}",
     )
-

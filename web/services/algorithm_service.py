@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import matplotlib  # noqa: F401 — ensure it's importable; backend set in lifespan
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 from sqlalchemy.orm import Session
 
 from src.algorithms.registry import AlgorithmRegistry
@@ -219,50 +221,26 @@ def _generate_plots(
     res: PhaseRetrievalResult = result  # type: ignore[assignment]
     support = pupil.amplitude > 0
     output_dir.mkdir(parents=True, exist_ok=True)
-    names: list[str] = []
+    zc = zernike_decomposition(res.recovered_phase, support)
+    return [
+        _save_plot(output_dir / "phase.png", lambda: plot_recovered_phase(res, support)),
+        _save_plot(output_dir / "psf_comparison.png", lambda: plot_psf_comparison(psf_data, res)),
+        _save_plot(output_dir / "convergence.png", lambda: plot_convergence(res)),
+        _save_plot(output_dir / "radial.png", lambda: plot_radial_profile(psf_data, res, pupil)),
+        _save_plot(output_dir / "summary.png", lambda: plot_summary(psf_data, pupil, res, zc)),
+    ]
 
+
+def _save_plot(path: Path, render: Callable[[], Figure]) -> str:
+    """Render and persist a plot, ensuring the figure is always closed."""
+    fig: Figure | None = None
     try:
-        fig = plot_recovered_phase(res, support)
-        save_figure(fig, output_dir / "phase.png")
-        plt.close(fig)
-        names.append("phase.png")
-    except Exception:
-        logger.exception("Failed to generate phase plot")
-
-    try:
-        fig = plot_psf_comparison(psf_data, res)
-        save_figure(fig, output_dir / "psf_comparison.png")
-        plt.close(fig)
-        names.append("psf_comparison.png")
-    except Exception:
-        logger.exception("Failed to generate PSF comparison plot")
-
-    try:
-        fig = plot_convergence(res)
-        save_figure(fig, output_dir / "convergence.png")
-        plt.close(fig)
-        names.append("convergence.png")
-    except Exception:
-        logger.exception("Failed to generate convergence plot")
-
-    try:
-        fig = plot_radial_profile(psf_data, res, pupil)
-        save_figure(fig, output_dir / "radial.png")
-        plt.close(fig)
-        names.append("radial.png")
-    except Exception:
-        logger.exception("Failed to generate radial profile plot")
-
-    try:
-        zc = zernike_decomposition(res.recovered_phase, support)
-        fig = plot_summary(psf_data, pupil, res, zc)
-        save_figure(fig, output_dir / "summary.png")
-        plt.close(fig)
-        names.append("summary.png")
-    except Exception:
-        logger.exception("Failed to generate summary plot")
-
-    return names
+        fig = render()
+        save_figure(fig, path)
+    finally:
+        if fig is not None:
+            plt.close(fig)
+    return path.name
 
 
 # ---------------------------------------------------------------------------
@@ -433,19 +411,11 @@ def compare_algorithms(
         cmp_dir.mkdir(parents=True, exist_ok=True)
         support = pupil.amplitude > 0
 
-        try:
-            fig = plot_algorithm_comparison(phase_results, support)
-            save_figure(fig, cmp_dir / "comparison.png")
-            plt.close(fig)
-        except Exception:
-            logger.exception("Failed to create comparison plot")
-
-        try:
-            fig = plot_strehl_rms_bar(phase_results)
-            save_figure(fig, cmp_dir / "strehl_rms.png")
-            plt.close(fig)
-        except Exception:
-            logger.exception("Failed to create Strehl/RMS bar chart")
+        _save_plot(
+            cmp_dir / "comparison.png",
+            lambda: plot_algorithm_comparison(phase_results, support),
+        )
+        _save_plot(cmp_dir / "strehl_rms.png", lambda: plot_strehl_rms_bar(phase_results))
 
     return jobs
 

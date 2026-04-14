@@ -7,7 +7,7 @@ Run with::
 Environment variables (see ``web/config.py`` for full list):
 
 * ``PR_SECRET_KEY``      — JWT signing secret (required in production)
-* ``PR_ADMIN_PASSWORD``  — seed admin password (default: ``admin123``)
+* ``PR_ADMIN_PASSWORD``  — optional seed admin password for local/bootstrap use
 * ``PR_DATABASE_URL``    — SQLAlchemy DB URL (default: SQLite)
 * ``PR_CORS_ORIGINS``    — comma-separated allowed origins
 """
@@ -25,6 +25,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from web.config import settings
 from web.database import Base, SessionLocal, engine
@@ -98,11 +99,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     (settings.data_dir / "uploads").mkdir(parents=True, exist_ok=True)
 
-    # Seed admin account
+    # Seed admin account only when explicitly configured.
     db = SessionLocal()
     try:
-        if not db.query(User).filter(User.username == "admin").first():
-            admin_pw = settings.admin_password
+        admin_pw = settings.admin_password
+        if admin_pw and not db.query(User).filter(User.username == "admin").first():
             admin = User(
                 email="admin@phase-retrieval.local",
                 username="admin",
@@ -112,6 +113,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             db.add(admin)
             db.commit()
             logger.info("Seeded admin account (username=admin)")
+        elif not admin_pw:
+            logger.info("Admin seeding disabled: PR_ADMIN_PASSWORD not configured")
     finally:
         db.close()
 
@@ -274,7 +277,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     Prevents stack-trace leakage to the client while logging full details
     server-side for debugging.
     """
-    rid = request.scope.get("state", {}).get("request_id", "unknown")
+    rid = getattr(request.state, "request_id", "unknown")
     logger.exception("Unhandled exception [rid=%s]: %s", rid, exc)
     return JSONResponse(
         status_code=500,
@@ -332,7 +335,7 @@ def readiness_check() -> ReadinessDetail:
         finally:
             db.close()
         detail.db = "ok"
-    except Exception as exc:
+    except SQLAlchemyError as exc:
         detail.db = f"error: {exc}"
 
     # Check disk write
@@ -341,7 +344,7 @@ def readiness_check() -> ReadinessDetail:
         test_file.write_text("ok")
         test_file.unlink()
         detail.disk = "ok"
-    except Exception as exc:
+    except OSError as exc:
         detail.disk = f"error: {exc}"
 
     return detail

@@ -29,7 +29,6 @@ The module exposes three entry-points used by routers:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import threading
 import time
@@ -38,6 +37,7 @@ from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import partial
 from typing import Any
 
 from web.config import settings
@@ -91,6 +91,7 @@ class BackgroundJob:
     created_at: float = field(default_factory=time.time)
     started_at: float | None = None
     completed_at: float | None = None
+    loop: asyncio.AbstractEventLoop | None = None
 
     # Cooperative cancellation signal — worker threads should poll this.
     cancel_event: threading.Event = field(default_factory=threading.Event)
@@ -181,6 +182,7 @@ def submit_job(
     # Capture the running event loop at submission time (always called from
     # an async context, e.g. a FastAPI route).
     loop = asyncio.get_running_loop()
+    job.loop = loop
 
     with _jobs_lock:
         _evict_stale_jobs()
@@ -218,7 +220,7 @@ def submit_job(
             with _jobs_lock:
                 job.completed_at = time.time()
             # Sentinel to close WS subscriptions
-            _safe_put_sentinel(loop, job)
+            _safe_put_sentinel(job)
             if callback and job.state == JobState.COMPLETED:
                 loop.call_soon_threadsafe(callback, job_id, job.result)
 
@@ -227,15 +229,56 @@ def submit_job(
     return job_id
 
 
-def _safe_put_sentinel(
-    loop: asyncio.AbstractEventLoop, job: BackgroundJob
+def _put_queue_item(
+    q: asyncio.Queue[ProgressEvent | None],
+    item: ProgressEvent | None,
+    *,
+    job_id: str,
+    item_name: str,
+    force: bool = False,
 ) -> None:
-    """Thread-safe push of ``None`` sentinel to the job's queue."""
+    """Push an item to the asyncio queue from the loop thread."""
+    if force and q.full():
+        try:
+            q.get_nowait()
+        except asyncio.QueueEmpty:
+            logger.debug("Progress queue emptied before forcing %s for job %s", item_name, job_id)
     try:
-        q = job._ensure_queue()
-        loop.call_soon_threadsafe(q.put_nowait, None)
-    except Exception:
-        pass  # queue full or loop gone — non-fatal
+        q.put_nowait(item)
+    except asyncio.QueueFull:
+        logger.warning("Progress queue full; dropped %s for job %s", item_name, job_id)
+
+
+def _schedule_queue_item(
+    job: BackgroundJob,
+    item: ProgressEvent | None,
+    *,
+    item_name: str,
+    force: bool = False,
+) -> None:
+    """Schedule a queue write on the owning event loop."""
+    if job.loop is None:
+        logger.warning("No event loop recorded for background job %s", job.job_id)
+        return
+    q = job._ensure_queue()
+    try:
+        job.loop.call_soon_threadsafe(
+            partial(
+                _put_queue_item,
+                q,
+                item,
+                job_id=job.job_id,
+                item_name=item_name,
+                force=force,
+            )
+        )
+    except RuntimeError:
+        logger.warning("Event loop already closed for background job %s", job.job_id)
+
+
+def _safe_put_sentinel(job: BackgroundJob) -> None:
+    """Thread-safe push of the completion sentinel to the job's queue."""
+    _schedule_queue_item(job, None, item_name="completion sentinel", force=True)
 
 
 def publish_progress(job_id: str, event: ProgressEvent) -> None:
@@ -248,12 +291,7 @@ def publish_progress(job_id: str, event: ProgressEvent) -> None:
     if job is None:
         return
     job.progress = event
-    try:
-        loop = asyncio.get_event_loop()
-        q = job._ensure_queue()
-        loop.call_soon_threadsafe(q.put_nowait, event)
-    except Exception:
-        pass  # queue full or loop gone — non-fatal
+    _schedule_queue_item(job, event, item_name="progress event")
 
 
 def is_job_cancelled(job_id: str) -> bool:
@@ -335,11 +373,7 @@ def cancel_job(job_id: str) -> bool:
         job.cancel_event.set()
 
     # Push sentinel so WS consumers unblock
-    try:
-        loop = asyncio.get_event_loop()
-        _safe_put_sentinel(loop, job)
-    except Exception:
-        pass
+    _safe_put_sentinel(job)
     logger.info("Cancelled background job %s", job_id)
     return True
 
@@ -385,6 +419,4 @@ async def shutdown_pool(timeout: float = 10.0) -> None:
     # Allow lingering WS subscriptions to close
     with _jobs_lock:
         for job in _jobs.values():
-            q = job._ensure_queue()
-            with contextlib.suppress(asyncio.QueueFull):
-                q.put_nowait(None)
+            _safe_put_sentinel(job)
