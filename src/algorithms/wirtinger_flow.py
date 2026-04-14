@@ -18,7 +18,7 @@ much better starting point than random phase.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import PhaseRetriever
 from src.models.optics import PhaseRetrievalResult, PSFData
@@ -72,7 +72,7 @@ class WirtingerFlow(PhaseRetriever):
         mu = self.config.wf_step_size
 
         # Forward propagate
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
 
         # Measured intensity and model intensity
         Y = target_amplitude**2
@@ -81,7 +81,7 @@ class WirtingerFlow(PhaseRetriever):
         # Wirtinger gradient:  ∇L = F⁻¹{ (|G|² − Y) · G } / n²
         residual = I_model - Y
         grad_G = residual * G
-        grad_g = fftshift(ifft2(ifftshift(grad_G)))
+        grad_g = fftshift(ifft2(ifftshift(grad_G), workers=-1))
 
         # Normalise step size by mean intensity
         mean_intensity = np.mean(Y) + 1e-30

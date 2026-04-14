@@ -24,7 +24,7 @@ import warnings
 from abc import ABC, abstractmethod
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 from scipy.ndimage import gaussian_filter, uniform_filter  # type: ignore[import-untyped]
 
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio
@@ -544,9 +544,9 @@ class PhaseRetriever(ABC):
 
         Used by RAAR and Douglas-Rachford as a final polish stage.
         """
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
         G_proj = self._project_fourier(G, target_amplitude)
-        g_prime = fftshift(ifft2(ifftshift(G_proj)))
+        g_prime = fftshift(ifft2(ifftshift(G_proj), workers=-1))
 
         g_new = np.zeros_like(g_prime)
         g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support] + _EPS))
@@ -586,9 +586,9 @@ class PhaseRetriever(ABC):
         z = self.pupil.amplitude * np.exp(1j * rng.uniform(-np.pi, np.pi, (n, n)))
 
         for _ in range(50):
-            Z = fftshift(fft2(ifftshift(z)))
+            Z = fftshift(fft2(ifftshift(z), workers=-1))
             Z = Y * Z
-            z = fftshift(ifft2(ifftshift(Z)))
+            z = fftshift(ifft2(ifftshift(Z), workers=-1))
             z[~support] = 0.0
             norm = np.sqrt(np.sum(np.abs(z) ** 2))
             if norm > 0:

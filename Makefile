@@ -45,7 +45,7 @@ format:
 	ruff check --fix src/ tests/ web/
 
 typecheck:
-	mypy src/ --ignore-missing-imports
+	mypy src/ web/ --ignore-missing-imports
 
 coverage:
 	pytest --cov=src --cov=web --cov-report=html --cov-fail-under=90 -q

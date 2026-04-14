@@ -29,7 +29,7 @@ switch to ER for a clean convergent finish.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import PhaseRetriever
 
@@ -63,9 +63,9 @@ class DouglasRachford(PhaseRetriever):
         gamma = self._get_beta(iteration)  # relaxation parameter
 
         # P_F: project onto Fourier-magnitude constraint
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
         G_proj = self._project_fourier(G, target_amplitude)
-        p_f_g = fftshift(ifft2(ifftshift(G_proj)))
+        p_f_g = fftshift(ifft2(ifftshift(G_proj), workers=-1))
 
         # R_F = 2·P_F − I (reflector of Fourier set)
         r_f_g = 2.0 * p_f_g - g

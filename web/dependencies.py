@@ -46,6 +46,13 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
         )
+    # Verify token_version — rejects tokens issued before a password change
+    if payload.get("tv", 0) != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token revoked — please log in again",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 

@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import logging
 import time
-from collections import defaultdict
+from collections import OrderedDict
 
 from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 
 from web.dependencies import CurrentUser, DbSession
 from web.models import User
-from web.schemas import LoginRequest, RefreshRequest, Token, UserCreate, UserResponse
+from web.schemas import ChangePasswordRequest, LoginRequest, RefreshRequest, Token, UserCreate, UserResponse
 from web.security import (
     create_access_token,
     create_refresh_token,
@@ -31,19 +31,23 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Lightweight in-memory login rate limiter (no extra dependency)
+# Uses OrderedDict for LRU eviction to prevent unbounded memory growth.
 # ---------------------------------------------------------------------------
 _LOGIN_WINDOW = 60  # seconds
 _LOGIN_MAX_ATTEMPTS = 5
+_MAX_TRACKED_IPS = 10_000  # hard cap — evict oldest on overflow
 
-# ip -> list of timestamps
-_login_attempts: dict[str, list[float]] = defaultdict(list)
+# ip -> list of timestamps (OrderedDict for LRU eviction)
+_login_attempts: OrderedDict[str, list[float]] = OrderedDict()
 
 
 def _check_rate_limit(ip: str) -> None:
     """Raise 429 if *ip* has exceeded the login attempt threshold."""
     now = time.monotonic()
-    window = [t for t in _login_attempts[ip] if now - t < _LOGIN_WINDOW]
+    window = [t for t in _login_attempts.get(ip, []) if now - t < _LOGIN_WINDOW]
     _login_attempts[ip] = window
+    # Move to end (most recently used)
+    _login_attempts.move_to_end(ip)
     if len(window) >= _LOGIN_MAX_ATTEMPTS:
         logger.warning("Login rate limit exceeded for IP %s", ip)
         raise HTTPException(
@@ -53,7 +57,13 @@ def _check_rate_limit(ip: str) -> None:
 
 
 def _record_attempt(ip: str) -> None:
+    if ip not in _login_attempts:
+        _login_attempts[ip] = []
     _login_attempts[ip].append(time.monotonic())
+    _login_attempts.move_to_end(ip)
+    # Evict oldest entries if we exceed the cap
+    while len(_login_attempts) > _MAX_TRACKED_IPS:
+        _login_attempts.popitem(last=False)
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +108,7 @@ def login(body: LoginRequest, db: DbSession, request: Request) -> dict[str, str]
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
-    claims = {"sub": str(user.id), "username": user.username}
+    claims = {"sub": str(user.id), "username": user.username, "tv": user.token_version}
     access = create_access_token(claims)
     refresh = create_refresh_token(claims)
     logger.info("User logged in: %s (id=%s)", user.username, user.id)
@@ -126,7 +136,13 @@ def refresh(body: RefreshRequest, db: DbSession) -> dict[str, str]:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
         )
-    claims = {"sub": str(user.id), "username": user.username}
+    # Verify token_version — rejects tokens issued before a password change
+    if payload.get("tv", 0) != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked (password changed)",
+        )
+    claims = {"sub": str(user.id), "username": user.username, "tv": user.token_version}
     access = create_access_token(claims)
     new_refresh = create_refresh_token(claims)
     logger.info("Token refreshed for user %s (id=%s)", user.username, user.id)
@@ -137,3 +153,33 @@ def refresh(body: RefreshRequest, db: DbSession) -> dict[str, str]:
 def me(current_user: CurrentUser) -> User:
     """Return the currently authenticated user."""
     return current_user
+
+
+@router.post("/change-password", response_model=Token)
+def change_password(
+    body: ChangePasswordRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> dict[str, str]:
+    """Change password and revoke all existing tokens.
+
+    Verifies the current password, updates the hash, and increments
+    ``token_version`` so that all previously issued JWTs become invalid.
+    Returns a fresh access + refresh token pair.
+    """
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+    current_user.hashed_password = hash_password(body.new_password)
+    current_user.token_version += 1
+    db.commit()
+    db.refresh(current_user)
+
+    claims = {"sub": str(current_user.id), "username": current_user.username, "tv": current_user.token_version}
+    access = create_access_token(claims)
+    refresh_tok = create_refresh_token(claims)
+    logger.info("Password changed for user %s (id=%s), all tokens revoked", current_user.username, current_user.id)
+    return {"access_token": access, "refresh_token": refresh_tok, "token_type": "bearer"}
+

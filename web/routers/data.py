@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, status
 
 from web.config import settings
 from web.dependencies import CurrentUser
+from web.utils import sanitize_filename
 from web.schemas import (
     FitsFileInfo,
     PaginatedResponse,
@@ -88,7 +89,8 @@ async def upload_file(file: UploadFile, _user: CurrentUser) -> UploadedFileRespo
     if not file.filename:
         raise HTTPException(status_code=422, detail="No filename provided")
 
-    ext = Path(file.filename).suffix.lower()
+    safe_name = sanitize_filename(file.filename)
+    ext = Path(safe_name).suffix.lower()
     if ext not in _ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=422,
@@ -97,7 +99,7 @@ async def upload_file(file: UploadFile, _user: CurrentUser) -> UploadedFileRespo
 
     upload_dir = settings.data_dir / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
-    dest = upload_dir / file.filename
+    dest = upload_dir / safe_name
 
     # Stream to disk respecting the size limit
     total = 0
@@ -113,7 +115,7 @@ async def upload_file(file: UploadFile, _user: CurrentUser) -> UploadedFileRespo
             f.write(chunk)
 
     return UploadedFileResponse(
-        filename=file.filename,
+        filename=safe_name,
         size_bytes=total,
         message=f"Uploaded to {dest.relative_to(settings.data_dir)}",
     )

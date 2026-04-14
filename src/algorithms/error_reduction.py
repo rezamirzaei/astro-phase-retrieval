@@ -7,7 +7,7 @@ measured focal-plane amplitude and the known pupil-plane support.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import PhaseRetriever
 
@@ -25,13 +25,13 @@ class ErrorReduction(PhaseRetriever):
         iteration: int,
     ) -> tuple[np.ndarray, float]:
         # 1. Forward propagate: pupil → focal plane
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
 
         # 2. Replace focal-plane amplitude with measured, keep phase
         G_prime = self._project_fourier(G, target_amplitude)
 
         # 3. Inverse propagate back to pupil plane
-        g_prime = fftshift(ifft2(ifftshift(G_prime)))
+        g_prime = fftshift(ifft2(ifftshift(G_prime), workers=-1))
 
         # 4. ER: project onto support and enforce known amplitude
         g_new = np.zeros_like(g_prime)

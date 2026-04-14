@@ -9,6 +9,16 @@ Design
   consume in real-time.
 * Jobs go through states: ``queued → running → completed | failed``.
 
+Thread-safety
+-------------
+* ``_jobs`` dict mutations are protected by ``_jobs_lock`` (a
+  ``threading.Lock``), safe for both sync worker threads and the async
+  event loop.
+* Each ``BackgroundJob`` carries a ``threading.Event`` (``cancel_event``)
+  that running functions can poll for cooperative cancellation.
+* Completed jobs are evicted after ``_JOB_TTL_SECONDS`` to prevent
+  unbounded memory growth.
+
 The module exposes three entry-points used by routers:
 
 * ``submit_job`` — enqueue and return immediately.
@@ -21,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import threading
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -32,6 +43,17 @@ from typing import Any
 from web.config import settings
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Completed / failed / cancelled jobs are evicted after this many seconds.
+_JOB_TTL_SECONDS: float = 3600.0  # 1 hour
+
+# Maximum tracked jobs (hard cap to prevent OOM under adversarial load).
+_MAX_TRACKED_JOBS: int = 10_000
+
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -69,17 +91,32 @@ class BackgroundJob:
     created_at: float = field(default_factory=time.time)
     started_at: float | None = None
     completed_at: float | None = None
-    _queue: asyncio.Queue[ProgressEvent | None] = field(
-        default_factory=lambda: asyncio.Queue(maxsize=256)
+
+    # Cooperative cancellation signal — worker threads should poll this.
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+
+    # The asyncio queue is created lazily via ``_ensure_queue`` so that the
+    # dataclass can be safely instantiated outside an async context.
+    _queue: asyncio.Queue[ProgressEvent | None] | None = field(
+        default=None, repr=False
     )
+    _queue_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def _ensure_queue(self) -> asyncio.Queue[ProgressEvent | None]:
+        """Lazily create the asyncio.Queue on first access (thread-safe)."""
+        if self._queue is None:
+            with self._queue_lock:
+                if self._queue is None:
+                    self._queue = asyncio.Queue(maxsize=256)
+        return self._queue
 
 
 # ---------------------------------------------------------------------------
-# Global state
+# Global state (protected by _jobs_lock)
 # ---------------------------------------------------------------------------
 _pool: ThreadPoolExecutor | None = None
 _jobs: dict[str, BackgroundJob] = {}
-_loop: asyncio.AbstractEventLoop | None = None
+_jobs_lock = threading.Lock()
 
 
 def _get_pool() -> ThreadPoolExecutor:
@@ -91,11 +128,24 @@ def _get_pool() -> ThreadPoolExecutor:
     return _pool
 
 
-def _get_loop() -> asyncio.AbstractEventLoop:
-    global _loop
-    if _loop is None:
-        _loop = asyncio.get_running_loop()
-    return _loop
+def _evict_stale_jobs() -> None:
+    """Remove completed/failed/cancelled jobs older than the TTL.
+
+    Must be called under ``_jobs_lock``.
+    """
+    now = time.time()
+    terminal_states = {JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED}
+    stale = [
+        jid
+        for jid, j in _jobs.items()
+        if j.state in terminal_states
+        and j.completed_at is not None
+        and (now - j.completed_at) > _JOB_TTL_SECONDS
+    ]
+    for jid in stale:
+        del _jobs[jid]
+    if stale:
+        logger.debug("Evicted %d stale jobs", len(stale))
 
 
 # ---------------------------------------------------------------------------
@@ -124,25 +174,48 @@ def submit_job(
     """
     job_id = uuid.uuid4().hex[:12]
     job = BackgroundJob(job_id=job_id)
-    _jobs[job_id] = job
 
-    loop = _get_loop()
+    # Capture the running event loop at submission time (always called from
+    # an async context, e.g. a FastAPI route).
+    loop = asyncio.get_running_loop()
+
+    with _jobs_lock:
+        _evict_stale_jobs()
+        if len(_jobs) >= _MAX_TRACKED_JOBS:
+            raise RuntimeError(
+                f"Job queue capacity exceeded ({_MAX_TRACKED_JOBS} tracked jobs)"
+            )
+        _jobs[job_id] = job
 
     def _run() -> None:
-        job.state = JobState.RUNNING
-        job.started_at = time.time()
+        with _jobs_lock:
+            job.state = JobState.RUNNING
+            job.started_at = time.time()
         try:
+            # Check cancellation before starting heavy work
+            if job.cancel_event.is_set():
+                with _jobs_lock:
+                    job.state = JobState.CANCELLED
+                return
+
             result = fn(*args, **kwargs)
-            job.result = result
-            job.state = JobState.COMPLETED
+
+            with _jobs_lock:
+                if job.cancel_event.is_set():
+                    job.state = JobState.CANCELLED
+                else:
+                    job.result = result
+                    job.state = JobState.COMPLETED
         except Exception as exc:
-            job.error = str(exc)
-            job.state = JobState.FAILED
+            with _jobs_lock:
+                job.error = str(exc)
+                job.state = JobState.FAILED
             logger.exception("Background job %s failed", job_id)
         finally:
-            job.completed_at = time.time()
+            with _jobs_lock:
+                job.completed_at = time.time()
             # Sentinel to close WS subscriptions
-            loop.call_soon_threadsafe(job._queue.put_nowait, None)
+            _safe_put_sentinel(loop, job)
             if callback and job.state == JobState.COMPLETED:
                 loop.call_soon_threadsafe(callback, job_id, job.result)
 
@@ -151,25 +224,57 @@ def submit_job(
     return job_id
 
 
+def _safe_put_sentinel(
+    loop: asyncio.AbstractEventLoop, job: BackgroundJob
+) -> None:
+    """Thread-safe push of ``None`` sentinel to the job's queue."""
+    try:
+        q = job._ensure_queue()
+        loop.call_soon_threadsafe(q.put_nowait, None)
+    except Exception:
+        pass  # queue full or loop gone — non-fatal
+
+
 def publish_progress(job_id: str, event: ProgressEvent) -> None:
     """Called **from the worker thread** to publish a progress tick.
 
     Safe to call from synchronous code — uses ``call_soon_threadsafe``.
     """
-    job = _jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
     if job is None:
         return
     job.progress = event
     try:
-        loop = _get_loop()
-        loop.call_soon_threadsafe(job._queue.put_nowait, event)
+        loop = asyncio.get_event_loop()
+        q = job._ensure_queue()
+        loop.call_soon_threadsafe(q.put_nowait, event)
     except Exception:
         pass  # queue full or loop gone — non-fatal
 
 
+def is_job_cancelled(job_id: str) -> bool:
+    """Check whether the given job has been cancelled.
+
+    Algorithm functions can poll this periodically to support cooperative
+    cancellation::
+
+        for i in range(max_iterations):
+            if is_job_cancelled(job_id):
+                break
+            # ... compute ...
+    """
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        return False
+    return job.cancel_event.is_set()
+
+
 def get_job_status(job_id: str) -> dict[str, Any]:
     """Return a JSON-serialisable snapshot of the job."""
-    job = _jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
     if job is None:
         return {"error": "not_found"}
     return {
@@ -191,40 +296,45 @@ def get_job_status(job_id: str) -> dict[str, Any]:
 
 def get_job_result(job_id: str) -> Any:
     """Return the raw result (only meaningful after COMPLETED)."""
-    job = _jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
     return job.result if job else None
 
 
 async def subscribe_progress(job_id: str) -> AsyncIterator[ProgressEvent]:
     """Async generator that yields ``ProgressEvent`` until the job ends."""
-    job = _jobs.get(job_id)
+    with _jobs_lock:
+        job = _jobs.get(job_id)
     if job is None:
         return
+    q = job._ensure_queue()
     while True:
-        event = await job._queue.get()
+        event = await q.get()
         if event is None:
             break  # sentinel — job finished
         yield event
 
 
 def cancel_job(job_id: str) -> bool:
-    """Mark a queued job as cancelled.  Returns ``True`` if state changed.
+    """Mark a queued or running job as cancelled.  Returns ``True`` if state changed.
 
-    Only jobs in ``QUEUED`` or ``RUNNING`` state can be cancelled.
-    Running jobs will complete their current iteration but the result
-    is discarded.
+    Sets the ``cancel_event`` so that cooperative worker code can detect
+    cancellation promptly.
     """
-    job = _jobs.get(job_id)
-    if job is None:
-        return False
-    if job.state in (JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED):
-        return False
-    job.state = JobState.CANCELLED
-    job.completed_at = time.time()
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            return False
+        if job.state in (JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED):
+            return False
+        job.state = JobState.CANCELLED
+        job.completed_at = time.time()
+        job.cancel_event.set()
+
     # Push sentinel so WS consumers unblock
     try:
-        loop = _get_loop()
-        loop.call_soon_threadsafe(job._queue.put_nowait, None)
+        loop = asyncio.get_event_loop()
+        _safe_put_sentinel(loop, job)
     except Exception:
         pass
     logger.info("Cancelled background job %s", job_id)
@@ -233,26 +343,45 @@ def cancel_job(job_id: str) -> bool:
 
 def list_active_jobs() -> list[dict[str, Any]]:
     """Return lightweight summaries of all tracked jobs."""
+    with _jobs_lock:
+        snapshot = list(_jobs.values())
     return [
         {
             "job_id": j.job_id,
             "state": j.state.value,
             "created_at": j.created_at,
         }
-        for j in _jobs.values()
+        for j in snapshot
     ]
 
 
 async def shutdown_pool(timeout: float = 10.0) -> None:
-    """Gracefully drain the thread-pool.  Called during app shutdown."""
+    """Gracefully drain the thread-pool.  Called during app shutdown.
+
+    Respects the *timeout* parameter: after *timeout* seconds, remaining
+    futures are cancelled to avoid blocking shutdown indefinitely.
+    """
     global _pool
     if _pool is not None:
-        _pool.shutdown(wait=True, cancel_futures=False)
+        _pool.shutdown(wait=False, cancel_futures=False)
+        # Wait up to `timeout` for threads to finish, then force
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if not any(t.is_alive() for t in _pool._threads):
+                break
+            await asyncio.sleep(0.2)
+        else:
+            logger.warning(
+                "Job thread-pool did not drain within %.1fs — cancelling remaining",
+                timeout,
+            )
+            _pool.shutdown(wait=False, cancel_futures=True)
         logger.info("Job thread-pool shut down")
         _pool = None
+
     # Allow lingering WS subscriptions to close
-    for job in _jobs.values():
-        with contextlib.suppress(asyncio.QueueFull):
-            job._queue.put_nowait(None)
-
-
+    with _jobs_lock:
+        for job in _jobs.values():
+            q = job._ensure_queue()
+            with contextlib.suppress(asyncio.QueueFull):
+                q.put_nowait(None)

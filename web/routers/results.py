@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 
 from web.config import settings
 from web.dependencies import CurrentUser, DbSession
+from web.utils import assert_path_within, sanitize_filename
 from web.models import Job
 from web.schemas import ArtifactContentResponse, DashboardStats, JobResponse, PaginatedResponse
 from web.services.algorithm_service import list_job_artifacts, list_job_plots
@@ -25,9 +26,11 @@ def _resolve_job_artifact(job: Job, artifact_name: str) -> Path:
     if not job.output_dir:
         raise HTTPException(status_code=404, detail="No artifacts available")
     out_dir = Path(job.output_dir)
-    artifact_path = out_dir / artifact_name
+    safe_name = sanitize_filename(artifact_name)
+    artifact_path = out_dir / safe_name
+    assert_path_within(artifact_path, out_dir)
     if not artifact_path.exists() or not artifact_path.is_file():
-        raise HTTPException(status_code=404, detail=f"Artifact '{artifact_name}' not found")
+        raise HTTPException(status_code=404, detail=f"Artifact '{safe_name}' not found")
     if artifact_path.suffix.lower() not in {".json", ".md", ".csv"}:
         raise HTTPException(status_code=400, detail="Unsupported artifact type")
     return artifact_path
@@ -115,14 +118,18 @@ def get_plot(job_id: int, plot_name: str, user: CurrentUser, db: DbSession) -> F
     if not job.output_dir:
         raise HTTPException(status_code=404, detail="No plots available")
 
-    plot_path = Path(job.output_dir) / plot_name
+    safe_plot = sanitize_filename(plot_name)
+    out_dir = Path(job.output_dir)
+    plot_path = out_dir / safe_plot
+    assert_path_within(plot_path, out_dir)
     if not plot_path.exists() or not plot_path.name.endswith(".png"):
         # Try comparison directory
-        cmp_path = settings.output_dir / "compare" / str(job_id) / plot_name
+        cmp_path = settings.output_dir / "compare" / str(job_id) / safe_plot
         if cmp_path.exists():
+            assert_path_within(cmp_path, settings.output_dir)
             plot_path = cmp_path
         else:
-            raise HTTPException(status_code=404, detail=f"Plot '{plot_name}' not found")
+            raise HTTPException(status_code=404, detail=f"Plot '{safe_plot}' not found")
 
     return FileResponse(plot_path, media_type="image/png")
 

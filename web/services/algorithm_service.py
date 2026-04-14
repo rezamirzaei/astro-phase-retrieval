@@ -7,7 +7,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-import matplotlib
+import matplotlib  # noqa: F401 — ensure it's importable; backend set in lifespan
 from matplotlib import pyplot as plt
 from sqlalchemy.orm import Session
 
@@ -21,9 +21,6 @@ from src.metrics.quality import zernike_decomposition
 from src.models.config import (
     AlgorithmConfig,
     AlgorithmName,
-    BetaSchedule,
-    NoiseModel,
-    Regulariser,
     default_hst_config,
 )
 from src.models.optics import PSFData, PupilModel
@@ -48,7 +45,8 @@ from web.schemas import (
     PlotReference,
 )
 
-matplotlib.use("Agg")  # headless backend for the web server
+# NOTE: matplotlib.use("Agg") is called during app lifespan startup
+# to avoid thread-safety issues.  Do NOT call it here at module level.
 
 logger = logging.getLogger(__name__)
 
@@ -153,27 +151,31 @@ ALGORITHM_DEFAULTS: dict[str, AlgorithmDefaults] = {
 
 
 def _build_algorithm_config(job: Job) -> AlgorithmConfig:
-    """Create the validated shared algorithm config from a web job row."""
+    """Create the validated shared algorithm config from a web job row.
+
+    Delegates parsing/validation to Pydantic instead of manual str→float
+    conversions — any type errors are caught at construction time.
+    """
     cfg_raw: dict[str, object] = json.loads(job.config_json)
-    _g = cfg_raw.get
+    # Merge with defaults; let Pydantic handle type coercion & validation
     return AlgorithmConfig(
         name=AlgorithmName(job.algorithm),
-        max_iterations=int(str(_g("max_iterations", 300))),
-        tolerance=float(str(_g("tolerance", 1e-8))),
-        beta=float(str(_g("beta", 0.9))),
-        beta_schedule=BetaSchedule(str(_g("beta_schedule", "constant"))),
-        momentum=float(str(_g("momentum", 0.0))),
-        tv_weight=float(str(_g("tv_weight", 0.0))),
-        noise_model=NoiseModel(str(_g("noise_model", "gaussian"))),
-        n_starts=int(str(_g("n_starts", 1))),
-        admm_rho=float(str(_g("admm_rho", 1.0))),
-        wf_step_size=float(str(_g("wf_step_size", 0.5))),
-        wf_spectral_init=bool(_g("wf_spectral_init", True)),
-        spectral_init=bool(_g("spectral_init", True)),
-        regulariser=Regulariser(str(_g("regulariser", "none"))),
-        proximal_weight=float(str(_g("proximal_weight", 1e-3))),
-        sparsity_threshold=float(str(_g("sparsity_threshold", 0.1))),
-        sparsity_keep_fraction=float(str(_g("sparsity_keep_fraction", 1.0))),
+        max_iterations=cfg_raw.get("max_iterations", 300),  # type: ignore[arg-type]
+        tolerance=cfg_raw.get("tolerance", 1e-8),  # type: ignore[arg-type]
+        beta=cfg_raw.get("beta", 0.9),  # type: ignore[arg-type]
+        beta_schedule=cfg_raw.get("beta_schedule", "constant"),  # type: ignore[arg-type]
+        momentum=cfg_raw.get("momentum", 0.0),  # type: ignore[arg-type]
+        tv_weight=cfg_raw.get("tv_weight", 0.0),  # type: ignore[arg-type]
+        noise_model=cfg_raw.get("noise_model", "gaussian"),  # type: ignore[arg-type]
+        n_starts=cfg_raw.get("n_starts", 1),  # type: ignore[arg-type]
+        admm_rho=cfg_raw.get("admm_rho", 1.0),  # type: ignore[arg-type]
+        wf_step_size=cfg_raw.get("wf_step_size", 0.5),  # type: ignore[arg-type]
+        wf_spectral_init=cfg_raw.get("wf_spectral_init", True),  # type: ignore[arg-type]
+        spectral_init=cfg_raw.get("spectral_init", True),  # type: ignore[arg-type]
+        regulariser=cfg_raw.get("regulariser", "none"),  # type: ignore[arg-type]
+        proximal_weight=cfg_raw.get("proximal_weight", 1e-3),  # type: ignore[arg-type]
+        sparsity_threshold=cfg_raw.get("sparsity_threshold", 0.1),  # type: ignore[arg-type]
+        sparsity_keep_fraction=cfg_raw.get("sparsity_keep_fraction", 1.0),  # type: ignore[arg-type]
         random_seed=42,
     )
 

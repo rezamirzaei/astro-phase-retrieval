@@ -88,6 +88,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _startup_time = time.time()
 
     # ── Startup ─────────────────────────────────────────────────────
+    # Set matplotlib backend early, before any pyplot import, to avoid
+    # thread-safety issues when called later from worker threads.
+    import matplotlib
+    matplotlib.use("Agg")
+
     Base.metadata.create_all(bind=engine)
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -267,7 +272,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     Prevents stack-trace leakage to the client while logging full details
     server-side for debugging.
     """
-    rid = getattr(request.state, "request_id", "unknown")
+    rid = request.scope.get("state", {}).get("request_id", "unknown")
     logger.exception("Unhandled exception [rid=%s]: %s", rid, exc)
     return JSONResponse(
         status_code=500,

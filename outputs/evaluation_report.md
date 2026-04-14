@@ -21,13 +21,13 @@ This report summarises one `er` reconstruction on a `unknown` dataset. The metri
 
 ## Quantitative Results
 
-- Strehl ratio: **0.9955** (strong)
-- RMS phase error: **0.0705 rad** (strong)
+- Strehl ratio: **0.9962** (strong)
+- RMS phase error: **0.0653 rad** (strong)
 - SSIM: **0.9987** (strong)
-- Radial-profile error: **0.2170** (weak)
+- Radial-profile error: **0.2165** (weak)
 - Encircled-energy error: **0.0101** (moderate)
 - Iterations: **30**
-- Elapsed time: **0.021 s**
+- Elapsed time: **0.024 s**
 
 ## Evidence
 
@@ -41,11 +41,11 @@ This report summarises one `er` reconstruction on a `unknown` dataset. The metri
 
 | Noll index | Coefficient (rad) |
 |-----------:|------------------:|
-| 11 | 0.8925 |
-| 4 | -0.8089 |
-| 22 | -0.7742 |
-| 6 | 0.0354 |
-| 12 | -0.0148 |
+| 11 | 0.8913 |
+| 4 | -0.8118 |
+| 22 | -0.7734 |
+| 6 | -0.0231 |
+| 12 | 0.0141 |
 
 ## Limitations
 

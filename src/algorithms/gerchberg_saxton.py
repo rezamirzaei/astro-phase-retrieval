@@ -8,7 +8,7 @@ focal plane (known amplitude = sqrt(measured PSF)).
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import PhaseRetriever
 
@@ -26,13 +26,13 @@ class GerchbergSaxton(PhaseRetriever):
         iteration: int,
     ) -> tuple[np.ndarray, float]:
         # 1. Pupil → focal via FFT
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
 
         # 2. Enforce focal-plane amplitude constraint (noise-model aware)
         G_prime = self._project_fourier(G, target_amplitude)
 
         # 3. Focal → pupil via inverse FFT
-        g_prime = fftshift(ifft2(ifftshift(G_prime)))
+        g_prime = fftshift(ifft2(ifftshift(G_prime), workers=-1))
 
         # 4. Enforce pupil-plane amplitude (identical to ER)
         g_new = np.zeros_like(g_prime)

@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import PhaseRetriever
 from src.metrics.quality import compute_rms_phase, compute_strehl_ratio
@@ -108,17 +108,17 @@ class PhaseDiversity(PhaseRetriever):
         """One iteration of the phase-diversity Gerchberg-Saxton variant."""
         # --- Channel 1: focused image ---
         g1 = make_complex_pupil(pupil_amplitude, phase)
-        G1 = fftshift(fft2(ifftshift(g1)))
+        G1 = fftshift(fft2(ifftshift(g1), workers=-1))
         G1_corrected = self._project_fourier(G1, target_foc)
-        g1_back = fftshift(ifft2(ifftshift(G1_corrected)))
+        g1_back = fftshift(ifft2(ifftshift(G1_corrected), workers=-1))
         phase1 = np.angle(g1_back)
 
         # --- Channel 2: defocused image ---
         phase_defoc = add_defocus(phase, pupil_amplitude, defocus_waves)
         g2 = make_complex_pupil(pupil_amplitude, phase_defoc)
-        G2 = fftshift(fft2(ifftshift(g2)))
+        G2 = fftshift(fft2(ifftshift(g2), workers=-1))
         G2_corrected = self._project_fourier(G2, target_defoc)
-        g2_back = fftshift(ifft2(ifftshift(G2_corrected)))
+        g2_back = fftshift(ifft2(ifftshift(G2_corrected), workers=-1))
         phase2_with_defoc = np.angle(g2_back)
         phase2 = phase2_with_defoc - add_defocus(
             np.zeros_like(phase), pupil_amplitude, defocus_waves
@@ -144,9 +144,9 @@ class PhaseDiversity(PhaseRetriever):
         support: np.ndarray,
         iteration: int,
     ) -> tuple[np.ndarray, float]:
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
         G_prime = self._project_fourier(G, target_amplitude)
-        g_prime = fftshift(ifft2(ifftshift(G_prime)))
+        g_prime = fftshift(ifft2(ifftshift(G_prime), workers=-1))
         g_new = np.zeros_like(g_prime)
         g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(g_prime[support]))
         cost = self._focal_cost(target_amplitude, G)

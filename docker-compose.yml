@@ -32,7 +32,11 @@ services:
         condition: service_healthy
     environment:
       PR_DATABASE_URL: "postgresql://phase:phase@db:5432/phase"
-      PR_SECRET_KEY: "change-me-in-production"
+      # IMPORTANT: Change this to a strong random key in production!
+      # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+      PR_SECRET_KEY: "${PR_SECRET_KEY:-change-me-in-production}"
+      PR_ADMIN_PASSWORD: "${PR_ADMIN_PASSWORD:-admin123}"
+      PR_ENV: "${PR_ENV:-dev}"
       PR_DATA_DIR: "/app/data"
       PR_OUTPUT_DIR: "/app/web_outputs"
       PR_CORS_ORIGINS: '["http://localhost:4532","http://localhost"]'

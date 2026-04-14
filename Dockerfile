@@ -14,14 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc g++ && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python deps first (layer cache)
+# Install Python deps first (layer cache) — use pyproject.toml as single source of truth
 COPY pyproject.toml README.md LICENSE ./
-RUN pip install --no-cache-dir --prefix=/install \
-    numpy scipy matplotlib astropy pydantic \
-    fastapi "uvicorn[standard]" "sqlalchemy>=2.0" \
-    alembic PyJWT python-multipart \
-    pydantic-settings httpx psycopg2-binary bcrypt rich scikit-image \
-    astroquery
+# Create minimal package stubs so pip can resolve the editable install
+RUN mkdir -p src phase_retrieval web && \
+    touch src/__init__.py phase_retrieval/__init__.py web/__init__.py
+RUN pip install --no-cache-dir --prefix=/install -e ".[web]"
 
 # --- Stage 2: Runtime ---
 FROM python:3.11-slim AS runtime

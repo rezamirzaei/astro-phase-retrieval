@@ -50,7 +50,7 @@ Nesterov Y. (2004)
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import _EPS, PhaseRetriever
 from src.models.config import Regulariser
@@ -98,12 +98,12 @@ class FISTA(PhaseRetriever):
         lam = self.config.proximal_weight
 
         # ── Wirtinger gradient of the data-fidelity term ──────────────
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
         Y = target_amplitude**2
         I_model = np.abs(G) ** 2
         residual = I_model - Y
         grad_G = residual * G
-        grad_g = fftshift(ifft2(ifftshift(grad_G)))
+        grad_g = fftshift(ifft2(ifftshift(grad_G), workers=-1))
 
         # Step-size normalised by Lipschitz constant and grid
         mean_intensity = np.mean(Y) + _EPS

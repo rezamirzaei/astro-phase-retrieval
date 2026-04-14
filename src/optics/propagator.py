@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 
 def _normalise_psf(psf: np.ndarray) -> np.ndarray:
@@ -34,8 +34,8 @@ def _apply_detector_effects(
     blur_sigma = float(detector_sigma_pixels) + float(jitter_sigma_pixels)
     blur_mtf = np.exp(-2.0 * np.pi**2 * blur_sigma**2 * (fx_grid**2 + fy_grid**2))
 
-    spectrum = fft2(ifftshift(result))
-    filtered = np.real(fftshift(ifft2(spectrum * pixel_mtf * blur_mtf)))
+    spectrum = fft2(ifftshift(result), workers=-1)
+    filtered = np.real(fftshift(ifft2(spectrum * pixel_mtf * blur_mtf, workers=-1)))
     filtered[filtered < 0] = 0.0
     return _normalise_psf(filtered)
 
@@ -77,7 +77,7 @@ def pupil_to_psf(
     pixel_integration_width: float = 1.0,
 ) -> np.ndarray:
     """Propagate a complex pupil field to a focal-plane PSF intensity."""
-    ft = fftshift(fft2(ifftshift(pupil_complex)))
+    ft = fftshift(fft2(ifftshift(pupil_complex), workers=-1))
     psf = np.abs(ft) ** 2
     psf = _normalise_psf(psf)
     return _apply_detector_effects(
@@ -90,7 +90,7 @@ def pupil_to_psf(
 
 def psf_to_pupil(psf_amplitude: np.ndarray) -> np.ndarray:
     """Inverse-propagate focal-plane amplitude back to pupil plane."""
-    return fftshift(ifft2(ifftshift(psf_amplitude)))
+    return fftshift(ifft2(ifftshift(psf_amplitude), workers=-1))
 
 
 def make_complex_pupil(

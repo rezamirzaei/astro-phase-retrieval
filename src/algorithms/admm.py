@@ -34,7 +34,7 @@ Chang H., Marchesini S. (2018)
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import _EPS, PhaseRetriever
 from src.models.optics import PhaseRetrievalResult, PSFData
@@ -101,19 +101,19 @@ class ADMM(PhaseRetriever):
             self._u = np.zeros_like(g, dtype=complex)
 
         # ── G-step: enforce Fourier-magnitude constraint ──────────────
-        Fg = fftshift(fft2(ifftshift(g)))
+        Fg = fftshift(fft2(ifftshift(g), workers=-1))
         G_tilde = Fg + self._u
         G = self._project_fourier(G_tilde, target_amplitude)
 
         # ── g-step: enforce pupil-support constraint ──────────────────
         # z = F⁻¹{G − u}  then project onto support
-        z = fftshift(ifft2(ifftshift(G - self._u)))
+        z = fftshift(ifft2(ifftshift(G - self._u), workers=-1))
         g_new = np.zeros_like(z)
         g_new[support] = pupil_amplitude[support] * np.exp(1j * np.angle(z[support] + _EPS))
 
         # ── Dual variable update (scaled form) ────────────────────────
         # u ← u + ρ · (F{g_new} − G)
-        Fg_new = fftshift(fft2(ifftshift(g_new)))
+        Fg_new = fftshift(fft2(ifftshift(g_new), workers=-1))
         self._u = self._u + rho * (Fg_new - G)
 
         # ── Cost (primal residual amplitude error) ─────────────────────

@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from web.concurrency import get_job_semaphore
 from web.config import settings
 from web.dependencies import CurrentUser, DbSession
+from web.utils import assert_path_within, sanitize_filename
 from web.models import CrystallographyJob
 from web.schemas import (
     CifFileInfo,
@@ -178,9 +179,12 @@ def get_crystallography_plot(
         raise HTTPException(status_code=404, detail="Crystallography result not found")
     if not job.output_dir:
         raise HTTPException(status_code=404, detail="No plots available")
-    plot_path = Path(job.output_dir) / plot_name
+    safe_plot = sanitize_filename(plot_name)
+    out_dir = Path(job.output_dir)
+    plot_path = out_dir / safe_plot
+    assert_path_within(plot_path, out_dir)
     if not plot_path.exists() or not plot_path.name.endswith(".png"):
-        raise HTTPException(status_code=404, detail=f"Plot '{plot_name}' not found")
+        raise HTTPException(status_code=404, detail=f"Plot '{safe_plot}' not found")
     return FileResponse(plot_path, media_type="image/png")
 
 
@@ -221,7 +225,8 @@ async def upload_cif(file: UploadFile, _user: CurrentUser) -> UploadedFileRespon
     if not file.filename:
         raise HTTPException(status_code=422, detail="No filename provided")
 
-    ext = Path(file.filename).suffix.lower()
+    safe_name = sanitize_filename(file.filename)
+    ext = Path(safe_name).suffix.lower()
     if ext not in _ALLOWED_CIF_EXTENSIONS:
         raise HTTPException(
             status_code=422,
@@ -230,7 +235,7 @@ async def upload_cif(file: UploadFile, _user: CurrentUser) -> UploadedFileRespon
 
     cryst_dir = settings.data_dir / "crystallography"
     cryst_dir.mkdir(parents=True, exist_ok=True)
-    dest = cryst_dir / file.filename
+    dest = cryst_dir / safe_name
 
     total = 0
     with open(dest, "wb") as f:
@@ -245,8 +250,8 @@ async def upload_cif(file: UploadFile, _user: CurrentUser) -> UploadedFileRespon
             f.write(chunk)
 
     return UploadedFileResponse(
-        filename=file.filename,
+        filename=safe_name,
         size_bytes=total,
-        message=f"Uploaded to crystallography/{file.filename}",
+        message=f"Uploaded to crystallography/{safe_name}",
     )
 

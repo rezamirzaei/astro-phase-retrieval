@@ -1,5 +1,8 @@
 """Custom middleware stack — request tracing, structured logging, timing.
 
+Pure ASGI middleware implementations that avoid ``BaseHTTPMiddleware``'s
+response-body buffering problem (which breaks streaming and WebSocket).
+
 Middleware is applied in **reverse registration order**, so the first
 middleware registered wraps all subsequent ones:
 
@@ -17,9 +20,7 @@ import time
 import uuid
 from contextvars import ContextVar
 
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger("web.middleware")
 
@@ -29,53 +30,87 @@ logger = logging.getLogger("web.middleware")
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="")
 
 
-class RequestIDMiddleware(BaseHTTPMiddleware):
+class RequestIDMiddleware:
     """Assign / propagate ``X-Request-ID`` and store it in a ContextVar.
 
     If the incoming request already carries ``X-Request-ID`` (e.g. from an
     API gateway), it is reused.  Otherwise a UUID-4 is generated.
 
-    The ID is:
-    * stored in ``request.state.request_id``
-    * injected into the **response** ``X-Request-ID`` header
-    * pushed into ``request_id_ctx`` so that structured logs include it
+    Pure ASGI implementation — no response-body buffering.
     """
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        rid = request.headers.get("X-Request-ID") or uuid.uuid4().hex
-        request.state.request_id = rid
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+
+        # Extract or generate request ID
+        headers = dict(scope.get("headers", []))
+        rid = headers.get(b"x-request-id", b"").decode() or uuid.uuid4().hex
         request_id_ctx.set(rid)
 
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = rid
-        return response
+        # Store in scope state for downstream access
+        if "state" not in scope:
+            scope["state"] = {}
+        scope["state"]["request_id"] = rid
+
+        async def send_with_rid(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers_list: list[tuple[bytes, bytes]] = list(message.get("headers", []))
+                headers_list.append((b"x-request-id", rid.encode()))
+                message["headers"] = headers_list
+            await send(message)
+
+        await self.app(scope, receive, send_with_rid)
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
+class RequestLoggingMiddleware:
     """Log every HTTP request/response with structured fields.
 
     Emits: method, path, status, latency_ms, request_id, client_ip.
+
+    Pure ASGI implementation — no response-body buffering.
     """
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         start = time.perf_counter()
-        response = await call_next(request)
-        latency_ms = (time.perf_counter() - start) * 1000.0
+        method = scope.get("method", "?")
+        path = scope.get("path", "?")
+        status_code: int | None = None
 
-        rid = getattr(request.state, "request_id", request_id_ctx.get(""))
-        client_ip = request.client.host if request.client else "-"
+        async def send_wrapper(message: Message) -> None:
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 0)
+            await send(message)
 
-        # Skip noisy health-check logs
-        if request.url.path not in ("/api/health", "/api/readiness"):
-            logger.info(
-                "%s %s → %s  (%.1f ms)  [rid=%s ip=%s]",
-                request.method,
-                request.url.path,
-                response.status_code,
-                latency_ms,
-                rid,
-                client_ip,
-            )
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            latency_ms = (time.perf_counter() - start) * 1000.0
+            rid = scope.get("state", {}).get("request_id", request_id_ctx.get(""))
+            client = scope.get("client")
+            client_ip = client[0] if client else "-"
 
-        return response
+            # Skip noisy health-check logs
+            if path not in ("/api/health", "/api/readiness"):
+                logger.info(
+                    "%s %s → %s  (%.1f ms)  [rid=%s ip=%s]",
+                    method,
+                    path,
+                    status_code,
+                    latency_ms,
+                    rid,
+                    client_ip,
+                )
 

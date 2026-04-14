@@ -10,7 +10,7 @@ HIO feedback rule modifies both amplitude and phase outside the support.
 from __future__ import annotations
 
 import numpy as np
-from numpy.fft import fft2, fftshift, ifft2, ifftshift
+from scipy.fft import fft2, fftshift, ifft2, ifftshift  # type: ignore[import-untyped]
 
 from src.algorithms.base import PhaseRetriever
 
@@ -39,13 +39,13 @@ class HybridInputOutput(PhaseRetriever):
         beta = self._get_beta(iteration)
 
         # 1. Forward propagate
-        G = fftshift(fft2(ifftshift(g)))
+        G = fftshift(fft2(ifftshift(g), workers=-1))
 
         # 2. Enforce focal-plane amplitude constraint (noise-model aware)
         G_prime = self._project_fourier(G, target_amplitude)
 
         # 3. Inverse propagate
-        g_prime = fftshift(ifft2(ifftshift(G_prime)))
+        g_prime = fftshift(ifft2(ifftshift(G_prime), workers=-1))
 
         # 4. HIO update rule
         #    Inside support:  g_new = g'  (with amplitude enforced)
