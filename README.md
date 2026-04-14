@@ -83,8 +83,10 @@ phase-retrieval/
 ├── notebooks/
 │   └── phase_retrieval_hst.ipynb  Full interactive tutorial
 ├── pyproject.toml
-├── CHANGELOG.md
-├── CONTRIBUTING.md
+├── docs/
+│   ├── changelog.md
+│   ├── contributing.md
+│   └── security.md
 └── LICENSE
 ```
 
@@ -342,7 +344,7 @@ and real-data comparison plots are exported when saving is enabled:
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions,
+See [docs/contributing.md](docs/contributing.md) for development setup, coding conventions,
 and the pull-request workflow.
 
 ## License

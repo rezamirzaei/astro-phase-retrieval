@@ -65,7 +65,7 @@ Homepage = "https://github.com/rezamirzaeifard/phase-retrieval"
 Documentation = "https://rezamirzaeifard.github.io/phase-retrieval/"
 Repository = "https://github.com/rezamirzaeifard/phase-retrieval"
 Issues = "https://github.com/rezamirzaeifard/phase-retrieval/issues"
-Changelog = "https://github.com/rezamirzaeifard/phase-retrieval/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/rezamirzaeifard/phase-retrieval/blob/master/docs/changelog.md"
 
 [project.scripts]
 phase-retrieval = "src.cli:main"

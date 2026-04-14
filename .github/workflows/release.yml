@@ -68,8 +68,8 @@ jobs:
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # Extract the section for this version from CHANGELOG.md
-          awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md > release_notes.md
+          # Extract the section for this version from docs/changelog.md
+          awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" docs/changelog.md > release_notes.md
           echo "notes_path=release_notes.md" >> "$GITHUB_OUTPUT"
 
       - name: Download build artifacts

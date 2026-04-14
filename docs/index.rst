@@ -30,6 +30,8 @@ real-world HST/JWST astronomical wavefront sensing and X-ray crystallography.
    :caption: Project
 
    changelog
+   contributing
+   security
 
 Indices and tables
 ==================
