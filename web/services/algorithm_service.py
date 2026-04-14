@@ -271,7 +271,17 @@ def run_algorithm(
     fits_path: Path,
     grid_size: int = 128,
 ) -> Job:
-    """Execute one algorithm and update *job* in-place."""
+    """Execute one algorithm and update *job* in-place.
+
+    .. note::
+
+       When called via ``asyncio.to_thread`` the caller's ``db`` session
+       crosses a thread boundary.  For SQLite this is fine (we set
+       ``check_same_thread=False``).  For PostgreSQL, SQLAlchemy sessions
+       are not fully thread-safe, but single-row commits on a dedicated
+       session (no concurrent reads) are safe in practice.  A future
+       refactor should create a thread-local session here instead.
+    """
     try:
         job.status = "running"
         db.commit()
@@ -281,7 +291,7 @@ def run_algorithm(
         pipeline = _build_pipeline(
             grid_size,
             out_dir,
-            uncertainty_samples=int(str(cfg_raw.get("uncertainty_samples", 0))),
+            uncertainty_samples=int(cfg_raw.get("uncertainty_samples", 0) or 0),
         )
         pipeline_result = pipeline.run_from_file(
             fits_path,

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from web.config import settings
 from web.dependencies import CurrentUser
+from web.utils import assert_path_within, sanitize_filename
 from web.schemas import (
     ArtifactContentResponse,
     ValidationCampaignRequest,
@@ -21,10 +22,13 @@ router = APIRouter(prefix="/api/studies", tags=["studies"])
 
 
 def _resolve_campaign_artifact(campaign_id: str, artifact_name: str) -> Path:
-    campaign_dir = settings.output_dir / "validation_campaigns" / campaign_id
-    artifact_path = campaign_dir / artifact_name
+    safe_id = sanitize_filename(campaign_id)
+    safe_name = sanitize_filename(artifact_name)
+    campaign_dir = settings.output_dir / "validation_campaigns" / safe_id
+    artifact_path = campaign_dir / safe_name
+    assert_path_within(artifact_path, campaign_dir)
     if not artifact_path.exists() or not artifact_path.is_file():
-        raise HTTPException(status_code=404, detail=f"Artifact '{artifact_name}' not found")
+        raise HTTPException(status_code=404, detail=f"Artifact '{safe_name}' not found")
     if artifact_path.suffix.lower() not in {".json", ".md", ".csv"}:
         raise HTTPException(status_code=400, detail="Unsupported artifact type")
     return artifact_path

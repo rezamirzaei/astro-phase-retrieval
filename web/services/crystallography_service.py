@@ -7,7 +7,7 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-import matplotlib
+import matplotlib  # noqa: F401 — backend set during app lifespan
 import numpy as np
 from matplotlib import pyplot as plt
 from sqlalchemy.orm import Session
@@ -32,7 +32,7 @@ from web.config import settings
 from web.models import CrystallographyJob
 from web.schemas import CodPresetInfo
 
-matplotlib.use("Agg")
+# NOTE: matplotlib.use("Agg") is called during app lifespan startup.
 
 logger = logging.getLogger(__name__)
 
@@ -108,13 +108,12 @@ def run_crystallography_job(
         pattern = simulate_diffraction(crystal, grid_size=grid_size)
 
         cfg_raw: dict[str, object] = json.loads(job.config_json)
-        _g = cfg_raw.get
 
         result = run_crystallography_retrieval(
             diffraction=pattern,
             algorithm_name=job.algorithm,
-            max_iterations=int(str(_g("max_iterations", 500))),
-            beta=float(str(_g("beta", 0.9))),
+            max_iterations=int(cfg_raw.get("max_iterations", 500)),  # type: ignore[arg-type]
+            beta=float(cfg_raw.get("beta", 0.9)),  # type: ignore[arg-type]
             random_seed=42,
         )
 
