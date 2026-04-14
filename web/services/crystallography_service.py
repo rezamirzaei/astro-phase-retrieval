@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import matplotlib  # noqa: F401 — backend set during app lifespan
 import numpy as np
@@ -107,13 +108,13 @@ def run_crystallography_job(
         crystal = parse_cif(cif_path)
         pattern = simulate_diffraction(crystal, grid_size=grid_size)
 
-        cfg_raw: dict[str, object] = json.loads(job.config_json)
+        cfg_raw: dict[str, Any] = json.loads(job.config_json)
 
         result = run_crystallography_retrieval(
             diffraction=pattern,
             algorithm_name=job.algorithm,
-            max_iterations=int(cfg_raw.get("max_iterations", 500)),  # type: ignore[arg-type]
-            beta=float(cfg_raw.get("beta", 0.9)),  # type: ignore[arg-type]
+            max_iterations=int(cfg_raw.get("max_iterations", 500)),
+            beta=float(cfg_raw.get("beta", 0.9)),
             random_seed=42,
         )
 
@@ -147,13 +148,12 @@ def compare_crystallography_algorithms(
     algorithm_keys: list[str] | None = None,
 ) -> list[CrystallographyJob]:
     """Run multiple algorithms on the same crystallographic data."""
-    if algorithm_keys is None:
-        algorithm_keys = [
-            AlgorithmName.ERROR_REDUCTION.value,
-            AlgorithmName.HYBRID_INPUT_OUTPUT.value,
-            AlgorithmName.RAAR.value,
-            AlgorithmName.WIRTINGER_FLOW.value,
-        ]
+    keys: list[str] = algorithm_keys if algorithm_keys is not None else [
+        AlgorithmName.ERROR_REDUCTION.value,
+        AlgorithmName.HYBRID_INPUT_OUTPUT.value,
+        AlgorithmName.RAAR.value,
+        AlgorithmName.WIRTINGER_FLOW.value,
+    ]
 
     crystal = parse_cif(cif_path)
     pattern = simulate_diffraction(crystal, grid_size=grid_size)
@@ -161,7 +161,7 @@ def compare_crystallography_algorithms(
     jobs: list[CrystallographyJob] = []
     cryst_results: dict[str, CrystallographyResult] = {}
 
-    for key in algorithm_keys:
+    for key in keys:
         job = CrystallographyJob(
             user_id=user_id,
             algorithm=key,

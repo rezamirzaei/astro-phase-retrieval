@@ -41,11 +41,11 @@ class PhaseDiversity(PhaseRetriever):
         energy_pupil = np.sum(pupil_amp**2)
         energy_foc = np.sum(target_foc**2)
         if energy_foc > 0:
-            target_foc *= np.sqrt((energy_pupil * (n**2)) / energy_foc)
+            target_foc *= np.sqrt((energy_pupil * (n**2)) / energy_foc)  # type: ignore[operator]
 
         energy_defoc = np.sum(target_defoc**2)
         if energy_defoc > 0:
-            target_defoc *= np.sqrt((energy_pupil * (n**2)) / energy_defoc)
+            target_defoc *= np.sqrt((energy_pupil * (n**2)) / energy_defoc)  # type: ignore[operator]
 
         phase = self._initial_phase(n)
         cost_history: list[float] = []

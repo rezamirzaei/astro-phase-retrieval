@@ -18,9 +18,9 @@ cost for that iteration.  The base :meth:`run` loop handles:
 
 from __future__ import annotations
 
+import logging
 import sys
 import time
-import warnings
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -34,6 +34,8 @@ from src.models.optics import PhaseRetrievalResult, PSFData, PupilModel
 # Numerical stability epsilon — used throughout to prevent division by zero
 # and to regularise the phase angle of near-zero complex values.
 _EPS: float = 1e-30
+
+logger = logging.getLogger(__name__)
 
 # Default sliding-window length for convergence checking.  The algorithm
 # converges when the relative change in mean cost between two consecutive
@@ -105,11 +107,10 @@ class PhaseRetriever(ABC):
         energy_pupil = np.sum(pupil_amp**2)
         energy_target = np.sum(target_amp**2)
         if energy_target > 0:
-            target_amp *= np.sqrt((energy_pupil * (n**2)) / energy_target)
+            target_amp *= np.sqrt((energy_pupil * (n**2)) / energy_target)  # type: ignore[operator]
         else:
-            warnings.warn(
-                "PSF image has zero total energy — retrieval may not converge.",
-                stacklevel=2,
+            logger.warning(
+                "PSF image has zero total energy — retrieval may not converge."
             )
 
         # Initialise complex pupil field with known amplitude + random phase
@@ -144,6 +145,12 @@ class PhaseRetriever(ABC):
             )
         except ImportError:  # pragma: no cover
             _use_rich = False
+            Progress = None  # type: ignore[assignment, misc]
+            BarColumn = None  # type: ignore[assignment, misc]
+            SpinnerColumn = None  # type: ignore[assignment, misc]
+            TaskProgressColumn = None  # type: ignore[assignment, misc]
+            TextColumn = None  # type: ignore[assignment, misc]
+            TimeElapsedColumn = None  # type: ignore[assignment, misc]
 
         def _run_loop() -> None:
             nonlocal g, g_prev, converged, support

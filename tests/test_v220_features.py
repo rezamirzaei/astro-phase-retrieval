@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import warnings
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -268,43 +268,39 @@ class TestPipelineOrchestrator:
 class TestCrossFieldValidation:
     """Tests for AlgorithmConfig cross-field validators."""
 
-    def test_admm_rho_warning_non_admm(self) -> None:
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+    def test_admm_rho_warning_non_admm(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="src.models.config"):
             AlgorithmConfig(
                 name=AlgorithmName.HYBRID_INPUT_OUTPUT,
                 admm_rho=5.0,
             )
-            assert any("admm_rho" in str(warning.message) for warning in w)
+            assert any("admm_rho" in msg for msg in caplog.messages)
 
-    def test_admm_rho_no_warning_for_admm(self) -> None:
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+    def test_admm_rho_no_warning_for_admm(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="src.models.config"):
             AlgorithmConfig(
                 name=AlgorithmName.ADMM,
                 admm_rho=5.0,
             )
-            rho_warnings = [x for x in w if "admm_rho" in str(x.message)]
+            rho_warnings = [msg for msg in caplog.messages if "admm_rho" in msg]
             assert len(rho_warnings) == 0
 
-    def test_regulariser_warning_non_fista(self) -> None:
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+    def test_regulariser_warning_non_fista(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="src.models.config"):
             AlgorithmConfig(
                 name=AlgorithmName.HYBRID_INPUT_OUTPUT,
                 regulariser=Regulariser.TV,
             )
-            assert any("regulariser" in str(warning.message) for warning in w)
+            assert any("regulariser" in msg for msg in caplog.messages)
 
-    def test_sw_sigma_start_lt_end_warning(self) -> None:
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+    def test_sw_sigma_start_lt_end_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level(logging.WARNING, logger="src.models.config"):
             AlgorithmConfig(
                 name=AlgorithmName.HYBRID_INPUT_OUTPUT,
                 sw_sigma_start=1.0,
                 sw_sigma_end=3.0,
             )
-            assert any("sw_sigma_start" in str(warning.message) for warning in w)
+            assert any("sw_sigma_start" in msg for msg in caplog.messages)
 
 
 # ---------------------------------------------------------------------------

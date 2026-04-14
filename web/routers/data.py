@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, status
 
 from web.config import settings
 from web.dependencies import CurrentUser
-from web.utils import sanitize_filename
 from web.schemas import (
     FitsFileInfo,
     PaginatedResponse,
@@ -18,6 +17,7 @@ from web.schemas import (
     UploadedFileResponse,
 )
 from web.services.data_service import generate_synthetic_psf, list_fits_files
+from web.utils import sanitize_filename
 
 router = APIRouter(prefix="/api/data", tags=["data"])
 

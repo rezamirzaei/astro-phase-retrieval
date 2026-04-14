@@ -27,7 +27,7 @@ This report summarises one `er` reconstruction on a `unknown` dataset. The metri
 - Radial-profile error: **0.2165** (weak)
 - Encircled-energy error: **0.0101** (moderate)
 - Iterations: **30**
-- Elapsed time: **0.026 s**
+- Elapsed time: **0.035 s**
 
 ## Evidence
 

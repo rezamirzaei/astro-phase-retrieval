@@ -6,18 +6,21 @@ Design
   PINN-specific fields are grouped at the bottom with a ``pinn_`` prefix so
   they are easily identified but remain in one flat model (avoids the need
   for callers to construct nested configs).
-* ``admm_rho`` is the ADMM augmented-Lagrangian penalty parameter ρ.
+* ``admm_rho`` is the ADMM augmented-Lagrangian penalty parameter rho.
   It is separate from ``beta`` (which is a relaxation / feedback coefficient)
   because the two parameters play fundamentally different roles.
 """
 
 from __future__ import annotations
 
+import logging
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+_logger = logging.getLogger(__name__)
 
 
 class Regulariser(StrEnum):
@@ -66,7 +69,7 @@ class BetaSchedule(StrEnum):
 
 
 class NoiseModel(StrEnum):
-    """Noise model for focal-plane projection.
+    r"""Noise model for focal-plane projection.
 
     ``GAUSSIAN``
         Standard amplitude replacement: G' = \|y\| · exp(iφ).  Fast and
@@ -89,7 +92,7 @@ class DataConfig(BaseModel):
     """Where to find / download the observation data."""
 
     data_dir: Path = Field(
-        default=Path("data"), description="Root directory for downloaded FITS files"
+        default=Path("data"), description="Root directory for downloaded FITS files",
     )
     obs_id: str = Field(
         default="JDOX-HST-WFC3",
@@ -100,7 +103,7 @@ class DataConfig(BaseModel):
         description="Detector used for the observation",
     )
     cutout_size: int = Field(
-        default=128, ge=32, le=1024, description="PSF cutout half-width in pixels"
+        default=128, ge=32, le=1024, description="PSF cutout half-width in pixels",
     )
     filter_name: str = Field(default="F606W", description="Optical filter bandpass name")
     background_percentile: float = Field(
@@ -154,7 +157,8 @@ class DataConfig(BaseModel):
     @classmethod
     def _power_of_two(cls, v: int) -> int:
         if v & (v - 1) != 0:
-            raise ValueError(f"cutout_size must be a power of 2, got {v}")
+            msg = f"cutout_size must be a power of 2, got {v}"
+            raise ValueError(msg)
         return v
 
 
@@ -168,17 +172,17 @@ class PupilConfig(BaseModel):
 
     telescope: TelescopeType = Field(default=TelescopeType.HST)
     grid_size: int = Field(
-        default=256, ge=64, le=2048, description="Pupil-plane grid side length (px)"
+        default=256, ge=64, le=2048, description="Pupil-plane grid side length (px)",
     )
     primary_radius: float = Field(default=1.2, gt=0, description="Primary mirror radius (m)")
     secondary_radius: float = Field(
-        default=0.396, ge=0, description="Secondary mirror obstruction radius (m)"
+        default=0.396, ge=0, description="Secondary mirror obstruction radius (m)",
     )
     spider_width: float = Field(default=0.0254, ge=0, description="Spider vane width (m)")
     n_spiders: int = Field(default=4, ge=0, le=8, description="Number of spider vanes")
     wavelength_m: float = Field(default=606e-9, gt=0, description="Observation wavelength (m)")
     pixel_scale_arcsec: float = Field(
-        default=0.04, gt=0, description="Detector pixel scale (arcsec/px)"
+        default=0.04, gt=0, description="Detector pixel scale (arcsec/px)",
     )
     bandwidth_fraction: float = Field(
         default=0.0,
@@ -225,7 +229,8 @@ class PupilConfig(BaseModel):
     @classmethod
     def _power_of_two(cls, v: int) -> int:
         if v & (v - 1) != 0:
-            raise ValueError(f"grid_size must be a power of 2, got {v}")
+            msg = f"grid_size must be a power of 2, got {v}"
+            raise ValueError(msg)
         return v
 
 
@@ -242,26 +247,26 @@ class AlgorithmConfig(BaseModel):
     ``name``             : Algorithm key (see :class:`AlgorithmName`).
     ``max_iterations``   : Hard iteration limit.
     ``tolerance``        : Relative cost-change threshold for early stopping.
-    ``beta``             : Feedback / relaxation parameter β (HIO, RAAR, DR).
-    ``beta_schedule``    : Cosine / linear annealing of β.
-    ``beta_min``         : Minimum β for adaptive schedules.
+    ``beta``             : Feedback / relaxation parameter beta (HIO, RAAR, DR).
+    ``beta_schedule``    : Cosine / linear annealing of beta.
+    ``beta_min``         : Minimum beta for adaptive schedules.
 
     Regularisation
     ~~~~~~~~~~~~~~
-    ``tv_weight``        : TV proximal weight λ (0 = off).
+    ``tv_weight``        : TV proximal weight lambda (0 = off).
     ``noise_model``      : Gaussian (default) or Poisson ML projection.
     ``use_sw_constraint``: Enable Shrink-Wrap dynamic support (Marchesini 2003).
     ``support_threshold``: Fraction of max amplitude for SW thresholding.
 
     ADMM
     ~~~~
-    ``admm_rho``         : Augmented-Lagrangian penalty ρ (distinct from β).
+    ``admm_rho``         : Augmented-Lagrangian penalty rho (distinct from beta).
 
     Enhancements
     ~~~~~~~~~~~~
     ``momentum``         : Nesterov / heavy-ball momentum coefficient.
     ``n_starts``         : Multi-start restarts (best result returned).
-    ``wf_step_size``     : Wirtinger Flow learning rate μ.
+    ``wf_step_size``     : Wirtinger Flow learning rate mu.
     ``wf_spectral_init`` : Use spectral init for WF (recommended).
     ``spectral_init``    : Use spectral init for all algorithms.
 
@@ -274,15 +279,15 @@ class AlgorithmConfig(BaseModel):
     name: AlgorithmName = Field(default=AlgorithmName.HYBRID_INPUT_OUTPUT)
     max_iterations: int = Field(default=300, ge=1, le=100_000)
     tolerance: float = Field(
-        default=1e-8, gt=0, description="Convergence tolerance on cost-function change"
+        default=1e-8, gt=0, description="Convergence tolerance on cost-function change",
     )
-    beta: float = Field(default=0.9, gt=0, le=1.0, description="HIO / RAAR feedback parameter β")
+    beta: float = Field(default=0.9, gt=0, le=1.0, description="HIO / RAAR feedback parameter beta")
     beta_schedule: BetaSchedule = Field(
         default=BetaSchedule.CONSTANT,
-        description="Adaptive β scheduling: constant, linear ramp-down, or cosine annealing",
+        description="Adaptive beta scheduling: constant, linear ramp-down, or cosine annealing",
     )
     beta_min: float = Field(
-        default=0.5, ge=0, le=1.0, description="Minimum β for adaptive schedules"
+        default=0.5, ge=0, le=1.0, description="Minimum beta for adaptive schedules",
     )
     defocus_waves: float = Field(
         default=1.0,
@@ -307,9 +312,9 @@ class AlgorithmConfig(BaseModel):
         default=1.0,
         gt=0,
         description=(
-            "ADMM augmented-Lagrangian penalty ρ.  "
-            "Larger ρ enforces G = F{g} more aggressively at the cost of "
-            "slower sub-problem convergence.  Distinct from β."
+            "ADMM augmented-Lagrangian penalty rho.  "
+            "Larger rho enforces G = F{g} more aggressively at the cost of "
+            "slower sub-problem convergence.  Distinct from beta."
         ),
     )
 
@@ -436,7 +441,7 @@ class AlgorithmConfig(BaseModel):
         default=0.7,
         gt=0,
         le=1.0,
-        description="LR scheduler multiplicative decay γ for PINN",
+        description="LR scheduler multiplicative decay gamma for PINN",
     )
 
     # ── ER-finish (shared across HIO, RAAR, DR) ──────────────────────
@@ -482,28 +487,31 @@ class AlgorithmConfig(BaseModel):
         default=3.0,
         ge=1.0,
         le=20.0,
-        description="Initial Gaussian σ for Shrink-Wrap smoothing",
+        description="Initial Gaussian sigma for Shrink-Wrap smoothing",
     )
     sw_sigma_end: float = Field(
         default=1.0,
         ge=0.5,
         le=10.0,
-        description="Final Gaussian σ for Shrink-Wrap smoothing",
+        description="Final Gaussian sigma for Shrink-Wrap smoothing",
     )
 
     # ── Cross-field validators ────────────────────────────────────────
     @model_validator(mode="after")
-    def _validate_cross_fields(self) -> AlgorithmConfig:
-        """Validate field combinations for consistency."""
-        import warnings
+    def _validate_cross_fields(self) -> Self:
+        """Validate field combinations for consistency.
 
+        Uses ``logging.warning`` instead of ``warnings.warn`` to avoid
+        Pydantic v2 re-emitting the warning from its own ``__init__``
+        call-site, which confuses pytest warning filters and stack traces.
+        """
         # admm_rho only meaningful for ADMM
         if self.admm_rho != 1.0 and self.name != AlgorithmName.ADMM:
-            warnings.warn(
-                f"admm_rho={self.admm_rho} is set but algorithm is "
-                f"'{self.name.value}' (not ADMM) — parameter will be ignored.",
-                UserWarning,
-                stacklevel=2,
+            _logger.warning(
+                "admm_rho=%s is set but algorithm is '%s' (not ADMM) "
+                "— parameter will be ignored.",
+                self.admm_rho,
+                self.name.value,
             )
 
         # Regulariser only meaningful for FISTA
@@ -511,21 +519,20 @@ class AlgorithmConfig(BaseModel):
             AlgorithmName.FISTA,
             AlgorithmName.SPARSE_PR,
         ):
-            warnings.warn(
-                f"regulariser='{self.regulariser.value}' is set but algorithm is "
-                f"'{self.name.value}' — regulariser will be ignored; "
-                f"use tv_weight for TV regularisation in the base loop.",
-                UserWarning,
-                stacklevel=2,
+            _logger.warning(
+                "regulariser='%s' is set but algorithm is '%s' "
+                "— regulariser will be ignored; "
+                "use tv_weight for TV regularisation in the base loop.",
+                self.regulariser.value,
+                self.name.value,
             )
 
-        # sw_sigma_start >= sw_sigma_end
+        # Warn when sigma annealing range is inverted
         if self.sw_sigma_start < self.sw_sigma_end:
-            warnings.warn(
-                f"sw_sigma_start ({self.sw_sigma_start}) < sw_sigma_end "
-                f"({self.sw_sigma_end}) — sigma will be clamped.",
-                UserWarning,
-                stacklevel=2,
+            _logger.warning(
+                "sw_sigma_start (%s) < sw_sigma_end (%s) — sigma will be clamped.",
+                self.sw_sigma_start,
+                self.sw_sigma_end,
             )
 
         return self
@@ -570,9 +577,9 @@ class PipelineConfig(BaseModel):
     uncertainty_seed: int = Field(default=123, description="RNG seed for uncertainty estimation")
 
     @model_validator(mode="after")
-    def _sync_wavelength_with_filter(self) -> PipelineConfig:
+    def _sync_wavelength_with_filter(self) -> Self:
         """Auto-set wavelength from filter name when using defaults."""
-        # Import lazily to avoid circular dependency: config → downloader → config
+        # Import lazily to avoid circular dependency: config -> downloader -> config
         from src.data.downloader import FILTER_WAVELENGTH_M  # noqa: PLC0415
 
         wl = FILTER_WAVELENGTH_M.get(self.data.filter_name)

@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import matplotlib  # noqa: F401 — ensure it's importable; backend set in lifespan
 from matplotlib import pyplot as plt
@@ -21,6 +22,8 @@ from src.metrics.quality import zernike_decomposition
 from src.models.config import (
     AlgorithmConfig,
     AlgorithmName,
+    BetaSchedule,
+    NoiseModel,
     default_hst_config,
 )
 from src.models.optics import PSFData, PupilModel
@@ -40,8 +43,10 @@ from web.models import Job
 from web.schemas import (
     AlgorithmDefaults,
     AlgorithmInfo,
+    BenchmarkAggregateRow,
     BenchmarkCaseInfo,
     BenchmarkResponse,
+    BenchmarkStudyRow,
     PlotReference,
 )
 
@@ -55,91 +60,91 @@ ALGORITHM_DEFAULTS: dict[str, AlgorithmDefaults] = {
     "er": AlgorithmDefaults(
         max_iterations=250,
         beta=0.85,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.0,
         tv_weight=0.0,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "gs": AlgorithmDefaults(
         max_iterations=300,
         beta=0.9,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.0,
         tv_weight=0.0,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "hio": AlgorithmDefaults(
         max_iterations=400,
         beta=0.9,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.25,
         tv_weight=0.0,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "raar": AlgorithmDefaults(
         max_iterations=600,
         beta=0.9,
-        beta_schedule="cosine",
+        beta_schedule=BetaSchedule.COSINE,
         momentum=0.1,
         tv_weight=0.0,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "wf": AlgorithmDefaults(
         max_iterations=350,
         beta=0.75,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.0,
         tv_weight=0.0,
-        noise_model="poisson",
+        noise_model=NoiseModel.POISSON,
         grid_size=128,
     ),
     "dr": AlgorithmDefaults(
         max_iterations=450,
         beta=0.9,
-        beta_schedule="linear",
+        beta_schedule=BetaSchedule.LINEAR,
         momentum=0.0,
         tv_weight=0.0,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "admm": AlgorithmDefaults(
         max_iterations=300,
         beta=0.8,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.0,
         tv_weight=1e-4,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "pinn": AlgorithmDefaults(
         max_iterations=250,
         beta=0.9,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.0,
         tv_weight=5e-5,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "fista": AlgorithmDefaults(
         max_iterations=400,
         beta=0.9,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.0,
         tv_weight=0.0,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
     "sparse_pr": AlgorithmDefaults(
         max_iterations=350,
         beta=0.75,
-        beta_schedule="constant",
+        beta_schedule=BetaSchedule.CONSTANT,
         momentum=0.0,
         tv_weight=0.0,
-        noise_model="gaussian",
+        noise_model=NoiseModel.GAUSSIAN,
         grid_size=128,
     ),
 }
@@ -156,7 +161,7 @@ def _build_algorithm_config(job: Job) -> AlgorithmConfig:
     Delegates parsing/validation to Pydantic instead of manual str→float
     conversions — any type errors are caught at construction time.
     """
-    cfg_raw: dict[str, object] = json.loads(job.config_json)
+    cfg_raw: dict[str, Any] = json.loads(job.config_json)
     # Merge with defaults; let Pydantic handle type coercion & validation
     return AlgorithmConfig(
         name=AlgorithmName(job.algorithm),
@@ -287,7 +292,7 @@ def run_algorithm(
         db.commit()
 
         out_dir = settings.output_dir / str(job.id)
-        cfg_raw: dict[str, object] = json.loads(job.config_json)
+        cfg_raw: dict[str, Any] = json.loads(job.config_json)
         pipeline = _build_pipeline(
             grid_size,
             out_dir,
@@ -504,8 +509,8 @@ def run_algorithm_benchmark(
         selected_cases=[
             BenchmarkCaseInfo(key=case.key, description=case.description) for case in selected_cases
         ],
-        aggregate=summary.aggregate,
-        study=summary.study,
+        aggregate=[BenchmarkAggregateRow(**row) for row in summary.aggregate],
+        study=[BenchmarkStudyRow(**row) for row in summary.study],
         records_count=len(summary.records),
         artifacts=summary.artifacts,
     )

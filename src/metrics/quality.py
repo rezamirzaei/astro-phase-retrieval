@@ -6,12 +6,14 @@ MTF (Modulation Transfer Function), SSIM, and Phase Structure Function.
 
 from __future__ import annotations
 
-import warnings
+import logging
 
 import numpy as np
 from numpy.fft import fft2, fftshift
 
 from src.optics.propagator import make_complex_pupil, pupil_to_psf
+
+logger = logging.getLogger(__name__)
 
 
 def compute_rms_phase(phase: np.ndarray, support: np.ndarray) -> float:
@@ -111,11 +113,11 @@ def compute_strehl_ratio(
         return 0.0
     raw = float(peak_aberrated / peak_perfect)
     if raw > 1.0 + 1e-6:
-        warnings.warn(
-            f"Strehl ratio {raw:.4f} > 1.0 — this indicates a normalisation "
-            f"mismatch or noise amplification in the reconstruction. "
-            f"Clamping to 1.0 for downstream consumers.",
-            stacklevel=2,
+        logger.warning(
+            "Strehl ratio %.4f > 1.0 — this indicates a normalisation "
+            "mismatch or noise amplification in the reconstruction. "
+            "Clamping to 1.0 for downstream consumers.",
+            raw,
         )
     return min(raw, 1.0)
 

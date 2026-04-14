@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import io
 import zipfile
+from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse, StreamingResponse
@@ -14,10 +16,10 @@ from sqlalchemy import func, select
 
 from web.config import settings
 from web.dependencies import CurrentUser, DbSession
-from web.utils import assert_path_within, sanitize_filename
 from web.models import Job
 from web.schemas import ArtifactContentResponse, DashboardStats, JobResponse, PaginatedResponse
 from web.services.algorithm_service import list_job_artifacts, list_job_plots
+from web.utils import assert_path_within, sanitize_filename
 
 router = APIRouter(prefix="/api/results", tags=["results"])
 
@@ -25,7 +27,7 @@ router = APIRouter(prefix="/api/results", tags=["results"])
 def _resolve_job_artifact(job: Job, artifact_name: str) -> Path:
     if not job.output_dir:
         raise HTTPException(status_code=404, detail="No artifacts available")
-    out_dir = Path(job.output_dir)
+    out_dir = Path(str(job.output_dir))
     safe_name = sanitize_filename(artifact_name)
     artifact_path = out_dir / safe_name
     assert_path_within(artifact_path, out_dir)
@@ -100,7 +102,7 @@ def dashboard(user: CurrentUser, db: DbSession) -> DashboardStats:
 @router.get("/{job_id}", response_model=JobResponse)
 def get_result(job_id: int, user: CurrentUser, db: DbSession) -> JobResponse:
     """Get a single result by ID."""
-    job = db.get(Job, job_id)
+    job = cast(Job | None, db.get(Job, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Result not found")
     resp = JobResponse.model_validate(job)
@@ -112,14 +114,14 @@ def get_result(job_id: int, user: CurrentUser, db: DbSession) -> JobResponse:
 @router.get("/{job_id}/plots/{plot_name}")
 def get_plot(job_id: int, plot_name: str, user: CurrentUser, db: DbSession) -> FileResponse:
     """Serve a plot PNG for a specific result."""
-    job = db.get(Job, job_id)
+    job = cast(Job | None, db.get(Job, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=404, detail="Result not found")
     if not job.output_dir:
         raise HTTPException(status_code=404, detail="No plots available")
 
     safe_plot = sanitize_filename(plot_name)
-    out_dir = Path(job.output_dir)
+    out_dir = Path(str(job.output_dir))
     plot_path = out_dir / safe_plot
     assert_path_within(plot_path, out_dir)
     if not plot_path.exists() or not plot_path.name.endswith(".png"):
@@ -144,7 +146,7 @@ def get_artifact_content(
     """Return parsed artifact content for JSON/Markdown/CSV reports."""
     import json
 
-    job = db.get(Job, job_id)
+    job = cast(Job | None, db.get(Job, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=404, detail="Result not found")
     artifact_path = _resolve_job_artifact(job, artifact_name)
@@ -171,15 +173,15 @@ async def export_result(job_id: int, user: CurrentUser, db: DbSession) -> Stream
     """
     import json
 
-    job = db.get(Job, job_id)
+    job = cast(Job | None, db.get(Job, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=404, detail="Result not found")
     if job.status != "completed":
         raise HTTPException(status_code=409, detail="Job has not completed yet")
-    if not job.output_dir or not Path(job.output_dir).exists():
+    if not job.output_dir or not Path(str(job.output_dir)).exists():
         raise HTTPException(status_code=404, detail="Output files not found")
 
-    out_dir = Path(job.output_dir)
+    out_dir = Path(str(job.output_dir))
 
     def _build_zip() -> io.BytesIO:
         buf = io.BytesIO()
@@ -191,7 +193,9 @@ async def export_result(job_id: int, user: CurrentUser, db: DbSession) -> Stream
             if comparison_dir.exists():
                 for comparison_file in sorted(comparison_dir.glob("*")):
                     if comparison_file.is_file():
-                        zf.write(comparison_file, arcname=f"compare/{comparison_file.name}")
+                        zf.write(str(comparison_file), arcname=f"compare/{comparison_file.name}")
+            created_at: datetime | None = job.created_at  # type: ignore[assignment]
+            completed_at: datetime | None = job.completed_at  # type: ignore[assignment]
             metadata = {
                 "job_id": job.id,
                 "algorithm": job.algorithm,
@@ -202,8 +206,8 @@ async def export_result(job_id: int, user: CurrentUser, db: DbSession) -> Stream
                 "n_iterations": job.n_iterations,
                 "elapsed_seconds": job.elapsed_seconds,
                 "converged": job.converged,
-                "created_at": job.created_at.isoformat() if job.created_at else None,
-                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "created_at": created_at.isoformat() if created_at else None,
+                "completed_at": completed_at.isoformat() if completed_at else None,
             }
             zf.writestr("metadata.json", json.dumps(metadata, indent=2))
         buf.seek(0)
@@ -223,11 +227,11 @@ def delete_result(job_id: int, user: CurrentUser, db: DbSession) -> None:
     """Delete a result and its generated plots."""
     import shutil
 
-    job = db.get(Job, job_id)
+    job = cast(Job | None, db.get(Job, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=404, detail="Result not found")
-    if job.output_dir and Path(job.output_dir).exists():
-        shutil.rmtree(job.output_dir, ignore_errors=True)
+    if job.output_dir and Path(str(job.output_dir)).exists():
+        shutil.rmtree(str(job.output_dir), ignore_errors=True)
     db.delete(job)
     db.commit()
 
@@ -258,7 +262,7 @@ async def export_batch(
 
     jobs_to_export: list[Job] = []
     for jid in body.job_ids:
-        job = db.get(Job, jid)
+        job = cast(Job | None, db.get(Job, jid))
         if job is None or job.user_id != user.id:
             raise HTTPException(status_code=404, detail=f"Job {jid} not found")
         if job.status != "completed" or not job.output_dir:
@@ -271,18 +275,18 @@ async def export_batch(
     def _build() -> io.BytesIO:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for job in jobs_to_export:
-                prefix = f"job_{job.id}"
-                out_dir = Path(job.output_dir)  # type: ignore[arg-type]
+            for j in jobs_to_export:
+                prefix = f"job_{j.id}"
+                out_dir = Path(str(j.output_dir))
                 for f in sorted(out_dir.iterdir()):
                     if f.is_file():
                         zf.write(f, arcname=f"{prefix}/{f.name}")
                 meta = {
-                    "job_id": job.id,
-                    "algorithm": job.algorithm,
-                    "strehl_ratio": job.strehl_ratio,
-                    "rms_phase_rad": job.rms_phase_rad,
-                    "elapsed_seconds": job.elapsed_seconds,
+                    "job_id": j.id,
+                    "algorithm": j.algorithm,
+                    "strehl_ratio": j.strehl_ratio,
+                    "rms_phase_rad": j.rms_phase_rad,
+                    "elapsed_seconds": j.elapsed_seconds,
                 }
                 zf.writestr(f"{prefix}/metadata.json", _json.dumps(meta, indent=2))
         buf.seek(0)

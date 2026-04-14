@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from typing import cast
 
 from fastapi import APIRouter, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -12,7 +13,6 @@ from fastapi.responses import FileResponse
 from web.concurrency import get_job_semaphore
 from web.config import settings
 from web.dependencies import CurrentUser, DbSession
-from web.utils import assert_path_within, sanitize_filename
 from web.models import CrystallographyJob
 from web.schemas import (
     CifFileInfo,
@@ -33,6 +33,7 @@ from web.services.crystallography_service import (
     run_crystallography_job,
     simulate_from_cif,
 )
+from web.utils import assert_path_within, sanitize_filename
 
 router = APIRouter(prefix="/api/crystallography", tags=["crystallography"])
 
@@ -161,7 +162,7 @@ def get_crystallography_result(
     job_id: int, user: CurrentUser, db: DbSession
 ) -> CrystallographyJobResponse:
     """Get a single crystallography result by ID."""
-    job = db.get(CrystallographyJob, job_id)
+    job = cast(CrystallographyJob | None, db.get(CrystallographyJob, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=404, detail="Crystallography result not found")
     resp = CrystallographyJobResponse.model_validate(job)
@@ -174,13 +175,13 @@ def get_crystallography_plot(
     job_id: int, plot_name: str, user: CurrentUser, db: DbSession
 ) -> FileResponse:
     """Serve a plot PNG for a crystallography result."""
-    job = db.get(CrystallographyJob, job_id)
+    job = cast(CrystallographyJob | None, db.get(CrystallographyJob, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=404, detail="Crystallography result not found")
     if not job.output_dir:
         raise HTTPException(status_code=404, detail="No plots available")
     safe_plot = sanitize_filename(plot_name)
-    out_dir = Path(job.output_dir)
+    out_dir = Path(str(job.output_dir))
     plot_path = out_dir / safe_plot
     assert_path_within(plot_path, out_dir)
     if not plot_path.exists() or not plot_path.name.endswith(".png"):
@@ -193,11 +194,11 @@ def delete_crystallography_result(job_id: int, user: CurrentUser, db: DbSession)
     """Delete a crystallography result and its plots."""
     import shutil
 
-    job = db.get(CrystallographyJob, job_id)
+    job = cast(CrystallographyJob | None, db.get(CrystallographyJob, job_id))
     if job is None or job.user_id != user.id:
         raise HTTPException(status_code=404, detail="Crystallography result not found")
-    if job.output_dir and Path(job.output_dir).exists():
-        shutil.rmtree(job.output_dir, ignore_errors=True)
+    if job.output_dir and Path(str(job.output_dir)).exists():
+        shutil.rmtree(str(job.output_dir), ignore_errors=True)
     db.delete(job)
     db.commit()
 

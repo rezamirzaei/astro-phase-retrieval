@@ -14,6 +14,7 @@ Usage
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from scipy.ndimage import shift as ndimage_shift  # type: ignore[import-untyped]
@@ -56,7 +57,7 @@ def generate_synthetic_psf(
     background_level: float = 0.0,
     bandwidth_fraction: float = 0.0,
     spectral_samples: int = 1,
-    spectral_weighting: str = "delta",
+    spectral_weighting: Literal["delta", "gaussian", "uniform"] = "delta",
     field_defocus_waves: float = 0.0,
     detector_sigma_pixels: float = 0.0,
     jitter_sigma_pixels: float = 0.0,
@@ -169,7 +170,7 @@ def generate_synthetic_psf(
         noisy_psf /= total
 
     psf_data = PSFData(
-        image=noisy_psf,
+        image=np.asarray(noisy_psf),
         pixel_scale_arcsec=0.04,
         wavelength_m=wavelength_m,
         filter_name="SYNTH",

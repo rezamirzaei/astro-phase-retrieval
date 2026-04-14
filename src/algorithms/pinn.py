@@ -79,7 +79,7 @@ class PINNPhaseRetriever(PhaseRetriever):
 
         # --- Prepare numpy arrays -------------------------------------------
         pupil_amp_np = self.pupil.amplitude.astype(np.float32)
-        support_np = pupil_amp_np > 0
+        support_np: np.ndarray = np.asarray(pupil_amp_np > 0)
         target_np = psf_data.image.astype(np.float32)
         target_np /= max(float(target_np.sum()), 1e-30)
         n = pupil_amp_np.shape[0]
@@ -262,7 +262,7 @@ class PINNPhaseRetriever(PhaseRetriever):
             best_phase,
             **self.pupil.forward_model_kwargs(),
         )
-        rms = compute_rms_phase(best_phase, support_np)
+        rms = compute_rms_phase(best_phase, np.asarray(support_np))
         strehl = compute_strehl_ratio(
             recon_psf,
             self.pupil.amplitude,
@@ -552,7 +552,7 @@ class PINNPhaseRetriever(PhaseRetriever):
     @staticmethod
     def _import_torch() -> _TorchModules:
         try:
-            with warnings.catch_warnings():
+            with warnings.catch_warnings():  # type: ignore[assignment]
                 warnings.filterwarnings(
                     "ignore",
                     message=r"Failed to initialize NumPy: _ARRAY_API not found",
@@ -560,6 +560,7 @@ class PINNPhaseRetriever(PhaseRetriever):
                 )
                 import torch
                 import torch.nn as nn
+            return _TorchModules(torch=torch, nn=nn)
         except ImportError as exc:  # pragma: no cover
             raise ImportError(
                 "PINN support requires a working PyTorch install. "
@@ -567,4 +568,3 @@ class PINNPhaseRetriever(PhaseRetriever):
                 "if Gatekeeper blocks native libraries, remove the quarantine attribute "
                 "from the torch package before retrying."
             ) from exc
-        return _TorchModules(torch=torch, nn=nn)

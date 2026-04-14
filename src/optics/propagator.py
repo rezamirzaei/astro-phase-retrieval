@@ -90,7 +90,7 @@ def pupil_to_psf(
 
 def psf_to_pupil(psf_amplitude: np.ndarray) -> np.ndarray:
     """Inverse-propagate focal-plane amplitude back to pupil plane."""
-    return fftshift(ifft2(ifftshift(psf_amplitude), workers=-1))
+    return fftshift(ifft2(ifftshift(psf_amplitude), workers=-1))  # type: ignore[no-any-return]
 
 
 def make_complex_pupil(

@@ -17,7 +17,14 @@ from sqlalchemy import select
 
 from web.dependencies import CurrentUser, DbSession
 from web.models import User
-from web.schemas import ChangePasswordRequest, LoginRequest, RefreshRequest, Token, UserCreate, UserResponse
+from web.schemas import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RefreshRequest,
+    Token,
+    UserCreate,
+    UserResponse,
+)
 from web.security import (
     create_access_token,
     create_refresh_token,
@@ -177,9 +184,18 @@ def change_password(
     db.commit()
     db.refresh(current_user)
 
-    claims = {"sub": str(current_user.id), "username": current_user.username, "tv": current_user.token_version}
+    claims = {
+        "sub": str(current_user.id),
+        "username": current_user.username,
+        "tv": current_user.token_version,
+    }
     access = create_access_token(claims)
     refresh_tok = create_refresh_token(claims)
-    logger.info("Password changed for user %s (id=%s), all tokens revoked", current_user.username, current_user.id)
+    logger.info(
+        "Password changed for user %s (id=%s), all tokens revoked",
+        current_user.username,
+        current_user.id,
+    )
     return {"access_token": access, "refresh_token": refresh_tok, "token_type": "bearer"}
+
 

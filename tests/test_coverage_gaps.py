@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import logging
 import runpy
 from unittest.mock import patch
 
@@ -97,8 +98,8 @@ class TestBaseEdgeCases:
         with pytest.raises(ValueError, match="does not match"):
             AlgorithmRegistry.create(cfg, pupil).run(wrong)
 
-    def test_zero_energy_warning(self, pupil: PupilModel) -> None:
-        """Line 90: all-zero PSF triggers a UserWarning."""
+    def test_zero_energy_warning(self, pupil: PupilModel, caplog: pytest.LogCaptureFixture) -> None:
+        """Line 90: all-zero PSF triggers a warning log."""
         n = pupil.grid_size
         zero = PSFData(
             image=np.zeros((n, n)),
@@ -114,8 +115,9 @@ class TestBaseEdgeCases:
             random_seed=1,
             spectral_init=False,
         )
-        with pytest.warns(UserWarning, match="zero total energy"):
+        with caplog.at_level(logging.WARNING, logger="src.algorithms.base"):
             AlgorithmRegistry.create(cfg, pupil).run(zero)
+        assert any("zero total energy" in msg for msg in caplog.messages)
 
     def test_get_beta_unknown_schedule_returns_max(
         self, pupil: PupilModel, psf_data: PSFData

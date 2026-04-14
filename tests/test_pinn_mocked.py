@@ -34,7 +34,16 @@ class _FT:
     def __init__(self, data: object, dtype: np.dtype | None = None) -> None:
         if isinstance(data, _FT):
             data = data._d
-        self._d: np.ndarray = np.asarray(data, dtype=dtype or np.float64)
+        arr = np.asarray(data)
+        resolved_dtype = dtype or np.float64
+        # Avoid ComplexWarning when casting complex → real:
+        # take the real part explicitly instead of letting numpy silently discard
+        # the imaginary component.
+        if np.issubdtype(arr.dtype, np.complexfloating) and not np.issubdtype(
+            resolved_dtype, np.complexfloating
+        ):
+            arr = arr.real
+        self._d: np.ndarray = np.asarray(arr, dtype=resolved_dtype)
 
     # -- arithmetic ----------------------------------------------------
     def __add__(self, o: object) -> _FT:

@@ -49,9 +49,11 @@ class TestSanitizeFilename:
         assert "\x00" not in result
 
     def test_empty_name_raises_422(self) -> None:
+        from fastapi import HTTPException
+
         from web.utils import sanitize_filename
 
-        with pytest.raises(Exception):  # HTTPException
+        with pytest.raises(HTTPException):
             sanitize_filename("../../..")
 
     def test_special_characters_replaced(self) -> None:
@@ -76,10 +78,12 @@ class TestAssertPathWithin:
         assert result == child.resolve()
 
     def test_traversal_blocked(self, tmp_path) -> None:
+        from fastapi import HTTPException
+
         from web.utils import assert_path_within
 
         evil = tmp_path / ".." / ".." / "etc" / "passwd"
-        with pytest.raises(Exception):
+        with pytest.raises(HTTPException):
             assert_path_within(evil, tmp_path)
 
 
@@ -249,4 +253,6 @@ class TestJobQueueHelpers:
 
         status = get_job_status("nonexistent")
         assert status["error"] == "not_found"
+
+
 

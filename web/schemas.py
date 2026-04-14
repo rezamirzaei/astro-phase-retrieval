@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -273,7 +273,7 @@ class SyntheticRequest(BaseModel):
     background_level: float = Field(default=0.0, ge=0.0)
     bandwidth_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
     spectral_samples: int = Field(default=1, ge=1, le=15)
-    spectral_weighting: str = Field(default="delta", pattern="^(delta|gaussian|uniform)$")
+    spectral_weighting: Literal["delta", "gaussian", "uniform"] = Field(default="delta")
     field_defocus_waves: float = Field(default=0.0, ge=-5.0, le=5.0)
     detector_sigma_pixels: float = Field(default=0.0, ge=0.0, le=10.0)
     jitter_sigma_pixels: float = Field(default=0.0, ge=0.0, le=10.0)

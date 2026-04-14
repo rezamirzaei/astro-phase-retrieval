@@ -224,7 +224,8 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 
 # 1. CORS — must be outermost so pre-flight responses include CORS headers
-app.add_middleware(
+# noinspection PyTypeChecker
+app.add_middleware(  # type: ignore[arg-type]
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,

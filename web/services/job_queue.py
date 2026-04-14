@@ -108,6 +108,7 @@ class BackgroundJob:
             with self._queue_lock:
                 if self._queue is None:
                     self._queue = asyncio.Queue(maxsize=256)
+        assert self._queue is not None  # guaranteed by double-checked init above
         return self._queue
 
 
@@ -121,11 +122,13 @@ _jobs_lock = threading.Lock()
 
 def _get_pool() -> ThreadPoolExecutor:
     global _pool
-    if _pool is None:
+    pool = _pool
+    if pool is None:
         size = max(settings.max_concurrent_jobs, 2)
-        _pool = ThreadPoolExecutor(max_workers=size, thread_name_prefix="pr-job")
+        pool = ThreadPoolExecutor(max_workers=size, thread_name_prefix="pr-job")
+        _pool = pool
         logger.info("Created job thread-pool with %d workers", size)
-    return _pool
+    return pool
 
 
 def _evict_stale_jobs() -> None:

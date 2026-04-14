@@ -10,13 +10,13 @@ from fastapi import APIRouter, HTTPException
 
 from web.config import settings
 from web.dependencies import CurrentUser
-from web.utils import assert_path_within, sanitize_filename
 from web.schemas import (
     ArtifactContentResponse,
     ValidationCampaignRequest,
     ValidationCampaignResponse,
 )
 from web.services.study_service import run_web_validation_campaign
+from web.utils import assert_path_within, sanitize_filename
 
 router = APIRouter(prefix="/api/studies", tags=["studies"])
 

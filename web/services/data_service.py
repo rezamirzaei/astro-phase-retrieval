@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
@@ -62,7 +63,7 @@ def generate_synthetic_psf(
     background_level: float = 0.0,
     bandwidth_fraction: float = 0.0,
     spectral_samples: int = 1,
-    spectral_weighting: str = "delta",
+    spectral_weighting: Literal["delta", "gaussian", "uniform"] = "delta",
     field_defocus_waves: float = 0.0,
     detector_sigma_pixels: float = 0.0,
     jitter_sigma_pixels: float = 0.0,
